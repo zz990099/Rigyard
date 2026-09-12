@@ -1,0 +1,72 @@
+"""Actionable errors exposed by the parameter engine."""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(frozen=True)
+class SourceLocation:
+    path: Path
+    line: int | None = None
+    column: int | None = None
+
+    def __str__(self) -> str:
+        if self.line is None:
+            return str(self.path)
+        if self.column is None:
+            return f"{self.path}:{self.line}"
+        return f"{self.path}:{self.line}:{self.column}"
+
+
+class ToolchainError(Exception):
+    """Base class for errors suitable for CLI display."""
+
+    exit_code = 1
+
+    def __init__(self, message: str, location: SourceLocation | None = None) -> None:
+        self.message = message
+        self.location = location
+        super().__init__(self.render())
+
+    def render(self) -> str:
+        prefix = f"{self.location}: " if self.location else ""
+        return f"{prefix}{self.message}"
+
+
+class ConfigIOError(ToolchainError):
+    """The configuration could not be read or parsed as YAML."""
+
+    exit_code = 2
+
+
+class SchemaValidationError(ToolchainError):
+    """The YAML document does not conform to schema v1."""
+
+    exit_code = 2
+
+
+class DependencyError(ToolchainError):
+    """Parameter conditions contain invalid or cyclic dependencies."""
+
+    exit_code = 2
+
+
+class ResolutionError(ToolchainError):
+    """A parameter value could not be resolved or validated."""
+
+    exit_code = 3
+
+
+class MissingValueError(ResolutionError):
+    def __init__(self, names: Iterable[str]) -> None:
+        ordered = sorted(names)
+        joined = ", ".join(ordered)
+        super().__init__(
+            f"missing required parameter(s): {joined}; provide values, environment variables, "
+            "--set overrides, or run interactively"
+        )
+        self.names = tuple(ordered)
+

@@ -1,0 +1,30 @@
+version: 1
+
+parameters:
+  target:
+    type: choice
+    description: 运行目标
+    options: [simulation, hardware]
+    default: simulation
+
+  debug:
+    type: bool
+    default: false
+
+  vehicle_count:
+    type: int
+    default: 1
+    min: 1
+    max: 20
+
+  serial_device:
+    type: path
+    enabled_if:
+      target: hardware
+    required: true
+
+  labels:
+    type: list
+    item_type: string
+    default: [robot, development]
+
