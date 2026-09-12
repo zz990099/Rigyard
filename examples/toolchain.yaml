@@ -28,3 +28,17 @@ parameters:
     item_type: string
     default: [robot, development]
 
+images:
+  development:
+    base: ubuntu:22.04
+    context: .
+    tag: example/robot-development:latest
+    build_args:
+      VEHICLE_COUNT:
+        parameter: vehicle_count
+    layers:
+      - name: system
+        dockerfile: docker/layers/10-system.Dockerfile
+      - name: application
+        dockerfile: docker/layers/20-application.Dockerfile
+

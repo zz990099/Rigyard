@@ -70,3 +70,27 @@ class MissingValueError(ResolutionError):
         )
         self.names = tuple(ordered)
 
+
+class ImageConfigError(ToolchainError):
+    """An image definition or Dockerfile fragment is invalid."""
+
+    exit_code = 2
+
+
+class ImagePlanError(ToolchainError):
+    """An image definition cannot be materialized into a build plan."""
+
+    exit_code = 3
+
+
+class BackendUnavailableError(ToolchainError):
+    """The requested execution backend is not available."""
+
+    exit_code = 4
+
+
+class ImageBuildError(ToolchainError):
+    """A backend failed while building an image layer."""
+
+    exit_code = 4
+

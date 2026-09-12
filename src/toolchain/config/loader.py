@@ -11,6 +11,7 @@ from yaml.nodes import MappingNode, Node, SequenceNode
 
 from ..errors import ConfigIOError, SchemaValidationError, SourceLocation
 from ..parameters.models import ParameterSchema
+from .models import ToolchainConfig
 
 
 def _locations(node: Node, prefix: tuple[Any, ...] = ()) -> dict[tuple[Any, ...], tuple[int, int]]:
@@ -62,13 +63,13 @@ def _nearest_location(
     return SourceLocation(path, line, column)
 
 
-def load_schema(path: str | Path) -> ParameterSchema:
+def load_config(path: str | Path) -> ToolchainConfig:
     file_path = Path(path)
     data, locations = _read_yaml(file_path)
     if data is None:
         raise SchemaValidationError("schema must not be empty", SourceLocation(file_path))
     try:
-        return ParameterSchema.model_validate(data)
+        return ToolchainConfig.model_validate(data)
     except ValidationError as exc:
         first = exc.errors(include_url=False)[0]
         error_path = tuple(first.get("loc", ()))
@@ -76,6 +77,11 @@ def load_schema(path: str | Path) -> ParameterSchema:
         dotted = ".".join(str(part) for part in error_path)
         prefix = f"{dotted}: " if dotted else ""
         raise SchemaValidationError(f"{prefix}{first['msg']}", location) from exc
+
+
+def load_schema(path: str | Path) -> ParameterSchema:
+    """Compatibility API returning the parameter section of a project config."""
+    return load_config(path).parameter_schema()
 
 
 def load_values(path: str | Path) -> dict[str, Any]:

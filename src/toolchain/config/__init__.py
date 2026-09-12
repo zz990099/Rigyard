@@ -1,6 +1,6 @@
 """YAML project configuration loading."""
 
-from .loader import load_schema, load_values
+from .loader import load_config, load_schema, load_values
+from .models import ToolchainConfig
 
-__all__ = ["load_schema", "load_values"]
-
+__all__ = ["ToolchainConfig", "load_config", "load_schema", "load_values"]

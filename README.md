@@ -1,6 +1,6 @@
 # toolchain
 
-`toolchain` 是一个面向通用开发工具链的 YAML 声明式参数引擎。当前第一阶段只解决参数定义、依赖分析、分层取值、交互补全、类型校验和不可变结果输出；不包含 Docker、ROS、构建、测试或场景启动功能。
+`toolchain` 是一个配置驱动的通用开发工具链。当前已提供 YAML 声明式参数系统，以及按顺序组合 Dockerfile 片段的分层镜像构建能力。
 
 ## 状态与边界
 
@@ -9,6 +9,8 @@
 - 参数类型：`string`、`int`、`float`、`bool`、`choice`、`path`、`list`。
 - 条件采用结构化数据，不执行字符串表达式。
 - `choice.options` 是静态选项；第一阶段没有命令执行、变量插值、模板或动态选项。
+- 镜像由一个基础镜像和有序 layer 组成，每个 layer 自动继承上一层结果。
+- 当前 Docker Provider 使用本机 Docker CLI；不包含容器启动、Compose、多架构、推送和场景编排。
 
 ## 安装
 
@@ -123,6 +125,56 @@ required_if:
 
 值在选定最高优先级来源后只转换、校验一次。`bool` 接受 `true/false`、`yes/no`、`on/off`、`1/0`；`list` 接受 YAML list、JSON list 或逗号分隔字符串。values 文件和 CLI 中出现未知参数会报错。
 
+## 分层镜像
+
+镜像定义与参数放在同一个 `toolchain.yaml` 中：
+
+```yaml
+version: 1
+
+parameters:
+  base_image:
+    type: choice
+    options: [ubuntu:22.04, ubuntu:24.04]
+    default: ubuntu:22.04
+
+  ros_distro:
+    type: choice
+    options: [humble, jazzy]
+    default: humble
+
+images:
+  development:
+    base:
+      parameter: base_image
+    context: .
+    tag: example/robot-development:latest
+    build_args:
+      ROS_DISTRO:
+        parameter: ros_distro
+      DEBIAN_FRONTEND: noninteractive
+    layers:
+      - name: system
+        dockerfile: docker/layers/10-system.Dockerfile
+      - name: ros
+        dockerfile: docker/layers/20-ros.Dockerfile
+        build_args:
+          INSTALL_EXTRAS: false
+```
+
+`base`、`tag` 和 build argument 可以是 YAML 标量，也可以通过 `{parameter: name}` 显式引用已解析参数。项目级 build arguments 会与 layer 级参数合并，同名参数以 layer 为准。
+
+每个 layer 文件是 Dockerfile 片段，不能包含 `FROM`：
+
+```dockerfile
+ARG ROS_DISTRO
+RUN echo "Installing ROS ${ROS_DISTRO}"
+```
+
+工具链会自动生成完整 Dockerfile，并把前一层构建结果作为后一层的 `FROM`。中间镜像使用确定性的内部 tag，最后一层使用配置中的最终 tag。Docker parser directive、多阶段 `FROM`、动态 layer 和 Dockerfile 模板不属于当前版本。
+
+所有相对路径均以 `toolchain.yaml` 所在目录为基准。
+
 ## CLI
 
 ```bash
@@ -141,9 +193,15 @@ toolchain resolve toolchain.yaml \
 
 # CI 中禁止交互，缺少必填值立即失败
 toolchain resolve toolchain.yaml --non-interactive
+
+# 构建 development 镜像，参数解析规则与 resolve 完全相同
+toolchain image build toolchain.yaml development \
+  --values values.yaml \
+  --set ros_distro=humble \
+  --non-interactive
 ```
 
-退出码：`0` 成功，`2` 为 YAML、Schema 或依赖错误，`3` 为取值解析错误。
+退出码：`0` 成功，`2` 为 YAML、Schema、依赖或镜像定义错误，`3` 为参数/构建计划解析错误，`4` 为 Docker Backend 或镜像构建错误。
 
 > 环境变量和 CLI 参数可能出现在进程列表、Shell 历史或日志中。密码、令牌等敏感数据应由后续 Provider 的专用秘密输入机制处理；Schema v1 不提供 `secret` 类型。
 
@@ -165,7 +223,7 @@ print(context.resolved("debug").source)
 
 `ResolvedContext` 是只读 mapping，值来源通过 `resolved(name).source` 查询，未启用参数记录在 `context.disabled` 中。
 
-## 第一阶段验收范围
+## 当前实现范围
 
 - 合法 Schema 可稳定加载；错误包含文件、行列和字段路径。
 - 条件依赖拓扑排序确定，未知依赖和环被拒绝。
@@ -174,6 +232,11 @@ print(context.resolved("debug").source)
 - 交互模式补齐缺失必填值；非交互模式给出完整缺失列表。
 - 解析结果不可变并保留每个值的来源。
 - `validate`、`inspect`、`resolve` 可作为独立 CLI 使用。
+- `image build` 在调用 Docker 前生成完整且确定的有序构建计划。
+- Dockerfile 片段自动串接，最后生成用户指定的镜像 tag。
+- Docker Provider 只消费构建计划，不读取 YAML 或参数来源。
+- 镜像 Service 和 Planner 可使用 fake backend 完成无 Docker 单元测试。
 
-后续工具链能力将只消费 `ResolvedContext`，不直接读取 YAML、环境变量或终端输入，从而保持参数系统与 Docker、ROS、构建、测试等执行后端解耦。
+后续工具链能力只消费 `ResolvedContext`，不直接读取 YAML、环境变量或终端输入。镜像构建遵循 `配置模型 → 参数上下文 → 构建计划 → 应用服务 → Provider/Backend`，未来容器、交叉编译、场景、编译和测试能力将复用相同结构。
 
+更完整的模块职责、依赖方向和扩展约束见 [`docs/architecture.md`](docs/architecture.md)。

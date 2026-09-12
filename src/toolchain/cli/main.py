@@ -8,6 +8,7 @@ from collections.abc import Sequence
 
 from ..errors import ToolchainError
 from ..version import __version__
+from .commands.images import register_image_commands
 from .commands.parameters import register_parameter_commands
 
 
@@ -19,6 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
     register_parameter_commands(commands)
+    register_image_commands(commands)
     return parser
 
 
@@ -38,4 +40,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-from ...config.loader import load_schema, load_values
+from ...config.loader import load_config, load_values
 from ...parameters.context import ResolvedContext
 from ...parameters.resolver import ParameterEngine
 from ..common import emit, parse_overrides
@@ -51,7 +51,7 @@ def resolve_context(
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
     values = load_values(args.values) if args.values else {}
-    return ParameterEngine(load_schema(args.schema)).resolve(
+    return ParameterEngine(load_config(args.schema).parameter_schema()).resolve(
         values=values,
         overrides=overrides,
         interactive=not args.non_interactive,
@@ -59,13 +59,14 @@ def resolve_context(
 
 
 def _validate(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
-    ParameterEngine(load_schema(args.schema))
+    config = load_config(args.schema)
+    ParameterEngine(config.parameter_schema())
     print(f"OK: {args.schema}")
     return 0
 
 
 def _inspect(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
-    engine = ParameterEngine(load_schema(args.schema))
+    engine = ParameterEngine(load_config(args.schema).parameter_schema())
     emit(engine.inspect(), args.format)
     return 0
 
@@ -77,4 +78,3 @@ def _resolve(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         output["_disabled"] = sorted(context.disabled)
     emit(output, args.format)
     return 0
-
