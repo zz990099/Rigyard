@@ -62,6 +62,7 @@ class ImageLayerSpec(BaseModel):
 class ImageSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    description: str | None = None
     base: StringSource
     context: Path = Path(".")
     tag: StringSource

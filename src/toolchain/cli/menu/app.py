@@ -1,0 +1,218 @@
+"""Interactive frontend built on application use cases."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from ...application.images import BuildImageUseCase
+from ...application.parameters import ResolveParametersUseCase, ValidateConfigUseCase
+from ...application.requests import BuildImageRequest, ParameterRequest
+from ...errors import ResolutionError, ToolchainError
+from ...parameters.coercion import coerce_value
+from ...parameters.context import ResolvedContext
+from ...parameters.models import ParameterSpec, ParameterType
+from ...parameters.resolver import ParameterEngine
+from ...providers.docker import DockerImageBackend
+from .model import MenuAction, MenuRegistry
+from .prompt import MenuIO
+from .session import MenuSession
+
+BackendFactory = Callable[[], Any]
+_CANCEL = object()
+
+
+class MenuApp:
+    def __init__(
+        self,
+        io: MenuIO | None = None,
+        backend_factory: BackendFactory = DockerImageBackend,
+    ) -> None:
+        self.io = io or MenuIO()
+        self.backend_factory = backend_factory
+        self.registry = MenuRegistry(
+            (
+                MenuAction(
+                    "image.build",
+                    "Build image",
+                    self._build_image,
+                    enabled=lambda session: bool(session.config.images),
+                    disabled_reason="no images configured",
+                ),
+                MenuAction("parameters.configure", "Configure parameters", self._configure),
+                MenuAction("parameters.show", "Show effective parameters", self._show),
+                MenuAction("config.validate", "Validate configuration", self._validate),
+            )
+        )
+
+    def run(
+        self,
+        config_path: str | Path = Path("toolchain.yaml"),
+        values_path: str | Path | None = None,
+    ) -> int:
+        config_file = Path(config_path)
+        values_file = Path(values_path) if values_path is not None else None
+        config = ValidateConfigUseCase().execute(config_file)
+        session = MenuSession(config_file, config, values_file)
+
+        while True:
+            labels = [self._action_label(action, session) for action in self.registry.actions]
+            try:
+                selected = self.io.select(
+                    f"Toolchain\nConfiguration: {session.config_path}",
+                    labels,
+                    back_label="Exit",
+                )
+            except EOFError:
+                self.io.write()
+                return 0
+            except KeyboardInterrupt:
+                self.io.write("\nInterrupted")
+                return 130
+            if selected is None:
+                return 0
+
+            action = self.registry.actions[selected]
+            if not action.enabled(session):
+                self.io.write(f"Unavailable: {action.disabled_reason}")
+                continue
+            try:
+                action.handler(session)
+            except KeyboardInterrupt:
+                self.io.write("\nCancelled")
+            except EOFError:
+                self.io.write()
+                return 0
+            except ToolchainError as exc:
+                self.io.write(f"Error: {exc}")
+
+    def _action_label(self, action: MenuAction, session: MenuSession) -> str:
+        if action.enabled(session):
+            return action.label
+        return f"{action.label} [{action.disabled_reason}]"
+
+    def _validate(self, session: MenuSession) -> None:
+        session.config = ValidateConfigUseCase().execute(session.config_path)
+        self.io.write(f"OK: {session.config_path}")
+
+    def _request(self, session: MenuSession, *, interactive: bool) -> ParameterRequest:
+        return ParameterRequest(
+            config_path=session.config_path,
+            values_path=session.values_path,
+            overrides=session.overrides,
+            interactive=interactive,
+            input_fn=self.io.ask,
+        )
+
+    def _preview(self, session: MenuSession) -> ResolvedContext:
+        return ResolveParametersUseCase().execute(
+            self._request(session, interactive=False),
+            allow_missing=True,
+        )
+
+    def _show(self, session: MenuSession) -> None:
+        self._render_parameters(session, self._preview(session))
+
+    def _configure(self, session: MenuSession) -> None:
+        while True:
+            context = self._preview(session)
+            engine = ParameterEngine(session.config.parameter_schema())
+            names = list(engine.order)
+            labels = [self._parameter_label(name, session, context) for name in names]
+            if session.overrides:
+                labels.append("Clear all session overrides")
+            selected = self.io.select("Configure parameters", labels, back_label="Back")
+            if selected is None:
+                return
+            if selected == len(names):
+                session.overrides.clear()
+                self.io.write("Session overrides cleared.")
+                continue
+            name = names[selected]
+            if name in context.disabled:
+                self.io.write(f"{name} is currently disabled by its condition.")
+                continue
+            value = self._edit_value(name, session.config.parameters[name])
+            if value is _CANCEL:
+                continue
+            if value is None:
+                session.overrides.pop(name, None)
+                self.io.write(f"Cleared session override for {name}.")
+            else:
+                session.overrides[name] = value
+                self.io.write(f"{name} = {value!s} [session]")
+
+    def _parameter_label(
+        self,
+        name: str,
+        session: MenuSession,
+        context: ResolvedContext,
+    ) -> str:
+        if name in context.disabled:
+            return f"{name} = <disabled>"
+        if name not in context:
+            return f"{name} = <unset>"
+        source = "session" if name in session.overrides else context.resolved(name).source.value
+        return f"{name} = {context[name]!s} [{source}]"
+
+    def _render_parameters(
+        self, session: MenuSession, context: ResolvedContext
+    ) -> None:
+        self.io.write()
+        self.io.write("Effective parameters")
+        engine = ParameterEngine(session.config.parameter_schema())
+        for name in engine.order:
+            self.io.write(f"- {self._parameter_label(name, session, context)}")
+
+    def _edit_value(self, name: str, spec: ParameterSpec) -> Any:
+        if spec.type == ParameterType.CHOICE:
+            options = list(spec.options or ())
+            selected = self.io.select(
+                f"Set {name}",
+                [str(value) for value in options],
+                back_label="Cancel",
+            )
+            return _CANCEL if selected is None else options[selected]
+        if spec.type == ParameterType.BOOL:
+            selected = self.io.select(
+                f"Set {name}", ["true", "false"], back_label="Cancel"
+            )
+            return _CANCEL if selected is None else selected == 0
+
+        while True:
+            raw = self.io.ask(f"{name} (type :clear or :back): ")
+            if raw == ":back":
+                return _CANCEL
+            if raw == ":clear":
+                return None
+            try:
+                return coerce_value(name, raw, spec)
+            except ResolutionError as exc:
+                self.io.write(f"Error: {exc}")
+
+    def _build_image(self, session: MenuSession) -> None:
+        image_names = list(session.config.images)
+        labels = []
+        for name in image_names:
+            description = session.config.images[name].description
+            labels.append(f"{name} — {description}" if description else name)
+        selected = self.io.select("Build image", labels, back_label="Back")
+        if selected is None:
+            return
+        image_name = image_names[selected]
+        if not self.io.confirm(f"Build {image_name} now?"):
+            self.io.write("Build cancelled.")
+            return
+        result = BuildImageUseCase(self.backend_factory()).execute(
+            BuildImageRequest(
+                config_path=session.config_path,
+                image_name=image_name,
+                values_path=session.values_path,
+                overrides=session.overrides,
+                interactive=True,
+                input_fn=self.io.ask,
+            )
+        )
+        self.io.write(f"Built {result.final_tag} ({len(result.steps)} layer(s))")
+

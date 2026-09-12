@@ -74,6 +74,7 @@ class ParameterEngine:
         *,
         interactive: bool = True,
         input_fn: InputFunction = input,
+        allow_missing: bool = False,
     ) -> ResolvedContext:
         values = values or {}
         environ = os.environ if environ is None else environ
@@ -110,7 +111,7 @@ class ParameterEngine:
             raw, source = candidate
             resolved[name] = ResolvedValue(coerce_value(name, raw, spec), source)
 
-        if missing:
+        if missing and not allow_missing:
             raise MissingValueError(missing)
         return ResolvedContext(resolved, disabled)
 

@@ -4,12 +4,14 @@ The toolchain separates configuration, domain planning, application orchestratio
 
 ```mermaid
 flowchart TD
-    CLI[CLI] --> Config[Config loader]
-    CLI --> Parameters[Parameter resolver]
+    Commands[Command CLI] --> Application[Application use cases]
+    Menu[Interactive menu] --> Application
+    Application --> Config[Config loader]
+    Application --> Parameters[Parameter resolver]
     Parameters --> Context[ResolvedContext]
-    CLI --> Service[ImageBuildService]
-    Config --> Service
-    Context --> Service
+    Application --> Service[ImageBuildService]
+    Config --> Application
+    Context --> Application
     Service --> Planner[ImageBuildPlanner]
     Planner --> Plan[ImageBuildPlan]
     Service --> Port[ImageBuildBackend]
@@ -24,7 +26,11 @@ flowchart TD
 | `parameters` | Validate, order, and resolve declarative parameters | Know about images or Docker |
 | `images` | Validate image semantics, create plans, orchestrate builds | Read YAML or invoke subprocesses |
 | `providers.docker` | Translate build steps into Docker CLI calls | Read project configuration or parameter sources |
-| `cli` | Parse input, compose services, and render results | Contain domain rules or Docker command construction |
+| `application` | Accept typed requests and coordinate loaders, resolvers, and services | Render terminal output or depend on `argparse` |
+| `cli.commands` | Parse scriptable commands and render command results | Contain domain rules or construct Docker commands |
+| `cli.menu` | Manage prompts and in-memory session overrides | Call command handlers or persist parameter edits |
+
+The command frontend and menu frontend meet at application use cases. A menu action constructs the same `ParameterRequest` or `BuildImageRequest` as a command handler; it never synthesizes command-line arguments to invoke another frontend.
 
 ## Stable data boundaries
 
@@ -59,4 +65,3 @@ configuration model -> ResolvedContext -> immutable plan -> service -> backend/p
 ```
 
 Shared code should only move into a common package after at least two feature domains require the same abstraction. Avoid speculative `utils`, generic manager classes, and provider-specific fields in top-level domain models.
-

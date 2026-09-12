@@ -145,6 +145,7 @@ parameters:
 
 images:
   development:
+    description: Robot development environment
     base:
       parameter: base_image
     context: .
@@ -176,6 +177,35 @@ RUN echo "Installing ROS ${ROS_DISTRO}"
 所有相对路径均以 `toolchain.yaml` 所在目录为基准。
 
 ## CLI
+
+在交互式终端直接运行 `toolchain` 会打开编号菜单；菜单和子命令复用同一组应用层用例。菜单中的参数修改只在当前会话生效，不会改写配置文件。
+
+```console
+$ toolchain
+Toolchain
+Configuration: toolchain.yaml
+1. Build image
+2. Configure parameters
+3. Show effective parameters
+4. Validate configuration
+0. Exit
+Select: 1
+
+Build image
+1. development — Robot development environment
+0. Back
+Select: 1
+Build development now? [y/N]: y
+Built example/robot-development:latest (2 layer(s))
+```
+
+默认读取当前目录的 `toolchain.yaml`。也可以为菜单指定配置和 values 文件：
+
+```bash
+toolchain --config projects/robot/toolchain.yaml --values values.local.yaml
+```
+
+无子命令且 stdin 或 stdout 不是 TTY 时，程序打印帮助并以状态码 `2` 退出，避免 CI 意外等待输入。完整交互规则见 [CLI 菜单设计](docs/cli-menu.md)。原有子命令保持可组合、可脚本化：
 
 ```bash
 # 校验 YAML、Schema、条件依赖和默认值

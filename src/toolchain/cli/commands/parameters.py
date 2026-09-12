@@ -6,9 +6,12 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-from ...config.loader import load_config, load_values
-from ...parameters.context import ResolvedContext
-from ...parameters.resolver import ParameterEngine
+from ...application.parameters import (
+    InspectParametersUseCase,
+    ResolveParametersUseCase,
+    ValidateConfigUseCase,
+)
+from ...application.requests import ParameterRequest
 from ..common import emit, parse_overrides
 
 
@@ -31,7 +34,12 @@ def register_parameter_commands(commands: Any) -> None:
 
 
 def add_resolution_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--values", type=Path, help="optional YAML values mapping")
+    parser.add_argument(
+        "--values",
+        type=Path,
+        default=argparse.SUPPRESS,
+        help="optional YAML values mapping",
+    )
     parser.add_argument(
         "--set",
         dest="sets",
@@ -43,36 +51,34 @@ def add_resolution_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--non-interactive", action="store_true")
 
 
-def resolve_context(
+def parameter_request(
     args: argparse.Namespace, parser: argparse.ArgumentParser
-) -> ResolvedContext:
+) -> ParameterRequest:
     try:
         overrides = parse_overrides(args.sets)
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
-    values = load_values(args.values) if args.values else {}
-    return ParameterEngine(load_config(args.schema).parameter_schema()).resolve(
-        values=values,
+    return ParameterRequest(
+        config_path=args.schema,
+        values_path=args.values,
         overrides=overrides,
         interactive=not args.non_interactive,
     )
 
 
 def _validate(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
-    config = load_config(args.schema)
-    ParameterEngine(config.parameter_schema())
+    ValidateConfigUseCase().execute(args.schema)
     print(f"OK: {args.schema}")
     return 0
 
 
 def _inspect(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
-    engine = ParameterEngine(load_config(args.schema).parameter_schema())
-    emit(engine.inspect(), args.format)
+    emit(InspectParametersUseCase().execute(args.schema), args.format)
     return 0
 
 
 def _resolve(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
-    context = resolve_context(args, parser)
+    context = ResolveParametersUseCase().execute(parameter_request(args, parser))
     output = context.as_dict(include_sources=args.with_sources)
     if context.disabled:
         output["_disabled"] = sorted(context.disabled)
