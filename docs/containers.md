@@ -1,9 +1,21 @@
 # Container creation
 
-`toolchain container create CONFIG NAME` creates **and starts** a new container with
+`toolchain container create NAME` reads the project toolchain configuration, selects
+`containers.NAME`, and creates **and starts** a new container with
 `docker run`. Defaults are interactive stdin, a pseudo-TTY, and detached execution
 (`-itd`). Foreground attachment and lifecycle management are not part of this phase.
 `detach: false` is rejected rather than exposing an incomplete terminal adapter.
+
+The project configuration defaults to `./toolchain.yaml`. Use the global
+`--config/-f` option before the subcommand to select another file:
+
+```bash
+toolchain container create development
+toolchain --config examples/container.yaml container create development
+```
+
+Here `development` is the key under the top-level `containers` mapping. It is not
+a file path or an arbitrary Docker mode.
 
 ## Architecture
 

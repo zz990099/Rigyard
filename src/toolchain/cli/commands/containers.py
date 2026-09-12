@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from typing import Any
 
 from ...application.containers import CreateContainerUseCase
@@ -18,8 +17,10 @@ def register_container_commands(commands: Any) -> None:
     container = commands.add_parser("container", help="create and start containers")
     actions = container.add_subparsers(dest="container_command", required=True)
     create = actions.add_parser("create", help="create and start a new detached container")
-    create.add_argument("schema", type=Path)
-    create.add_argument("container_name")
+    create.add_argument(
+        "container_name",
+        help="container configuration name under the top-level containers mapping",
+    )
     create.add_argument("--dry-run", action="store_true", help="show a plan without running Docker")
     add_resolution_arguments(create)
     create.set_defaults(handler=_create)
@@ -34,7 +35,7 @@ def _create(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = use_case.plan(
         args.container_name,
         ParameterRequest(
-            config_path=args.schema,
+            config_path=args.config_path,
             values_path=args.values,
             overrides=overrides,
             interactive=not args.non_interactive,

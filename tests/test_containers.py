@@ -218,14 +218,14 @@ containers:
     return path
 
 
-def test_cli_dry_run_and_create(tmp_path, monkeypatch, capsys):
-    config = write_config(tmp_path)
+def test_cli_dry_run_and_create_uses_default_project_config(tmp_path, monkeypatch, capsys):
+    write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
     backend = FakeBackend()
     monkeypatch.setattr("toolchain.cli.commands.containers.DockerContainerBackend", lambda: backend)
     command = [
         "container",
         "create",
-        str(config),
         "dev",
         "--non-interactive",
         "--set",
@@ -238,6 +238,19 @@ def test_cli_dry_run_and_create(tmp_path, monkeypatch, capsys):
     assert run(command) == 0
     assert backend.plans[0].container_name == "chosen"
     assert "Created and started chosen" in capsys.readouterr().out
+
+
+def test_cli_global_config_selects_project_and_container_key(tmp_path, monkeypatch, capsys):
+    config = write_config(tmp_path)
+    backend = FakeBackend()
+    monkeypatch.setattr("toolchain.cli.commands.containers.DockerContainerBackend", lambda: backend)
+
+    assert run([
+        "--config", str(config), "container", "create", "dev",
+        "--non-interactive",
+    ]) == 0
+    assert backend.plans[0].container_name == "default-name"
+    assert "Created and started default-name" in capsys.readouterr().out
 
 
 def test_unknown_container_and_parameter_priority(tmp_path, monkeypatch):

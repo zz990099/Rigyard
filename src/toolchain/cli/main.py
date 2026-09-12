@@ -25,10 +25,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-f",
         "--config",
-        dest="menu_config",
+        dest="config_path",
         type=Path,
         default=Path("toolchain.yaml"),
-        help="configuration file used by the interactive menu",
+        help="toolchain configuration file (default: ./toolchain.yaml)",
     )
     parser.add_argument(
         "--values",
@@ -61,7 +61,7 @@ def run(
             if not io.is_interactive:
                 parser.print_help(file=output_stream)
                 return 2
-            return MenuApp(io).run(args.menu_config, args.values)
+            return MenuApp(io).run(args.config_path, args.values)
         return args.handler(args, parser)
     except ToolchainError as exc:
         print(f"Error: {exc}", file=error_stream)

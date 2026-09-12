@@ -244,16 +244,24 @@ toolchain image build toolchain.yaml development \
 
 ```bash
 # 不调用 Docker，只检查参数并显示计划（不显示 environment 的值）
-toolchain container create examples/container.yaml development --dry-run \
+toolchain --config examples/container.yaml container create development --dry-run \
   --set image=your/robot:latest --non-interactive
 
 # 创建并启动容器；默认执行示例中的 /bin/bash
-toolchain container create examples/container.yaml development \
+toolchain --config examples/container.yaml container create development \
   --set container_name=robot-dev --set image=your/robot:latest
 
 # 菜单中选择 5) Create container
 toolchain --config examples/container.yaml
 ```
+
+项目根目录使用标准文件名时无需提供路径：
+
+```bash
+toolchain container create development
+```
+
+其中 `development` 对应配置里的 `containers.development`。
 
 示例需要宿主机设置 `DISPLAY` 和 `USER`，并存在对应设备和挂载源。
 环境引用写作 `{env: DISPLAY}`，参数引用写作 `{parameter: image}`；不展开
