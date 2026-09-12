@@ -3,84 +3,57 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from toolchain.config.loader import load_config, load_schema
+from toolchain.config.loader import load_config
 from toolchain.config.models import ToolchainConfig
-from toolchain.images.models import ParameterRef
+from toolchain.parameters.models import PromptValue
 
 
-def test_project_config_composes_parameters_and_images(tmp_path: Path) -> None:
-    config_file = tmp_path / "toolchain.yaml"
-    config_file.write_text(
-        """\
-version: 1
-parameters:
-  distro:
-    default: humble
+def test_project_config_contains_inline_image_prompts(tmp_path: Path):
+    path = tmp_path / "toolchain.yaml"
+    path.write_text("""version: 1
 images:
   development:
-    base: ubuntu:22.04
+    base:
+      default: ubuntu:22.04
+      prompt:
+        mode: select
+        message: Select base
+        options: [ubuntu:22.04, ubuntu:24.04]
     tag: example/development:latest
     build_args:
-      ROS_DISTRO:
-        parameter: distro
+      MODE:
+        default: release
+        prompt: {mode: input, message: Build mode}
     layers:
       - name: system
         dockerfile: system.Dockerfile
-""",
-        encoding="utf-8",
-    )
-    config = load_config(config_file)
-    assert isinstance(config.images["development"].build_args["ROS_DISTRO"], ParameterRef)
-    assert load_schema(config_file).parameters["distro"].default == "humble"
-
-
-def test_empty_parameter_section_is_supported() -> None:
-    config = ToolchainConfig.model_validate(
-        {
-            "version": 1,
-            "images": {
-                "minimal": {
-                    "base": "scratch",
-                    "tag": "example/minimal:latest",
-                    "layers": [{"name": "files", "dockerfile": "files.Dockerfile"}],
-                }
-            },
-        }
-    )
-    assert config.parameters == {}
+""")
+    image = load_config(path).images["development"]
+    assert isinstance(image.base, PromptValue)
+    assert isinstance(image.build_args["MODE"], PromptValue)
 
 
 @pytest.mark.parametrize(
     "image",
     [
+        {"base": "ubuntu", "tag": "test", "layers": []},
         {
-            "base": "ubuntu:22.04",
-            "tag": "example/test:latest",
-            "layers": [],
-        },
-        {
-            "base": "ubuntu:22.04",
-            "tag": "example/test:latest",
+            "base": "ubuntu",
+            "tag": "test",
             "layers": [
                 {"name": "same", "dockerfile": "one"},
                 {"name": "same", "dockerfile": "two"},
             ],
         },
         {
-            "base": "ubuntu:22.04",
-            "tag": "example/test:latest",
-            "build_args": {"BAD-NAME": "value"},
+            "base": "ubuntu",
+            "tag": "test",
+            "build_args": {"BAD-NAME": "x"},
             "layers": [{"name": "one", "dockerfile": "one"}],
         },
-        {
-            "base": 22,
-            "tag": "example/test:latest",
-            "layers": [{"name": "one", "dockerfile": "one"}],
-        },
+        {"base": 22, "tag": "test", "layers": [{"name": "one", "dockerfile": "one"}]},
     ],
 )
-def test_invalid_image_definitions_are_rejected(image) -> None:
+def test_invalid_image_templates_are_rejected(image):
     with pytest.raises(ValidationError):
-        ToolchainConfig.model_validate(
-            {"version": 1, "parameters": {}, "images": {"test": image}}
-        )
+        ToolchainConfig.model_validate({"version": 1, "images": {"test": image}})

@@ -1,310 +1,140 @@
-# toolchain
+# Toolchain
 
-`toolchain` 是一个配置驱动的通用开发工具链。当前已提供 YAML 声明式参数系统，以及按顺序组合 Dockerfile 片段的分层镜像构建能力。
+Toolchain 是一个配置驱动的开发环境工具。它目前支持分层构建 Docker 镜像，以及从命名配置创建开发容器；同一套应用层同时服务于直接 CLI 和交互式菜单。
 
-## 状态与边界
+## 快速开始
 
-- Schema 只支持 YAML，版本固定为 `1`。
-- 运行时要求 Python 3.10+。
-- 参数类型：`string`、`int`、`float`、`bool`、`choice`、`path`、`list`。
-- 条件采用结构化数据，不执行字符串表达式。
-- `choice.options` 是静态选项；第一阶段没有命令执行、变量插值、模板或动态选项。
-- 镜像由一个基础镜像和有序 layer 组成，每个 layer 自动继承上一层结果。
-- 当前 Docker Provider 使用本机 Docker CLI，支持镜像构建和容器创建启动；不包含 Compose、多架构、推送和场景编排。
-
-## 安装
+项目默认读取当前目录的 `toolchain.yaml`。直接运行 `toolchain` 进入菜单；自动化或熟悉配置后可直接执行：
 
 ```bash
-python -m pip install -e .
-```
-
-开发环境：
-
-```bash
-python -m pip install -e '.[dev]'
-pytest
-ruff check .
-```
-
-## Schema v1
-
-```yaml
-version: 1
-
-parameters:
-  target:
-    type: choice
-    description: 运行目标
-    options: [simulation, hardware]
-    default: simulation
-
-  debug:
-    type: bool
-    default: false
-
-  vehicle_count:
-    type: int
-    default: 1
-    min: 1
-    max: 20
-
-  serial_device:
-    type: path
-    enabled_if:
-      target: hardware
-    required: true
-
-  namespace:
-    type: string
-    pattern: "^[a-z][a-z0-9_]*$"
-    required_if:
-      all:
-        - target: simulation
-        - not:
-            debug: true
-
-  labels:
-    type: list
-    item_type: string
-    min: 1
-```
-
-每个参数支持以下字段：
-
-| 字段 | 含义 |
-|---|---|
-| `type` | 参数类型，省略时为 `string` |
-| `description` | 交互提示所用说明 |
-| `default` | 内置默认值 |
-| `required` | 参数启用时始终必填 |
-| `enabled_if` | 条件为真时启用；禁用参数不进入结果 |
-| `required_if` | 条件为真时必填 |
-| `options` | `choice` 的非空静态选项 |
-| `min` / `max` | 数字的闭区间，或 `list` 的长度范围 |
-| `pattern` | `string` 的完整匹配正则表达式 |
-| `must_exist` | `path` 是否必须在解析时存在 |
-| `item_type` | `list` 元素类型；不支持嵌套 `list` |
-
-参数名必须匹配 `^[A-Za-z][A-Za-z0-9_.-]*$`。
-
-### 条件语法
-
-普通 mapping 表示所有键均与已解析值相等：
-
-```yaml
-enabled_if:
-  target: hardware
-  debug: false
-```
-
-复杂条件仅支持 `all`、`any` 和 `not`，每个操作符 mapping 只能有一个键：
-
-```yaml
-required_if:
-  any:
-    - target: hardware
-    - all:
-        - target: simulation
-        - not:
-            debug: true
-```
-
-条件引用形成显式依赖 DAG。引擎会先拒绝未知引用、自引用和循环依赖，再按稳定的拓扑顺序解析。
-
-## 取值与优先级
-
-优先级从低到高固定为：
-
-1. Schema 中的 `default`
-2. `--values` 指定的 YAML mapping
-3. 环境变量 `TOOL_PARAM_<参数名大写>`
-4. 可重复的 CLI `--set NAME=VALUE`
-5. 前四层都未提供必填值时，交互式输入
-
-参数名中的点、连字符等非字母数字字符在环境变量中转换为下划线。例如 `build.type` 对应 `TOOL_PARAM_BUILD_TYPE`。若两个参数映射到同一环境变量，Schema 会被拒绝。
-
-值在选定最高优先级来源后只转换、校验一次。`bool` 接受 `true/false`、`yes/no`、`on/off`、`1/0`；`list` 接受 YAML list、JSON list 或逗号分隔字符串。values 文件和 CLI 中出现未知参数会报错。
-
-## 分层镜像
-
-镜像定义与参数放在同一个 `toolchain.yaml` 中：
-
-```yaml
-version: 1
-
-parameters:
-  base_image:
-    type: choice
-    options: [ubuntu:22.04, ubuntu:24.04]
-    default: ubuntu:22.04
-
-  ros_distro:
-    type: choice
-    options: [humble, jazzy]
-    default: humble
-
-images:
-  development:
-    description: Robot development environment
-    base:
-      parameter: base_image
-    context: .
-    tag: example/robot-development:latest
-    build_args:
-      ROS_DISTRO:
-        parameter: ros_distro
-      DEBIAN_FRONTEND: noninteractive
-    layers:
-      - name: system
-        dockerfile: docker/layers/10-system.Dockerfile
-      - name: ros
-        dockerfile: docker/layers/20-ros.Dockerfile
-        build_args:
-          INSTALL_EXTRAS: false
-```
-
-`base`、`tag` 和 build argument 可以是 YAML 标量，也可以通过 `{parameter: name}` 显式引用已解析参数。项目级 build arguments 会与 layer 级参数合并，同名参数以 layer 为准。
-
-每个 layer 文件是 Dockerfile 片段，不能包含 `FROM`：
-
-```dockerfile
-ARG ROS_DISTRO
-RUN echo "Installing ROS ${ROS_DISTRO}"
-```
-
-工具链会自动生成完整 Dockerfile，并把前一层构建结果作为后一层的 `FROM`。中间镜像使用确定性的内部 tag，最后一层使用配置中的最终 tag。Docker parser directive、多阶段 `FROM`、动态 layer 和 Dockerfile 模板不属于当前版本。
-
-所有相对路径均以 `toolchain.yaml` 所在目录为基准。
-
-## CLI
-
-在交互式终端直接运行 `toolchain` 会打开编号菜单；菜单和子命令复用同一组应用层用例。菜单中的参数修改只在当前会话生效，不会改写配置文件。
-
-```console
-$ toolchain
-Toolchain
-Configuration: toolchain.yaml
-1. Build image
-2. Configure parameters
-3. Show effective parameters
-4. Validate configuration
-0. Exit
-Select: 1
-
-Build image
-1. development — Robot development environment
-0. Back
-Select: 1
-Build development now? [y/N]: y
-Built example/robot-development:latest (2 layer(s))
-```
-
-默认读取当前目录的 `toolchain.yaml`。也可以为菜单指定配置和 values 文件：
-
-```bash
-toolchain --config projects/robot/toolchain.yaml --values values.local.yaml
-```
-
-无子命令且 stdin 或 stdout 不是 TTY 时，程序打印帮助并以状态码 `2` 退出，避免 CI 意外等待输入。完整交互规则见 [CLI 菜单设计](docs/cli-menu.md)。原有子命令保持可组合、可脚本化：
-
-```bash
-# 校验 YAML、Schema、条件依赖和默认值
-toolchain validate toolchain.yaml
-
-# 查看参数依赖、拓扑顺序和环境变量名
-toolchain inspect toolchain.yaml --format yaml
-
-# 解析；缺少必填值时交互询问
-toolchain resolve toolchain.yaml \
-  --values values.yaml \
-  --set target=hardware \
-  --with-sources \
-  --format json
-
-# CI 中禁止交互，缺少必填值立即失败
-toolchain resolve toolchain.yaml --non-interactive
-
-# 构建 development 镜像，参数解析规则与 resolve 完全相同
-toolchain image build toolchain.yaml development \
-  --values values.yaml \
-  --set ros_distro=humble \
-  --non-interactive
-```
-
-退出码：`0` 成功，`2` 为 YAML、Schema、依赖或镜像定义错误，`3` 为参数/构建计划解析错误，`4` 为 Docker Backend 或镜像构建错误。
-
-> 环境变量和 CLI 参数可能出现在进程列表、Shell 历史或日志中。密码、令牌等敏感数据应由后续 Provider 的专用秘密输入机制处理；Schema v1 不提供 `secret` 类型。
-
-## 容器创建与启动
-
-`container create` 底层执行 `docker run`，默认 `-i -t -d`。完整配置示例见
-[examples/container.yaml](examples/container.yaml)，架构和边界见
-[容器设计](docs/containers.md)。`privileged` 默认为 `false`，示例显式启用了
-特权、host 网络、host IPC 和设备挂载，仅适合可信的本地开发环境。
-
-```bash
-# 不调用 Docker，只检查参数并显示计划（不显示 environment 的值）
-toolchain --config examples/container.yaml container create development --dry-run \
-  --set image=your/robot:latest --non-interactive
-
-# 创建并启动容器；默认执行示例中的 /bin/bash
-toolchain --config examples/container.yaml container create development \
-  --set container_name=robot-dev --set image=your/robot:latest
-
-# 菜单中选择 5) Create container
-toolchain --config examples/container.yaml
-```
-
-项目根目录使用标准文件名时无需提供路径：
-
-```bash
+toolchain image build development
 toolchain container create development
 ```
 
-其中 `development` 对应配置里的 `containers.development`。
+用 `--config` 切换项目配置：
 
-示例需要宿主机设置 `DISPLAY` 和 `USER`，并存在对应设备和挂载源。
-环境引用写作 `{env: DISPLAY}`，参数引用写作 `{parameter: image}`；不展开
-`${...}`，不执行 Shell。`mounts` 默认是 bind 挂载，相对路径以配置目录为基准，
-使用 Docker `--mount`，不存在的 bind 源由 Docker 报错，不自动创建目录。
-`environment.USER` / `DOCKER_USER` 仅设置环境变量，不切换容器运行用户。
-
-同名容器已存在时直接报错，不自动删除或替换。成功输出表示 Docker 已接受
-后台启动，不代表应用健康检查通过。当前仅支持后台模式，不支持
-`detach: false`、任意附加选项串、自动构建镜像和创建后脚本。
-
-## Python API
-
-```python
-from toolchain import ParameterEngine, load_schema, load_values
-
-engine = ParameterEngine(load_schema("toolchain.yaml"))
-context = engine.resolve(
-    values=load_values("values.yaml"),
-    overrides={"debug": "true"},
-    interactive=False,
-)
-
-print(context["debug"])
-print(context.resolved("debug").source)
+```bash
+toolchain --config examples/toolchain.yaml image build development
+toolchain --config examples/toolchain.yaml container create development --dry-run
 ```
 
-`ResolvedContext` 是只读 mapping，值来源通过 `resolved(name).source` 查询，未启用参数记录在 `context.disabled` 中。
+`development` 是 `images` 或 `containers` 下的配置名称，不是文件路径。
 
-## 当前实现范围
+## 配置
 
-- 合法 Schema 可稳定加载；错误包含文件、行列和字段路径。
-- 条件依赖拓扑排序确定，未知依赖和环被拒绝。
-- 默认值、values、环境变量、CLI 的覆盖顺序可测试且固定。
-- 所有七种参数类型均完成转换和约束校验。
-- 交互模式补齐缺失必填值；非交互模式给出完整缺失列表。
-- 解析结果不可变并保留每个值的来源。
-- `validate`、`inspect`、`resolve` 可作为独立 CLI 使用。
-- `image build` 在调用 Docker 前生成完整且确定的有序构建计划。
-- Dockerfile 片段自动串接，最后生成用户指定的镜像 tag。
-- Docker Provider 只消费构建计划，不读取 YAML 或参数来源。
-- 镜像 Service 和 Planner 可使用 fake backend 完成无 Docker 单元测试。
+固定值直接写在业务字段中。需要在运行时获取的值使用内联 `default` 和 `prompt`：
 
-后续工具链能力只消费 `ResolvedContext`，不直接读取 YAML、环境变量或终端输入。镜像构建遵循 `配置模型 → 参数上下文 → 构建计划 → 应用服务 → Provider/Backend`，未来容器、交叉编译、场景、编译和测试能力将复用相同结构。
+```yaml
+version: 1
 
-更完整的模块职责、依赖方向和扩展约束见 [`docs/architecture.md`](docs/architecture.md)。
+images:
+  development:
+    base:
+      default: ubuntu:22.04
+      prompt:
+        mode: select
+        message: Select the base image
+        options: [ubuntu:22.04, ubuntu:24.04]
+    tag: example/development:latest
+    layers:
+      - name: system
+        dockerfile: docker/system.Dockerfile
+
+containers:
+  development:
+    image: example/development:latest
+    privileged:
+      default: false
+      prompt:
+        mode: confirm
+        message: Enable privileged mode?
+    mounts:
+      default: ["../:/workspace", "cache:/cache:ro"]
+      prompt:
+        mode: input
+        repeat: true
+        message: Enter a mount
+    workdir: /workspace
+    command: [/bin/bash]
+```
+
+无需顶层 `parameters` 声明，也没有参数引用。只有执行被选中的镜像或容器配置时，才会解析该子树中的运行时值。
+
+### 交互模式
+
+| `mode` | 用途 | 约束 |
+| --- | --- | --- |
+| `input` | 单项文本输入 | `repeat: true` 时重复输入并返回列表 |
+| `confirm` | 是/否确认 | 值为布尔值 |
+| `select` | 从候选项中选择 | 必须设置非空 `options` |
+
+交互模式只描述怎样取值。最终的数据类型由值所在的镜像或容器字段模型校验。交互模式默认关闭：普通标量或列表不会询问用户。
+
+### 值来源和优先级
+
+显式值来源从低到高依次为：
+
+1. 内联 `default`
+2. values YAML
+3. `TOOL_PARAM_<配置路径>` 环境变量
+4. `--set PATH=VALUE`
+
+没有显式来源且启用交互时才读取交互输入。即使存在默认值也会询问，直接回车才采用默认值。`--non-interactive` 下不会读取终端；缺少默认值和显式来源时会报错。
+
+values 文件保持与主配置相同的树结构：
+
+```yaml
+images:
+  development:
+    base: ubuntu:24.04
+containers:
+  development:
+    privileged: true
+```
+
+命令行使用完整配置路径，值按 YAML 标量或集合解析：
+
+```bash
+toolchain container create development \
+  --non-interactive \
+  --set containers.development.privileged=true \
+  --set 'containers.development.mounts=["./:/workspace"]'
+```
+
+### 容器挂载
+
+`mounts` 是字符串列表，不使用 `source`/`target` 对象：
+
+```yaml
+mounts:
+  - /dev:/dev
+  - ../:/workspace
+  - cache:/cache:ro
+```
+
+格式为 `SOURCE:TARGET[:ro|rw]`。`SOURCE` 以 `/`、`.` 或 `~` 开头时解析为 bind mount，否则解析为 named volume；相对 bind 路径相对于配置文件所在目录。
+
+## 命令
+
+```bash
+toolchain                              # 交互式菜单
+toolchain validate                     # 校验配置结构
+toolchain inspect                      # 列出内联运行时值
+toolchain resolve --non-interactive    # 解析并校验全部运行时值
+toolchain image build NAME             # 构建分层镜像
+toolchain container create NAME        # 创建并启动容器
+toolchain container create NAME --dry-run
+```
+
+镜像层按声明顺序构建，每层以上一层输出为基础，最后一层使用配置的目标 tag。容器固定使用 detached 模式，并默认生成与 `docker run -itd` 对应的参数；`--dry-run` 只展示已经解析、校验和规范化的计划。
+
+## 开发
+
+```bash
+uv sync --extra dev
+uv run pytest
+uv run ruff check src tests
+uv run ruff format --check src tests
+```
+
+详细设计见 [架构](docs/architecture.md)、[CLI 与菜单](docs/cli-menu.md) 和 [容器配置](docs/containers.md)。

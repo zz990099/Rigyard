@@ -7,9 +7,7 @@ import re
 from pathlib import Path
 
 from ..errors import ImageConfigError, ImagePlanError, SourceLocation
-from ..parameters.context import ResolvedContext
 from .models import ImageBuildPlan, ImageBuildStep, ImageSpec
-from .values import resolve_scalar
 
 FROM_INSTRUCTION = re.compile(r"^\s*FROM(?:\s|$)", re.IGNORECASE | re.MULTILINE)
 PARSER_DIRECTIVE = re.compile(r"^\s*#\s*(?:syntax|escape)\s*=", re.IGNORECASE | re.MULTILINE)
@@ -21,7 +19,6 @@ class ImageBuildPlanner:
         self,
         image_name: str,
         spec: ImageSpec,
-        context: ResolvedContext,
         config_path: str | Path,
     ) -> ImageBuildPlan:
         config_file = Path(config_path).resolve()
@@ -33,8 +30,8 @@ class ImageBuildPlanner:
                 SourceLocation(config_file),
             )
 
-        base = resolve_scalar(spec.base, context, f"images.{image_name}.base")
-        final_tag = resolve_scalar(spec.tag, context, f"images.{image_name}.tag")
+        base = spec.base
+        final_tag = spec.tag
         _validate_reference(base, f"images.{image_name}.base")
         _validate_reference(final_tag, f"images.{image_name}.tag", output=True)
 
@@ -45,13 +42,8 @@ class ImageBuildPlanner:
             fragment = _read_fragment(layer_path, image_name, layer.name)
             sources = {**spec.build_args, **layer.build_args}
             build_args = {
-                name: resolve_scalar(
-                    source,
-                    context,
-                    f"images.{image_name}.layers[{index - 1}].build_args.{name}",
-                    allow_empty=True,
-                )
-                for name, source in sorted(sources.items())
+                name: str(value).lower() if isinstance(value, bool) else str(value)
+                for name, value in sorted(sources.items())
             }
             output_tag = (
                 final_tag
@@ -107,11 +99,8 @@ def _validate_reference(value: str, field: str, *, output: bool = False) -> None
         raise ImagePlanError(f"{field} must be a tag, not an immutable digest")
 
 
-def _intermediate_tag(
-    config_file: Path, image_name: str, index: int, layer_name: str
-) -> str:
+def _intermediate_tag(config_file: Path, image_name: str, index: int, layer_name: str) -> str:
     project_id = hashlib.sha256(str(config_file).encode()).hexdigest()[:12]
     image_slug = re.sub(r"[^a-z0-9_.-]", "-", image_name.lower())
     layer_slug = re.sub(r"[^a-z0-9_.-]", "-", layer_name.lower())
     return f"toolchain.local/{project_id}/{image_slug}:{index:02d}-{layer_slug}"
-

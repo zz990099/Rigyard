@@ -1,4 +1,4 @@
-"""Resolve container definitions without I/O or backend calls."""
+"""Validate a resolved container definition and create an immutable plan."""
 
 from __future__ import annotations
 
@@ -7,15 +7,7 @@ from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 
 from ..errors import ContainerPlanError
-from ..parameters.context import ResolvedContext
-from ..parameters.references import ParameterRef
-from .models import (
-    ContainerMount,
-    ContainerRunPlan,
-    ContainerSpec,
-    EnvironmentRef,
-    ValueSource,
-)
+from .models import ContainerMount, ContainerRunPlan, ContainerSpec, EnvironmentRef
 
 
 class ContainerRunPlanner:
@@ -23,79 +15,84 @@ class ContainerRunPlanner:
         self,
         key: str,
         spec: ContainerSpec,
-        context: ResolvedContext,
         config_path: Path,
         environment: Mapping[str, str],
     ) -> ContainerRunPlan:
-        def resolve(source: ValueSource, field: str, *, empty: bool = False) -> str:
-            value: object = source
-            if isinstance(source, ParameterRef):
-                if source.parameter not in context:
-                    raise ContainerPlanError(f"{field}: unresolved parameter {source.parameter!r}")
-                value = context[source.parameter]
-            elif isinstance(source, EnvironmentRef):
-                value = environment.get(source.env, source.default)
-                if value is None:
-                    raise ContainerPlanError(f"{field}: missing host environment {source.env!r}")
-            if not isinstance(value, (str, int, float, bool, Path)):
-                raise ContainerPlanError(f"{field}: expected a scalar value")
-            rendered = str(value).lower() if isinstance(value, bool) else str(value)
-            if "\x00" in rendered or (not empty and not rendered):
-                raise ContainerPlanError(f"{field}: empty values or NUL bytes are not allowed")
-            return rendered
-
-        def optional(source: ValueSource | None, field: str) -> str | None:
-            return None if source is None else resolve(source, field)
-
-        name = resolve(spec.name if spec.name is not None else key, "name")
+        name = spec.name or key
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name):
             raise ContainerPlanError("invalid container name")
-        image = resolve(spec.image, "image")
-        if image.startswith("-") or any(char.isspace() for char in image):
+        if not spec.image or spec.image.startswith("-") or any(c.isspace() for c in spec.image):
             raise ContainerPlanError("image must be one image reference, not flags or a command")
-        mounts = []
-        targets = set()
-        for mount in spec.mounts:
-            source = resolve(mount.source, "mount.source")
-            target = resolve(mount.target, "mount.target")
-            if not PurePosixPath(target).is_absolute():
-                raise ContainerPlanError("mount.target must be absolute")
-            target = str(PurePosixPath(target))
-            if target in targets:
-                raise ContainerPlanError(f"duplicate mount target {target!r}")
-            targets.add(target)
-            if mount.type == "bind":
-                source = str((config_path.resolve().parent / source).resolve())
-            elif not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", source):
-                raise ContainerPlanError("invalid named volume")
-            if any(char in source + target for char in ",\n\r"):
-                raise ContainerPlanError("mount paths must not contain commas or newlines")
-            mounts.append(ContainerMount(mount.type, source, target, mount.read_only))
-        devices = tuple(resolve(value, "device") for value in spec.devices)
-        for device in devices:
+        mounts = self._mounts(spec.mounts, config_path)
+        for device in spec.devices:
             parts = device.split(":")
             if len(parts) > 3 or any(not part.startswith("/") for part in parts[:2]):
                 raise ContainerPlanError("device must be /host/path[:/container/path[:rwm]]")
             if len(parts) == 3 and not re.fullmatch(r"[rwm]+", parts[2]):
                 raise ContainerPlanError("invalid device permissions")
-        workdir = optional(spec.workdir, "workdir")
-        if workdir is not None and not PurePosixPath(workdir).is_absolute():
+        if spec.workdir is not None and not PurePosixPath(spec.workdir).is_absolute():
             raise ContainerPlanError("workdir must be absolute")
+        resolved_environment = []
+        for env_name, source in sorted(spec.environment.items()):
+            if isinstance(source, EnvironmentRef):
+                value = environment.get(source.env, source.default)
+                if value is None:
+                    raise ContainerPlanError(
+                        f"environment.{env_name}: missing host environment {source.env!r}"
+                    )
+            else:
+                value = source
+            if "\x00" in value:
+                raise ContainerPlanError(f"environment.{env_name}: NUL bytes are not allowed")
+            resolved_environment.append((env_name, value))
         return ContainerRunPlan(
             name,
-            image,
+            spec.image,
             spec.interactive,
             spec.tty,
             spec.privileged,
-            devices,
-            tuple(resolve(value, "group_add") for value in spec.group_add),
-            tuple(mounts),
-            optional(spec.network, "network"),
-            optional(spec.ipc, "ipc"),
-            workdir,
-            tuple(
-                (key, resolve(value, f"environment.{key}", empty=True))
-                for key, value in sorted(spec.environment.items())
-            ),
-            tuple(resolve(value, "command", empty=True) for value in spec.command),
+            spec.devices,
+            spec.group_add,
+            mounts,
+            spec.network,
+            spec.ipc,
+            spec.workdir,
+            tuple(resolved_environment),
+            spec.command,
         )
+
+    def _mounts(self, configured: tuple[str, ...], config_path: Path) -> tuple[ContainerMount, ...]:
+        mounts = []
+        targets = set()
+        for value in configured:
+            if any(character in value for character in "\x00\n\r,"):
+                raise ContainerPlanError(
+                    "mount values must not contain commas or control characters"
+                )
+            parts = value.split(":")
+            if len(parts) not in (2, 3) or not parts[0] or not parts[1]:
+                raise ContainerPlanError(f"invalid mount {value!r}; expected SOURCE:TARGET[:ro]")
+            source, target = parts[:2]
+            option = parts[2] if len(parts) == 3 else "rw"
+            if option not in {"ro", "rw"}:
+                raise ContainerPlanError(f"invalid mount option {option!r}; expected ro or rw")
+            target_path = PurePosixPath(target)
+            if not target_path.is_absolute():
+                raise ContainerPlanError(f"mount target must be absolute: {target!r}")
+            target = str(target_path)
+            if target in targets:
+                raise ContainerPlanError(f"duplicate mount target {target!r}")
+            targets.add(target)
+            is_bind = source.startswith(("/", ".", "~"))
+            if is_bind:
+                source_path = Path(source).expanduser()
+                if not source_path.is_absolute():
+                    source_path = config_path.resolve().parent / source_path
+                source = str(source_path.resolve())
+                mount_type = "bind"
+            else:
+                if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", source):
+                    raise ContainerPlanError(f"invalid named volume {source!r}")
+                mount_type = "volume"
+            mounts.append(ContainerMount(mount_type, source, target, option == "ro"))
+        return tuple(mounts)

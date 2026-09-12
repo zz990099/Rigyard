@@ -10,7 +10,6 @@ from pydantic import ValidationError
 from yaml.nodes import MappingNode, Node, SequenceNode
 
 from ..errors import ConfigIOError, SchemaValidationError, SourceLocation
-from ..parameters.models import ParameterSchema
 from .models import ToolchainConfig
 
 
@@ -77,11 +76,6 @@ def load_config(path: str | Path) -> ToolchainConfig:
         dotted = ".".join(str(part) for part in error_path)
         prefix = f"{dotted}: " if dotted else ""
         raise SchemaValidationError(f"{prefix}{first['msg']}", location) from exc
-
-
-def load_schema(path: str | Path) -> ParameterSchema:
-    """Compatibility API returning the parameter section of a project config."""
-    return load_config(path).parameter_schema()
 
 
 def load_values(path: str | Path) -> dict[str, Any]:

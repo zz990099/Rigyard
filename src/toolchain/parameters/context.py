@@ -26,13 +26,8 @@ class ResolvedValue:
 class ResolvedContext(Mapping[str, Any]):
     """Read-only mapping with source metadata and disabled-parameter tracking."""
 
-    def __init__(
-        self,
-        values: Mapping[str, ResolvedValue],
-        disabled: set[str] | frozenset[str] = frozenset(),
-    ) -> None:
+    def __init__(self, values: Mapping[str, ResolvedValue]) -> None:
         self._resolved = MappingProxyType(dict(values))
-        self._disabled = frozenset(disabled)
 
     def __getitem__(self, key: str) -> Any:
         return self._resolved[key].value
@@ -42,10 +37,6 @@ class ResolvedContext(Mapping[str, Any]):
 
     def __len__(self) -> int:
         return len(self._resolved)
-
-    @property
-    def disabled(self) -> frozenset[str]:
-        return self._disabled
 
     def resolved(self, key: str) -> ResolvedValue:
         return self._resolved[key]

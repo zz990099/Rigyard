@@ -2,31 +2,18 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from ..parameters.context import ResolvedContext
 from .backend import ImageBuildBackend
-from .models import ImageBuildResult, ImageSpec
-from .planner import ImageBuildPlanner
+from .models import ImageBuildPlan, ImageBuildResult
 
 
 class ImageBuildService:
     def __init__(
         self,
         backend: ImageBuildBackend,
-        planner: ImageBuildPlanner | None = None,
     ) -> None:
         self.backend = backend
-        self.planner = planner or ImageBuildPlanner()
 
-    def build(
-        self,
-        image_name: str,
-        spec: ImageSpec,
-        context: ResolvedContext,
-        config_path: str | Path,
-    ) -> ImageBuildResult:
-        plan = self.planner.create_plan(image_name, spec, context, config_path)
+    def build(self, plan: ImageBuildPlan) -> ImageBuildResult:
         self.backend.check_available()
         results = tuple(self.backend.build_step(step) for step in plan.steps)
         return ImageBuildResult(
@@ -34,4 +21,3 @@ class ImageBuildService:
             final_tag=plan.final_tag,
             steps=results,
         )
-

@@ -7,12 +7,12 @@ from collections.abc import Mapping
 
 from ..config.loader import load_config
 from ..containers.backend import ContainerBackend
-from ..containers.models import ContainerCreateResult, ContainerRunPlan
+from ..containers.models import ContainerCreateResult, ContainerRunPlan, ContainerSpec
 from ..containers.planner import ContainerRunPlanner
 from ..containers.service import ContainerCreateService
 from ..errors import SchemaValidationError
-from .parameters import resolve_loaded_parameters
-from .requests import ParameterRequest
+from .parameters import resolve_template
+from .requests import ResolutionRequest
 
 
 class CreateContainerUseCase:
@@ -22,18 +22,23 @@ class CreateContainerUseCase:
     def plan(
         self,
         container_name: str,
-        request: ParameterRequest,
+        request: ResolutionRequest,
         *,
         environment: Mapping[str, str] | None = None,
     ) -> ContainerRunPlan:
         config = load_config(request.config_path)
         if container_name not in config.containers:
             raise SchemaValidationError(f"unknown container {container_name!r}")
-        context = resolve_loaded_parameters(config, request)
+        spec, _ = resolve_template(
+            config,
+            config.containers[container_name],
+            request,
+            f"containers.{container_name}",
+            ContainerSpec,
+        )
         return ContainerRunPlanner().plan(
             container_name,
-            config.containers[container_name],
-            context,
+            spec,
             request.config_path,
             dict(os.environ if environment is None else environment),
         )

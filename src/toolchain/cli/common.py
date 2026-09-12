@@ -10,15 +10,18 @@ from typing import Any
 import yaml
 
 
-def parse_overrides(items: list[str]) -> dict[str, str]:
-    result: dict[str, str] = {}
+def parse_overrides(items: list[str]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
     for item in items:
         if "=" not in item:
             raise argparse.ArgumentTypeError(f"invalid --set {item!r}; expected NAME=VALUE")
         name, value = item.split("=", 1)
         if not name:
-            raise argparse.ArgumentTypeError("--set parameter name must not be empty")
-        result[name] = value
+            raise argparse.ArgumentTypeError("--set configuration path must not be empty")
+        try:
+            result[name] = yaml.safe_load(value)
+        except yaml.YAMLError as exc:
+            raise argparse.ArgumentTypeError(f"invalid YAML value in --set {item!r}") from exc
     return result
 
 
@@ -38,4 +41,3 @@ def emit(data: Any, output_format: str) -> None:
         print(json.dumps(normalized, indent=2, ensure_ascii=False))
     else:
         print(yaml.safe_dump(normalized, sort_keys=False, allow_unicode=True).rstrip())
-

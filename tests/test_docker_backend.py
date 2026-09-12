@@ -65,4 +65,3 @@ def test_failed_layer_has_build_context() -> None:
     backend = DockerImageBackend(FakeRunner([CommandResult(9, stderr="build failed")]))
     with pytest.raises(ImageBuildError, match="layer 1 .*system.*exit 9.*build failed"):
         backend.build_step(step())
-

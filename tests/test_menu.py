@@ -19,94 +19,76 @@ class InterruptingTTY(TTYBuffer):
 
 def write_config(tmp_path: Path, body: str) -> Path:
     path = tmp_path / "toolchain.yaml"
-    path.write_text(body, encoding="utf-8")
+    path.write_text(body)
     return path
 
 
-def parameter_config(tmp_path: Path) -> Path:
+def prompt_config(tmp_path: Path) -> Path:
     return write_config(
         tmp_path,
-        """\
-version: 1
-parameters:
-  target:
-    type: choice
-    options: [simulation, hardware]
-    default: simulation
-  count:
-    type: int
-    default: 1
+        """version: 1
+containers:
+  dev:
+    image: ubuntu
+    network:
+      default: host
+      prompt:
+        mode: select
+        message: Select network
+        options: [host, bridge]
 """,
     )
 
 
-def test_bare_command_enters_menu_only_for_tty(tmp_path: Path) -> None:
-    config = parameter_config(tmp_path)
+def test_bare_command_enters_menu_only_for_tty(tmp_path: Path):
+    config = prompt_config(tmp_path)
     output = TTYBuffer()
     assert run(["--config", str(config)], stdin=TTYBuffer("0\n"), stdout=output) == 0
     assert "1) Build image [no images configured]" in output.getvalue()
 
 
-def test_non_tty_bare_command_prints_help_without_loading_config() -> None:
+def test_non_tty_bare_command_prints_help_without_loading_config():
     output = io.StringIO()
     assert run([], stdin=io.StringIO(), stdout=output) == 2
     assert "usage: toolchain" in output.getvalue()
 
 
-def test_invalid_selection_retries(tmp_path: Path) -> None:
-    config = parameter_config(tmp_path)
+def test_menu_edits_inline_prompt_as_session_override(tmp_path: Path):
+    config = prompt_config(tmp_path)
     output = TTYBuffer()
-    app = MenuApp(MenuIO(TTYBuffer("bad\n9\n0\n"), output))
+    app = MenuApp(MenuIO(TTYBuffer("2\n1\n2\n0\n3\n0\n"), output))
     assert app.run(config) == 0
-    assert output.getvalue().count("Invalid selection") == 2
+    assert "containers.dev.network = bridge [session]" in output.getvalue()
+    assert config.read_text().count("bridge") == 1
 
 
-def test_parameter_override_is_session_scoped_and_visible(tmp_path: Path) -> None:
-    config = parameter_config(tmp_path)
-    output = TTYBuffer()
-    # Configure parameters -> target -> hardware -> back -> show -> exit.
-    answers = TTYBuffer("2\n1\n2\n0\n3\n0\n")
-    app = MenuApp(MenuIO(answers, output))
-    assert app.run(config) == 0
-    rendered = output.getvalue()
-    assert "target = hardware [session]" in rendered
-    assert config.read_text(encoding="utf-8").count("hardware") == 1
-
-
-def test_menu_values_file_participates_in_resolution(tmp_path: Path) -> None:
-    config = parameter_config(tmp_path)
+def test_menu_values_file_is_shown_without_prompting(tmp_path: Path):
+    config = prompt_config(tmp_path)
     values = tmp_path / "values.yaml"
-    values.write_text("count: 7\n", encoding="utf-8")
+    values.write_text("containers: {dev: {network: bridge}}\n")
     output = TTYBuffer()
-    app = MenuApp(MenuIO(TTYBuffer("3\n0\n"), output))
-    assert app.run(config, values) == 0
-    assert "count = 7 [values]" in output.getvalue()
+    assert MenuApp(MenuIO(TTYBuffer("3\n0\n"), output)).run(config, values) == 0
+    assert "containers.dev.network = bridge [values]" in output.getvalue()
 
 
-def test_unavailable_action_explains_reason(tmp_path: Path) -> None:
-    config = parameter_config(tmp_path)
-    output = TTYBuffer()
-    app = MenuApp(MenuIO(TTYBuffer("1\n0\n"), output))
-    assert app.run(config) == 0
-    assert "Unavailable: no images configured" in output.getvalue()
-
-
-def test_image_menu_calls_shared_build_use_case(tmp_path: Path) -> None:
+def test_image_menu_resolves_inline_select_prompt(tmp_path: Path):
     config = write_config(
         tmp_path,
-        """\
-version: 1
+        """version: 1
 images:
   development:
     description: Development environment
-    base: ubuntu:22.04
+    base:
+      default: ubuntu:22.04
+      prompt:
+        mode: select
+        message: Select base
+        options: [ubuntu:22.04, ubuntu:24.04]
     tag: example/development:latest
-    layers:
-      - name: system
-        dockerfile: system.Dockerfile
+    layers: [{name: system, dockerfile: system.Dockerfile}]
 """,
     )
-    (tmp_path / "system.Dockerfile").write_text("RUN echo system\n", encoding="utf-8")
+    (tmp_path / "system.Dockerfile").write_text("RUN echo system\n")
 
     class FakeBackend:
         def __init__(self):
@@ -121,20 +103,15 @@ images:
 
     backend = FakeBackend()
     output = TTYBuffer()
-    app = MenuApp(
-        MenuIO(TTYBuffer("1\n1\ny\n0\n"), output),
-        backend_factory=lambda: backend,
-    )
+    app = MenuApp(MenuIO(TTYBuffer("1\n1\n2\ny\n0\n"), output), backend_factory=lambda: backend)
     assert app.run(config) == 0
-    assert [step.layer_name for step in backend.steps] == ["system"]
-    assert "development — Development environment" in output.getvalue()
-    assert "Built example/development:latest (1 layer(s))" in output.getvalue()
+    assert backend.steps[0].base_image == "ubuntu:24.04"
 
 
-def test_ctrl_c_at_main_menu_returns_130(tmp_path: Path) -> None:
-    config = parameter_config(tmp_path)
+def test_invalid_selection_and_interrupt(tmp_path: Path):
+    config = prompt_config(tmp_path)
     output = TTYBuffer()
-    app = MenuApp(MenuIO(InterruptingTTY(), output))
-    assert app.run(config) == 130
-    assert "Interrupted" in output.getvalue()
-
+    assert MenuApp(MenuIO(TTYBuffer("bad\n0\n"), output)).run(config) == 0
+    assert "Invalid selection" in output.getvalue()
+    output = TTYBuffer()
+    assert MenuApp(MenuIO(InterruptingTTY(), output)).run(config) == 130

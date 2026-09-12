@@ -1,4 +1,4 @@
-"""Typed container definitions and immutable resolved plans."""
+"""Template, resolved configuration, and immutable container plans."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
-from ..parameters.references import ParameterRef
+from ..parameters.models import PromptValue
 
 
 class EnvironmentRef(BaseModel):
@@ -17,41 +17,57 @@ class EnvironmentRef(BaseModel):
     default: str | None = None
 
 
-ValueSource = str | ParameterRef | EnvironmentRef
+RuntimeText = PromptValue | str
+RuntimeBool = PromptValue | StrictBool
+RuntimeList = PromptValue | tuple[str, ...]
+RuntimeEnvironment = PromptValue | EnvironmentRef | str
 
 
-class MountSpec(BaseModel):
+class ContainerTemplate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    type: Literal["bind", "volume"] = "bind"
-    source: ValueSource
-    target: ValueSource
-    read_only: bool = Field(default=False, strict=True)
+    description: str | None = None
+    image: RuntimeText
+    name: RuntimeText | None = None
+    interactive: RuntimeBool = True
+    tty: RuntimeBool = True
+    detach: Literal[True] = True
+    privileged: RuntimeBool = False
+    devices: RuntimeList = ()
+    group_add: RuntimeList = ()
+    mounts: RuntimeList = ()
+    network: RuntimeText | None = None
+    ipc: RuntimeText | None = None
+    workdir: RuntimeText | None = None
+    environment: dict[str, RuntimeEnvironment] = Field(default_factory=dict)
+    command: RuntimeList = ()
+
+    @field_validator("environment")
+    @classmethod
+    def valid_environment(
+        cls, values: dict[str, RuntimeEnvironment]
+    ) -> dict[str, RuntimeEnvironment]:
+        if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) for key in values):
+            raise ValueError("invalid container environment variable name")
+        return values
 
 
 class ContainerSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     description: str | None = None
-    image: ValueSource
-    name: ValueSource | None = None
-    interactive: bool = Field(default=True, strict=True)
-    tty: bool = Field(default=True, strict=True)
+    image: str
+    name: str | None = None
+    interactive: bool = True
+    tty: bool = True
     detach: Literal[True] = True
-    privileged: bool = Field(default=False, strict=True)
-    devices: tuple[ValueSource, ...] = ()
-    group_add: tuple[ValueSource, ...] = ()
-    mounts: tuple[MountSpec, ...] = ()
-    network: ValueSource | None = None
-    ipc: ValueSource | None = None
-    workdir: ValueSource | None = None
-    environment: dict[str, ValueSource] = Field(default_factory=dict)
-    command: tuple[ValueSource, ...] = ()
-
-    @field_validator("environment")
-    @classmethod
-    def valid_environment(cls, values: dict[str, ValueSource]) -> dict[str, ValueSource]:
-        if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) for key in values):
-            raise ValueError("invalid container environment variable name")
-        return values
+    privileged: bool = False
+    devices: tuple[str, ...] = ()
+    group_add: tuple[str, ...] = ()
+    mounts: tuple[str, ...] = ()
+    network: str | None = None
+    ipc: str | None = None
+    workdir: str | None = None
+    environment: dict[str, str | EnvironmentRef] = Field(default_factory=dict)
+    command: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

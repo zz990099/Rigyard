@@ -1,4 +1,4 @@
-"""Immutable input models for application use cases."""
+"""Immutable inputs shared by command and menu frontends."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ InputFunction = Callable[[str], str]
 
 
 @dataclass(frozen=True)
-class ParameterRequest:
+class ResolutionRequest:
     config_path: Path
     values_path: Path | None = None
     overrides: Mapping[str, Any] = field(default_factory=dict)
@@ -41,12 +41,11 @@ class BuildImageRequest:
             object.__setattr__(self, "values_path", Path(self.values_path))
         object.__setattr__(self, "overrides", MappingProxyType(dict(self.overrides)))
 
-    def parameter_request(self) -> ParameterRequest:
-        return ParameterRequest(
-            config_path=self.config_path,
-            values_path=self.values_path,
-            overrides=self.overrides,
-            interactive=self.interactive,
-            input_fn=self.input_fn,
+    def resolution_request(self) -> ResolutionRequest:
+        return ResolutionRequest(
+            self.config_path,
+            self.values_path,
+            self.overrides,
+            self.interactive,
+            self.input_fn,
         )
-

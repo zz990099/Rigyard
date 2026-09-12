@@ -9,12 +9,12 @@ from typing import Any
 from ...application.containers import CreateContainerUseCase
 from ...application.images import BuildImageUseCase
 from ...application.parameters import ResolveParametersUseCase, ValidateConfigUseCase
-from ...application.requests import BuildImageRequest, ParameterRequest
-from ...errors import ResolutionError, ToolchainError
-from ...parameters.coercion import coerce_value
+from ...application.requests import BuildImageRequest, ResolutionRequest
+from ...errors import ToolchainError
 from ...parameters.context import ResolvedContext
-from ...parameters.models import ParameterSpec, ParameterType
-from ...parameters.resolver import ParameterEngine
+from ...parameters.models import PromptMode, PromptValue
+from ...parameters.prompt import prompt_for_value
+from ...parameters.resolver import collect_prompts
 from ...providers.docker import DockerImageBackend
 from ...providers.docker.container_backend import DockerContainerBackend
 from ..container_output import describe_container
@@ -49,7 +49,9 @@ class MenuApp:
                 MenuAction("parameters.show", "Show effective parameters", self._show),
                 MenuAction("config.validate", "Validate configuration", self._validate),
                 MenuAction(
-                    "container.create", "Create container", self._create_container,
+                    "container.create",
+                    "Create container",
+                    self._create_container,
                     enabled=lambda session: bool(session.config.containers),
                     disabled_reason="no containers configured",
                 ),
@@ -106,7 +108,9 @@ class MenuApp:
         names = list(session.config.containers)
         labels = [
             f"{name} — {session.config.containers[name].description}"
-            if session.config.containers[name].description else name for name in names
+            if session.config.containers[name].description
+            else name
+            for name in names
         ]
         selected = self.io.select("Create container", labels, back_label="Back")
         if selected is None:
@@ -125,8 +129,8 @@ class MenuApp:
         session.config = ValidateConfigUseCase().execute(session.config_path)
         self.io.write(f"OK: {session.config_path}")
 
-    def _request(self, session: MenuSession, *, interactive: bool) -> ParameterRequest:
-        return ParameterRequest(
+    def _request(self, session: MenuSession, *, interactive: bool) -> ResolutionRequest:
+        return ResolutionRequest(
             config_path=session.config_path,
             values_path=session.values_path,
             overrides=session.overrides,
@@ -146,8 +150,8 @@ class MenuApp:
     def _configure(self, session: MenuSession) -> None:
         while True:
             context = self._preview(session)
-            engine = ParameterEngine(session.config.parameter_schema())
-            names = list(engine.order)
+            prompts = collect_prompts(session.config)
+            names = list(prompts)
             labels = [self._parameter_label(name, session, context) for name in names]
             if session.overrides:
                 labels.append("Clear all session overrides")
@@ -159,10 +163,7 @@ class MenuApp:
                 self.io.write("Session overrides cleared.")
                 continue
             name = names[selected]
-            if name in context.disabled:
-                self.io.write(f"{name} is currently disabled by its condition.")
-                continue
-            value = self._edit_value(name, session.config.parameters[name])
+            value = self._edit_value(prompts[name])
             if value is _CANCEL:
                 continue
             if value is None:
@@ -178,47 +179,29 @@ class MenuApp:
         session: MenuSession,
         context: ResolvedContext,
     ) -> str:
-        if name in context.disabled:
-            return f"{name} = <disabled>"
         if name not in context:
             return f"{name} = <unset>"
         source = "session" if name in session.overrides else context.resolved(name).source.value
         return f"{name} = {context[name]!s} [{source}]"
 
-    def _render_parameters(
-        self, session: MenuSession, context: ResolvedContext
-    ) -> None:
+    def _render_parameters(self, session: MenuSession, context: ResolvedContext) -> None:
         self.io.write()
-        self.io.write("Effective parameters")
-        engine = ParameterEngine(session.config.parameter_schema())
-        for name in engine.order:
+        self.io.write("Effective runtime values")
+        for name in collect_prompts(session.config):
             self.io.write(f"- {self._parameter_label(name, session, context)}")
 
-    def _edit_value(self, name: str, spec: ParameterSpec) -> Any:
-        if spec.type == ParameterType.CHOICE:
-            options = list(spec.options or ())
+    def _edit_value(self, value: PromptValue) -> Any:
+        if value.prompt.mode == PromptMode.SELECT:
+            options = list(value.prompt.options or ())
             selected = self.io.select(
-                f"Set {name}",
+                value.prompt.message,
                 [str(value) for value in options],
                 back_label="Cancel",
             )
             return _CANCEL if selected is None else options[selected]
-        if spec.type == ParameterType.BOOL:
-            selected = self.io.select(
-                f"Set {name}", ["true", "false"], back_label="Cancel"
-            )
-            return _CANCEL if selected is None else selected == 0
-
-        while True:
-            raw = self.io.ask(f"{name} (type :clear or :back): ")
-            if raw == ":back":
-                return _CANCEL
-            if raw == ":clear":
-                return None
-            try:
-                return coerce_value(name, raw, spec)
-            except ResolutionError as exc:
-                self.io.write(f"Error: {exc}")
+        if value.prompt.mode == PromptMode.CONFIRM:
+            return self.io.confirm(value.prompt.message)
+        return prompt_for_value(value, self.io.ask)
 
     def _build_image(self, session: MenuSession) -> None:
         image_names = list(session.config.images)
@@ -230,10 +213,8 @@ class MenuApp:
         if selected is None:
             return
         image_name = image_names[selected]
-        if not self.io.confirm(f"Build {image_name} now?"):
-            self.io.write("Build cancelled.")
-            return
-        result = BuildImageUseCase(self.backend_factory()).execute(
+        use_case = BuildImageUseCase(self.backend_factory())
+        plan = use_case.plan(
             BuildImageRequest(
                 config_path=session.config_path,
                 image_name=image_name,
@@ -243,4 +224,9 @@ class MenuApp:
                 input_fn=self.io.ask,
             )
         )
+        self.io.write(f"Image: {plan.final_tag}; layers: {len(plan.steps)}")
+        if not self.io.confirm(f"Build {image_name} now?"):
+            self.io.write("Build cancelled.")
+            return
+        result = use_case.execute(plan)
         self.io.write(f"Built {result.final_tag} ({len(result.steps)} layer(s))")

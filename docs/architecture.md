@@ -1,74 +1,35 @@
-# Architecture
+# 架构
 
-The toolchain separates configuration, domain planning, application orchestration, and external execution. A feature must not collapse those responsibilities into a CLI handler or a provider implementation.
+## 设计边界
+
+仓库按照“配置模板、运行时取值、严格业务模型、执行计划、后端”拆分：
 
 ```mermaid
 flowchart TD
-    Commands[Command CLI] --> Application[Application use cases]
-    Menu[Interactive menu] --> Application
-    Application --> Config[Config loader]
-    Application --> Parameters[Parameter resolver]
-    Parameters --> Context[ResolvedContext]
-    Application --> Service[ImageBuildService]
-    Config --> Application
-    Context --> Application
-    Service --> Planner[ImageBuildPlanner]
-    Planner --> Plan[ImageBuildPlan]
-    Service --> Port[ImageBuildBackend]
-    Docker[Docker provider] -. implements .-> Port
+    A[ToolchainConfig 模板] --> B[选择 image/container 子树]
+    B --> C[RuntimeValueResolver]
+    C --> D[ResolvedContext]
+    D --> E[严格 ImageSpec / ContainerSpec]
+    E --> F[不可变 BuildPlan / RunPlan]
+    F --> G[Docker Backend]
 ```
 
-## Package responsibilities
+- `config` 只负责 YAML I/O 和根模型。
+- `parameters` 发现内联 `PromptValue`、按照路径取值，并物化严格模型；它不知道 Docker。
+- `images` 和 `containers` 各自定义模板、严格模型、计划器和后端协议。
+- `application` 选择配置、协调解析和计划，不处理终端展示。
+- `cli` 与 `cli.menu` 是两个薄前端，共用相同 use case。
+- `providers.docker` 是副作用边界，输入只能是已经校验的不可变计划。
 
-| Package | Responsibility | Must not |
-|---|---|---|
-| `config` | Load YAML and compose top-level feature models | Execute commands or resolve runtime values |
-| `parameters` | Validate, order, and resolve declarative parameters | Know about images or Docker |
-| `images` | Validate image semantics, create plans, orchestrate builds | Read YAML or invoke subprocesses |
-| `containers` | Resolve typed run definitions into immutable plans and orchestrate creation | Read environment variables or construct Docker CLI commands |
-| `providers.docker` | Translate build steps into Docker CLI calls | Read project configuration or parameter sources |
-| `application` | Accept typed requests and coordinate loaders, resolvers, and services | Render terminal output or depend on `argparse` |
-| `cli.commands` | Parse scriptable commands and render command results | Contain domain rules or construct Docker commands |
-| `cli.menu` | Manage prompts and in-memory session overrides | Call command handlers or persist parameter edits |
+## 运行时值
 
-The command frontend and menu frontend meet at application use cases. A menu action constructs the same `ParameterRequest` or `BuildImageRequest` as a command handler; it never synthesizes command-line arguments to invoke another frontend.
+`PromptValue` 直接出现在业务字段位置，不建立全局参数表，也不使用引用。运行时路径由配置位置自然产生，例如 `containers.development.privileged`。
 
-## Stable data boundaries
+执行某个操作时只收集所选子树的 prompts。因此构建 `images.development` 不会询问任何容器参数，也不会询问其他镜像的参数。values 文件和 overrides 会先与整份配置的已知路径核对，以捕获拼写错误，再过滤到当前操作。
 
-`ResolvedContext` is the only parameter output consumed by feature domains. Feature code never reads environment variables, values files, CLI overrides, or interactive input directly.
+解析器仅校验交互语义：confirm、select 和 repeat。随后 `materialize_as` 将解析值放回模板并创建 `ImageSpec` 或 `ContainerSpec`，由目标模型执行数据类型校验。计划器继续校验需要文件系统或领域上下文的规则，例如 Dockerfile 是否存在、挂载是否合法。
 
-`ImageBuildPlan` is the only input needed by an image backend. It contains resolved paths, image references, build arguments, ordered steps, and Dockerfile fragments. The Docker provider never receives the original YAML model.
+## 执行安全
 
-Both objects are immutable. This prevents a backend from changing the configuration that was validated and presented to the user.
+镜像与容器都先创建完整计划，再调用后端。菜单在展示计划后确认，确认前不会检查或调用 Docker。Docker 命令以 argv 元组传给 runner，不经过 shell。计划和解析上下文均不可变，容器输出对环境变量值进行隐藏。
 
-`ContainerRunPlan` is the corresponding container boundary. Host environment
-references are resolved from an explicit application-provided snapshot, not by a
-provider or shell. `parameters.references.ParameterRef` is shared by image and
-container configuration; neither feature domain imports the other. See
-[container creation](containers.md) for the lifecycle and safety boundaries.
-
-## Layered image invariant
-
-An image has one configured base and one or more ordered Dockerfile fragments. Fragments cannot contain `FROM`. For step `n > 1`, the base image is exactly the output tag of step `n - 1`. The final step writes the configured public tag; earlier steps use deterministic internal tags.
-
-```text
-configured base -> layer 1 -> internal tag -> layer 2 -> ... -> final tag
-```
-
-This invariant is established by `ImageBuildPlanner`, not by the Docker provider.
-
-## Provider boundary
-
-`ImageBuildBackend` is a protocol. The current `DockerImageBackend` executes `docker build` through an injectable `CommandRunner`. Commands are always argument tuples and never use a shell.
-
-A future Dagger or Buildx backend should implement the same port. It must not require changes to parameter resolution, image configuration, or `ImageBuildService` unless it introduces genuinely new domain capabilities.
-
-## Adding future features
-
-Containers, cross-compilation, scenarios, compilation, and tests should use the same flow:
-
-```text
-configuration model -> ResolvedContext -> immutable plan -> service -> backend/provider
-```
-
-Shared code should only move into a common package after at least two feature domains require the same abstraction. Avoid speculative `utils`, generic manager classes, and provider-specific fields in top-level domain models.

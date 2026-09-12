@@ -22,4 +22,3 @@ class MenuAction:
 @dataclass(frozen=True)
 class MenuRegistry:
     actions: tuple[MenuAction, ...]
-

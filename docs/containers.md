@@ -1,72 +1,75 @@
-# Container creation
+# 容器创建
 
-`toolchain container create NAME` reads the project toolchain configuration, selects
-`containers.NAME`, and creates **and starts** a new container with
-`docker run`. Defaults are interactive stdin, a pseudo-TTY, and detached execution
-(`-itd`). Foreground attachment and lifecycle management are not part of this phase.
-`detach: false` is rejected rather than exposing an incomplete terminal adapter.
-
-The project configuration defaults to `./toolchain.yaml`. Use the global
-`--config/-f` option before the subcommand to select another file:
+容器配置位于 `containers.<name>`。常用命令中的 `development` 是配置名称：
 
 ```bash
 toolchain container create development
-toolchain --config examples/container.yaml container create development
 ```
 
-Here `development` is the key under the top-level `containers` mapping. It is not
-a file path or an arbitrary Docker mode.
+## 配置字段
 
-## Architecture
+```yaml
+containers:
+  development:
+    name: robot-development
+    image: example/robot-development:latest
+    interactive: true
+    tty: true
+    detach: true
+    privileged: false
+    devices: [/dev/dri]
+    group_add: [video]
+    network: host
+    ipc: host
+    mounts:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ../:/workspace
+      - /dev/bus/usb:/dev/bus/usb
+    workdir: /workspace
+    environment:
+      DISPLAY: {env: DISPLAY}
+      DOCKER_USER: {env: USER}
+      USER: {env: USER}
+    command: [/bin/bash]
+```
 
-Both CLI and menu call `CreateContainerUseCase`. The application resolves parameters
-and snapshots the host environment. `ContainerRunPlanner` consumes those explicit
-inputs and produces an immutable plan. `ContainerCreateService` hands the plan to a
-backend protocol; only `DockerContainerBackend` constructs Docker arguments.
+默认 `interactive`、`tty`、`detach` 均为 true，对应 `docker run -itd`。当前版本要求 `detach: true`。`environment` 可写固定字符串，也可用 `{env: NAME, default: optional}` 从宿主环境读取；宿主变量缺失且没有默认值时，计划阶段失败。
 
-Configuration contains typed fields, not a shell command or arbitrary extra flags.
-The image field is one image reference, and command is an argument list after it.
-`${EXTERNAL_TAG}` has no implicit meaning. There is no shell interpolation.
-Strings are literal; `{parameter: name}` references the parameter system and
-`{env: DISPLAY}` explicitly reads a host environment variable. Missing environment
-variables are errors. `{env: NAME, default: value}` permits an explicit fallback.
+任意支持运行时输入的字段都可以把固定值替换为内联 prompt，例如：
 
-Bind sources resolve relative to the YAML directory; container paths must be
-absolute. Named volumes are distinct from bind mounts. Environment values, device
-paths, names and image references are validated before invoking Docker.
+```yaml
+privileged:
+  default: false
+  prompt: {mode: confirm, message: "Enable privileged mode?"}
+```
 
-`privileged` defaults to false; host networking, host IPC, devices and mounts are
-opt-in. The menu shows the resolved name, image and host-access settings before
-confirmation, then executes that exact plan. Environment values are not printed.
-The CLI supports `--dry-run` to show a redacted plan without contacting Docker.
+## 挂载
 
-Name conflicts and Docker failures are reported without deleting, replacing or
-restarting existing containers. Success means Docker accepted the detached run,
-not that the application is healthy or will remain running. No automatic image
-build, `exec`, stop/remove, Compose, post-create scripts or X11 permission changes
-are performed. Tests use fake runners and do not start privileged containers.
+每项格式为 `SOURCE:TARGET[:ro|rw]`：
 
-## Configuration fields
+- `/absolute:/target`、`../relative:/target`、`~/home:/target` 是 bind mount。
+- `cache:/target` 是 named volume。
+- 相对 bind 源以工具链配置文件所在目录为基准。
+- target 必须是绝对路径，同一 target 不能重复。
 
-| Field | Docker mapping / default |
-|---|---|
-| `image` | Required single image reference |
-| `name` | `--name`; defaults to the configuration key |
-| `interactive`, `tty` | `-i`, `-t`; both default true |
-| `detach` | `-d`; only true is currently supported |
-| `privileged` | `--privileged`; defaults false |
-| `devices` | Repeated `--device` values |
-| `group_add` | Repeated `--group-add` values |
-| `mounts` | Repeated `--mount`; bind by default, optional volume / read_only |
-| `network`, `ipc` | `--network`, `--ipc`; omitted by default |
-| `workdir` | `--workdir`; image default when omitted |
-| `environment` | Mapping translated to repeated `--env` |
-| `command` | Argument list after image; image default when omitted |
+可将 mounts 配置成重复输入：
 
-Environment values are not a secret store: they are still visible to Docker and
-may be visible in host process arguments. Do not place credentials in this model.
-Command arguments appear in the plan preview. Bind mounts use `--mount`, which
-does not silently create missing source directories like `-v` may do.
-X11 socket mounting and DISPLAY do not grant X-server authorization; the user
-must configure it separately. USER environment variables do not change the
-container's UID, permissions or image-configured user.
+```yaml
+mounts:
+  default: ["../:/workspace"]
+  prompt:
+    mode: input
+    repeat: true
+    message: Enter a mount
+    item_hint: SOURCE:TARGET[:ro]
+```
+
+## 预览和执行
+
+```bash
+toolchain container create development --dry-run
+toolchain container create development
+```
+
+两者都会完成取值、严格类型校验、环境变量解析和挂载规范化。`--dry-run` 在计划生成后停止；正式命令把计划转换为无 shell 的 Docker argv，并返回容器 ID。
+

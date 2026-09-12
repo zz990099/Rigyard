@@ -6,7 +6,7 @@ import argparse
 from typing import Any
 
 from ...application.containers import CreateContainerUseCase
-from ...application.requests import ParameterRequest
+from ...application.requests import ResolutionRequest
 from ...providers.docker.container_backend import DockerContainerBackend
 from ..common import parse_overrides
 from ..container_output import describe_container
@@ -34,7 +34,7 @@ def _create(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     use_case = CreateContainerUseCase(DockerContainerBackend())
     plan = use_case.plan(
         args.container_name,
-        ParameterRequest(
+        ResolutionRequest(
             config_path=args.config_path,
             values_path=args.values,
             overrides=overrides,

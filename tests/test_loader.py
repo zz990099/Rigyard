@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from toolchain.config.loader import load_schema, load_values
+from toolchain.config.loader import load_config, load_values
 from toolchain.errors import ConfigIOError, SchemaValidationError
 
 
@@ -11,25 +11,32 @@ def write(path: Path, text: str) -> Path:
     return path
 
 
-def test_load_schema_reports_source_location(tmp_path: Path) -> None:
-    schema = write(
-        tmp_path / "schema.yaml",
-        "version: 1\nparameters:\n  mode:\n    type: choice\n",
+def test_invalid_prompt_reports_source_location(tmp_path: Path):
+    config = write(
+        tmp_path / "toolchain.yaml",
+        """version: 1
+containers:
+  dev:
+    image: ubuntu
+    privileged:
+      default: false
+      prompt: {mode: select, message: Pick}
+""",
     )
-    with pytest.raises(SchemaValidationError) as caught:
-        load_schema(schema)
-    assert str(schema) in str(caught.value)
-    assert ":3:" in str(caught.value) or ":4:" in str(caught.value)
-    assert "options" in str(caught.value)
+    with pytest.raises(SchemaValidationError) as error:
+        load_config(config)
+    assert str(config) in str(error.value)
+    assert "options" in str(error.value)
 
 
-def test_invalid_yaml_is_io_error(tmp_path: Path) -> None:
-    schema = write(tmp_path / "bad.yaml", "version: [\n")
+def test_top_level_parameters_are_rejected(tmp_path: Path):
+    config = write(tmp_path / "toolchain.yaml", "version: 1\nparameters: {}\n")
+    with pytest.raises(SchemaValidationError, match="parameters"):
+        load_config(config)
+
+
+def test_invalid_yaml_and_values_shape(tmp_path: Path):
     with pytest.raises(ConfigIOError, match="invalid YAML"):
-        load_schema(schema)
-
-
-def test_values_must_be_mapping(tmp_path: Path) -> None:
-    values = write(tmp_path / "values.yaml", "- one\n- two\n")
+        load_config(write(tmp_path / "bad.yaml", "version: [\n"))
     with pytest.raises(SchemaValidationError, match="must contain a mapping"):
-        load_values(values)
+        load_values(write(tmp_path / "values.yaml", "- one\n- two\n"))

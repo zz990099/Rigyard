@@ -13,4 +13,3 @@ class ImageBuildBackend(Protocol):
 
     def build_step(self, step: ImageBuildStep) -> BuildStepResult:
         """Build exactly one fully materialized image step."""
-

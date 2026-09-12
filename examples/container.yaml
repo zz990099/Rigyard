@@ -1,33 +1,34 @@
 version: 1
 
-parameters:
-  container_name:
-    type: string
-    default: robot-development
-  image:
-    type: string
-    default: ubuntu:24.04
-  workspace:
-    type: path
-    default: ..
-
 containers:
   development:
     description: Interactive robot development container
-    name: {parameter: container_name}
-    image: {parameter: image}
-    privileged: true
+    name:
+      default: robot-development
+      prompt: {mode: input, message: Enter the container name}
+    image:
+      default: ubuntu:24.04
+      prompt:
+        mode: select
+        message: Select the container image
+        options: [ubuntu:22.04, ubuntu:24.04]
+    privileged:
+      default: false
+      prompt: {mode: confirm, message: "Enable privileged mode?"}
     devices: [/dev/dri]
     group_add: [video]
     network: host
     ipc: host
     mounts:
-      - source: /tmp/.X11-unix
-        target: /tmp/.X11-unix
-      - source: {parameter: workspace}
-        target: /workspace
-      - source: /dev/bus/usb
-        target: /dev/bus/usb
+      default:
+        - /tmp/.X11-unix:/tmp/.X11-unix
+        - ../:/workspace
+        - /dev/bus/usb:/dev/bus/usb
+      prompt:
+        mode: input
+        repeat: true
+        message: Enter a mount
+        item_hint: SOURCE:TARGET[:ro]
     workdir: /workspace
     environment:
       DISPLAY: {env: DISPLAY}

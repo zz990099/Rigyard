@@ -1,49 +1,68 @@
-"""Application use cases for project validation and parameter resolution."""
+"""Application boundary for inline runtime value discovery and resolution."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
+
+from pydantic import BaseModel
 
 from ..config.loader import load_config, load_values
 from ..config.models import ToolchainConfig
+from ..containers.models import ContainerSpec
+from ..errors import ResolutionError
+from ..images.models import ImageSpec
 from ..parameters.context import ResolvedContext
-from ..parameters.resolver import ParameterEngine
-from .requests import ParameterRequest
+from ..parameters.resolver import (
+    RuntimeValueResolver,
+    collect_prompts,
+    flatten_values,
+    materialize_as,
+)
+from .requests import ResolutionRequest
+
+ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 class ValidateConfigUseCase:
     def execute(self, config_path: str | Path) -> ToolchainConfig:
-        config = load_config(config_path)
-        ParameterEngine(config.parameter_schema())
-        return config
+        return load_config(config_path)
 
 
 class InspectParametersUseCase:
     def execute(self, config_path: str | Path) -> dict[str, Any]:
-        config = ValidateConfigUseCase().execute(config_path)
-        return ParameterEngine(config.parameter_schema()).inspect()
+        config = load_config(config_path)
+        prompts = collect_prompts(config)
+        return {
+            "version": config.version,
+            "runtime_values": RuntimeValueResolver(prompts).inspect(),
+        }
 
 
 class ResolveParametersUseCase:
     def execute(
-        self,
-        request: ParameterRequest,
-        *,
-        allow_missing: bool = False,
+        self, request: ResolutionRequest, *, allow_missing: bool = False
     ) -> ResolvedContext:
         config = load_config(request.config_path)
-        return resolve_loaded_parameters(config, request, allow_missing=allow_missing)
+        context = resolve_prompts(config, request, allow_missing=allow_missing)
+        if not allow_missing:
+            for name, template in config.images.items():
+                materialize_as(template, f"images.{name}", context, ImageSpec)
+            for name, template in config.containers.items():
+                materialize_as(template, f"containers.{name}", context, ContainerSpec)
+        return context
 
 
-def resolve_loaded_parameters(
-    config: ToolchainConfig,
-    request: ParameterRequest,
+def resolve_prompts(
+    template: BaseModel,
+    request: ResolutionRequest,
     *,
+    prefix: str = "",
     allow_missing: bool = False,
 ) -> ResolvedContext:
+    prompts = collect_prompts(template, prefix)
     values = load_values(request.values_path) if request.values_path else {}
-    return ParameterEngine(config.parameter_schema()).resolve(
+    return RuntimeValueResolver(prompts).resolve(
         values=values,
         overrides=request.overrides,
         interactive=request.interactive,
@@ -51,3 +70,27 @@ def resolve_loaded_parameters(
         allow_missing=allow_missing,
     )
 
+
+def resolve_template(
+    root: BaseModel,
+    template: BaseModel,
+    request: ResolutionRequest,
+    prefix: str,
+    target: type[ModelT],
+) -> tuple[ModelT, ResolvedContext]:
+    selected = collect_prompts(template, prefix)
+    available = collect_prompts(root)
+    values = load_values(request.values_path) if request.values_path else {}
+    flat_values = flatten_values(values)
+    unknown_values = set(flat_values) - set(available)
+    unknown_overrides = set(request.overrides) - set(available)
+    if unknown_values or unknown_overrides:
+        unknown = sorted(unknown_values | unknown_overrides)
+        raise ResolutionError(f"unknown runtime value(s): {', '.join(unknown)}")
+    context = RuntimeValueResolver(selected).resolve(
+        values={key: value for key, value in flat_values.items() if key in selected},
+        overrides={key: value for key, value in request.overrides.items() if key in selected},
+        interactive=request.interactive,
+        input_fn=request.input_fn,
+    )
+    return materialize_as(template, prefix, context, target), context

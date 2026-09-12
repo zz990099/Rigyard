@@ -1,4 +1,4 @@
-"""Configuration and immutable execution models for layered images."""
+"""Template, resolved configuration, and immutable image execution models."""
 
 from __future__ import annotations
 
@@ -11,24 +11,26 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ..parameters.references import ParameterRef as ParameterRef
+from ..parameters.models import PromptValue
 
 BUILD_ARG_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 IMAGE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*$")
-
 Scalar = str | int | float | bool
+RuntimeString = PromptValue | str
+RuntimeScalar = PromptValue | Scalar
 
 
-ScalarSource = Scalar | ParameterRef
-StringSource = str | ParameterRef
+def _validate_build_arg_names(values: Mapping[str, Any]) -> None:
+    invalid = sorted(name for name in values if not BUILD_ARG_NAME.fullmatch(name))
+    if invalid:
+        raise ValueError(f"invalid build argument name(s): {', '.join(invalid)}")
 
 
-class ImageLayerSpec(BaseModel):
+class ImageLayerTemplate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-
     name: str
-    dockerfile: Path
-    build_args: dict[str, ScalarSource] = Field(default_factory=dict)
+    dockerfile: Path | PromptValue
+    build_args: dict[str, RuntimeScalar] = Field(default_factory=dict)
 
     @field_validator("name")
     @classmethod
@@ -39,33 +41,28 @@ class ImageLayerSpec(BaseModel):
 
     @field_validator("build_args")
     @classmethod
-    def valid_build_arg_names(
-        cls, value: dict[str, ScalarSource]
-    ) -> dict[str, ScalarSource]:
+    def valid_build_args(cls, value: dict[str, RuntimeScalar]) -> dict[str, RuntimeScalar]:
         _validate_build_arg_names(value)
         return value
 
 
-class ImageSpec(BaseModel):
+class ImageTemplate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-
     description: str | None = None
-    base: StringSource
-    context: Path = Path(".")
-    tag: StringSource
-    layers: tuple[ImageLayerSpec, ...] = Field(min_length=1)
-    build_args: dict[str, ScalarSource] = Field(default_factory=dict)
+    base: RuntimeString
+    context: Path | PromptValue = Path(".")
+    tag: RuntimeString
+    layers: tuple[ImageLayerTemplate, ...] = Field(min_length=1)
+    build_args: dict[str, RuntimeScalar] = Field(default_factory=dict)
 
     @field_validator("build_args")
     @classmethod
-    def valid_build_arg_names(
-        cls, value: dict[str, ScalarSource]
-    ) -> dict[str, ScalarSource]:
+    def valid_build_args(cls, value: dict[str, RuntimeScalar]) -> dict[str, RuntimeScalar]:
         _validate_build_arg_names(value)
         return value
 
     @model_validator(mode="after")
-    def unique_layer_names(self) -> ImageSpec:
+    def unique_layer_names(self) -> ImageTemplate:
         names = [layer.name for layer in self.layers]
         duplicates = sorted({name for name in names if names.count(name) > 1})
         if duplicates:
@@ -73,10 +70,21 @@ class ImageSpec(BaseModel):
         return self
 
 
-def _validate_build_arg_names(values: Mapping[str, Any]) -> None:
-    invalid = sorted(name for name in values if not BUILD_ARG_NAME.fullmatch(name))
-    if invalid:
-        raise ValueError(f"invalid build argument name(s): {', '.join(invalid)}")
+class ImageLayerSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    name: str
+    dockerfile: Path
+    build_args: dict[str, Scalar] = Field(default_factory=dict)
+
+
+class ImageSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    description: str | None = None
+    base: str
+    context: Path = Path(".")
+    tag: str
+    layers: tuple[ImageLayerSpec, ...] = Field(min_length=1)
+    build_args: dict[str, Scalar] = Field(default_factory=dict)
 
 
 @dataclass(frozen=True)

@@ -1,62 +1,40 @@
-# Interactive CLI menu
+# CLI 与交互式菜单
 
-The command CLI and the interactive menu are two presentation adapters over the same application use cases. Neither adapter calls the other, constructs a fake `argparse.Namespace`, or owns build and parameter-resolution rules.
+## 两种入口
 
-## Ownership rules
+`toolchain` 不带子命令时进入菜单；带子命令时直接运行同一个应用 use case：
 
-| Concern | Owner |
-|---|---|
-| Available toolchain capabilities and action handlers | Code registry |
-| Images, parameters, descriptions, and choices | `toolchain.yaml` |
-| Values file and environment inputs | Parameter subsystem |
-| Temporary choices made while the menu is open | `MenuSession` |
-| Image building behavior | `BuildImageUseCase` and image service |
-
-Schema v1 does not have a `menu` or `ui` section. Project configuration cannot name Python handlers or arbitrary shell commands. Future project-defined workflows must be modeled as a workflow domain rather than as menu entries.
-
-## Entry behavior
-
-- A normal subcommand continues to use the command CLI.
-- No subcommand starts the menu only when both stdin and stdout are TTYs.
-- A non-TTY invocation with no subcommand prints help and exits with status 2.
-- The menu reads `./toolchain.yaml` by default. `--config` selects another file.
-- `--values` supplies an optional values file for the menu session.
-
-## Initial actions
-
-The first menu contains only implemented capabilities:
-
-1. Build image
-2. Configure parameters
-3. Show effective parameters
-4. Validate configuration
-5. Create container
-0. Exit
-
-The action registry is explicit and static. `Build image` is unavailable when the loaded configuration has no images. Its image submenu is generated from `ToolchainConfig.images`.
-
-`Create container` is unavailable without `containers`. Its submenu is generated
-from container definitions. The resolved plan is displayed before confirmation;
-the confirmed plan is executed without re-reading configuration or environment.
-
-## Session overrides
-
-Parameter edits are held in memory and passed to the same parameter resolver as CLI `--set` values. They are not written to YAML. The effective precedence remains:
-
-```text
-default < values file < environment < session override
+```bash
+toolchain
+toolchain image build development
+toolchain container create development
 ```
 
-Changing a dependency can enable or disable other parameters. The parameter screen therefore creates a fresh partial resolution every time it is rendered. A normal build still requires a complete resolution and prompts for missing required values.
+全局 `--config/-f` 设置项目配置，默认是 `./toolchain.yaml`。菜单可用全局 `--values` 初始化值；直接子命令的 `--values`、`--set` 和 `--non-interactive` 属于具体操作。
 
-## Interaction rules
+## 菜单流程
 
-- Invalid menu input is reported and retried.
-- `Ctrl+C` during an action cancels it and returns to the main menu.
-- `Ctrl+C` at the main selection exits with status 130.
-- EOF exits cleanly.
-- An image build requires confirmation.
-- An action error is displayed without discarding session overrides.
-- Successful and failed actions return to the main menu.
+菜单提供镜像构建、运行时值配置/查看、配置校验和容器创建。选择镜像或容器后才会询问该配置子树的内联 prompts。完成取值和严格校验后展示计划，再进行最终确认；取消不会调用 Docker。
 
-This is deliberately a numbered prompt, not a full-screen TUI. It uses no additional UI dependency.
+“Configure parameters”保存的是当前菜单会话中的路径覆盖值，不修改 YAML。它的优先级等同 CLI `--set`，退出菜单后丢弃。
+
+## 自动化
+
+CI 中应明确禁用交互：
+
+```bash
+toolchain --config toolchain.yaml image build development \
+  --values ci-values.yaml --non-interactive
+```
+
+完整路径覆盖适合少量临时变更：
+
+```bash
+toolchain container create development \
+  --set containers.development.name=robot-ci \
+  --set containers.development.privileged=false \
+  --non-interactive
+```
+
+`inspect` 显示运行时路径、交互模式、默认值状态和对应环境变量名；`resolve` 解析全部路径并物化所有业务模型，因此可用作部署前检查。
+

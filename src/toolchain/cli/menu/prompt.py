@@ -62,4 +62,3 @@ class MenuIO:
             if value in {"y", "yes"}:
                 return True
             self.write("Enter y or n.")
-

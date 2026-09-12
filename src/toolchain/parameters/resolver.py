@@ -1,69 +1,84 @@
-"""Parameter resolution pipeline."""
+"""Discover and resolve inline prompt values for one selected operation."""
 
 from __future__ import annotations
 
 import os
 import re
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, TypeVar
+
+from pydantic import BaseModel, ValidationError
 
 from ..errors import MissingValueError, ResolutionError
-from .coercion import coerce_value
-from .conditions import evaluate_condition
 from .context import ResolvedContext, ResolvedValue, ValueSource
-from .graph import build_dependencies, topological_order
-from .models import ParameterSchema, ParameterSpec
+from .models import PromptMode, PromptValue
 from .prompt import InputFunction, prompt_for_value
 
 ENV_PREFIX = "TOOL_PARAM_"
+ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
-def environment_name(parameter_name: str) -> str:
-    suffix = re.sub(r"[^A-Za-z0-9]", "_", parameter_name).upper()
+def environment_name(path: str) -> str:
+    suffix = re.sub(r"[^A-Za-z0-9]", "_", path).upper()
     return f"{ENV_PREFIX}{suffix}"
 
 
-class ParameterEngine:
-    """Resolve a validated schema into one immutable context."""
+def collect_prompts(node: Any, prefix: str = "") -> dict[str, PromptValue]:
+    result: dict[str, PromptValue] = {}
+    if isinstance(node, PromptValue):
+        result[prefix] = node
+    elif isinstance(node, BaseModel):
+        for name in type(node).model_fields:
+            child = f"{prefix}.{name}" if prefix else name
+            result.update(collect_prompts(getattr(node, name), child))
+    elif isinstance(node, Mapping):
+        for name, value in node.items():
+            child = f"{prefix}.{name}" if prefix else str(name)
+            result.update(collect_prompts(value, child))
+    elif isinstance(node, (list, tuple)):
+        for index, value in enumerate(node):
+            child = f"{prefix}.{index}" if prefix else str(index)
+            result.update(collect_prompts(value, child))
+    return result
 
-    def __init__(self, schema: ParameterSchema) -> None:
-        self.schema = schema
-        self.dependencies = build_dependencies(schema.parameters)
-        self.order = topological_order(schema.parameters)
+
+def flatten_values(values: Mapping[str, Any], prefix: str = "") -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for name, value in values.items():
+        path = f"{prefix}.{name}" if prefix else str(name)
+        if isinstance(value, Mapping):
+            result.update(flatten_values(value, path))
+        else:
+            result[path] = value
+    return result
+
+
+class RuntimeValueResolver:
+    def __init__(self, prompts: Mapping[str, PromptValue]) -> None:
+        self.prompts = dict(prompts)
         self._check_environment_collisions()
-        self._validate_defaults()
 
     def _check_environment_collisions(self) -> None:
         names: dict[str, str] = {}
-        for parameter in self.schema.parameters:
-            env_name = environment_name(parameter)
+        for path in self.prompts:
+            env_name = environment_name(path)
             if env_name in names:
                 raise ResolutionError(
-                    f"parameters {names[env_name]!r} and {parameter!r} map to the same "
-                    f"environment variable {env_name}"
+                    f"runtime values {names[env_name]!r} and {path!r} map to {env_name}"
                 )
-            names[env_name] = parameter
-
-    def _validate_defaults(self) -> None:
-        for name, spec in self.schema.parameters.items():
-            if "default" in spec.model_fields_set:
-                coerce_value(name, spec.default, spec)
+            names[env_name] = path
 
     def inspect(self) -> dict[str, Any]:
         return {
-            "version": self.schema.version,
-            "order": list(self.order),
-            "parameters": {
-                name: {
-                    "type": spec.type.value,
-                    "required": spec.required,
-                    "dependencies": sorted(self.dependencies[name]),
-                    "environment": environment_name(name),
-                    "enabled_if": spec.enabled_if,
-                    "required_if": spec.required_if,
-                }
-                for name, spec in self.schema.parameters.items()
-            },
+            path: {
+                "mode": value.prompt.mode.value,
+                "message": value.prompt.message,
+                "repeat": value.prompt.repeat,
+                "options": list(value.prompt.options) if value.prompt.options else None,
+                "has_default": value.has_default,
+                "environment": environment_name(path),
+            }
+            for path, value in self.prompts.items()
         }
 
     def resolve(
@@ -76,68 +91,108 @@ class ParameterEngine:
         input_fn: InputFunction = input,
         allow_missing: bool = False,
     ) -> ResolvedContext:
-        values = values or {}
-        environ = os.environ if environ is None else environ
+        flat_values = flatten_values(values or {})
+        environment = os.environ if environ is None else environ
         overrides = overrides or {}
-        self._reject_unknown("values", values)
-        self._reject_unknown("CLI override", overrides)
-
+        self._reject_unknown("values", flat_values)
+        self._reject_unknown("override", overrides)
         resolved: dict[str, ResolvedValue] = {}
-        disabled: set[str] = set()
         missing: list[str] = []
 
-        for name in self.order:
-            spec = self.schema.parameters[name]
-            current_values = {key: item.value for key, item in resolved.items()}
-            if spec.enabled_if is not None and not evaluate_condition(
-                spec.enabled_if, current_values
-            ):
-                disabled.add(name)
-                continue
-
-            candidate = self._candidate(name, spec, values, environ, overrides)
-            required = spec.required or (
-                spec.required_if is not None
-                and evaluate_condition(spec.required_if, current_values)
-            )
-            if candidate is None:
-                if required and interactive:
-                    value = prompt_for_value(name, spec, input_fn)
-                    resolved[name] = ResolvedValue(value, ValueSource.INTERACTIVE)
-                elif required:
-                    missing.append(name)
-                continue
-
-            raw, source = candidate
-            resolved[name] = ResolvedValue(coerce_value(name, raw, spec), source)
+        for path, prompt in self.prompts.items():
+            candidate: tuple[Any, ValueSource] | None = None
+            if path in flat_values:
+                candidate = (flat_values[path], ValueSource.VALUES)
+            env_name = environment_name(path)
+            if env_name in environment:
+                candidate = (environment[env_name], ValueSource.ENVIRONMENT)
+            if path in overrides:
+                candidate = (overrides[path], ValueSource.CLI)
+            if candidate is not None:
+                raw, source = candidate
+                resolved[path] = ResolvedValue(self._normalize(path, prompt, raw), source)
+            elif interactive:
+                resolved[path] = ResolvedValue(
+                    prompt_for_value(prompt, input_fn), ValueSource.INTERACTIVE
+                )
+            elif prompt.has_default:
+                resolved[path] = ResolvedValue(prompt.default, ValueSource.DEFAULT)
+            else:
+                missing.append(path)
 
         if missing and not allow_missing:
             raise MissingValueError(missing)
-        return ResolvedContext(resolved, disabled)
+        return ResolvedContext(resolved)
 
-    def _candidate(
-        self,
-        name: str,
-        spec: ParameterSpec,
-        values: Mapping[str, Any],
-        environ: Mapping[str, str],
-        overrides: Mapping[str, Any],
-    ) -> tuple[Any, ValueSource] | None:
-        # Later layers intentionally replace earlier layers.
-        candidate: tuple[Any, ValueSource] | None = None
-        if "default" in spec.model_fields_set:
-            candidate = (spec.default, ValueSource.DEFAULT)
-        if name in values:
-            candidate = (values[name], ValueSource.VALUES)
-        env_name = environment_name(name)
-        if env_name in environ:
-            candidate = (environ[env_name], ValueSource.ENVIRONMENT)
-        if name in overrides:
-            candidate = (overrides[name], ValueSource.CLI)
-        return candidate
+    def _normalize(self, path: str, value: PromptValue, raw: Any) -> Any:
+        prompt = value.prompt
+        if prompt.mode == PromptMode.CONFIRM:
+            if isinstance(raw, bool):
+                return raw
+            if isinstance(raw, str):
+                normalized = raw.strip().lower()
+                if normalized in {"y", "yes", "true", "1", "on"}:
+                    return True
+                if normalized in {"n", "no", "false", "0", "off"}:
+                    return False
+            raise ResolutionError(f"invalid confirm value for {path}: {raw!r}")
+        if prompt.mode == PromptMode.SELECT:
+            options = prompt.options or ()
+            if raw in options:
+                return raw
+            matches = [option for option in options if str(option) == str(raw)]
+            if len(matches) == 1:
+                return matches[0]
+            raise ResolutionError(
+                f"invalid select value for {path}: {raw!r}; expected one of {list(options)!r}"
+            )
+        if prompt.repeat:
+            if not isinstance(raw, (list, tuple)):
+                raise ResolutionError(f"invalid repeated input for {path}: expected a list")
+            return list(raw)
+        return raw
 
     def _reject_unknown(self, source: str, values: Mapping[str, Any]) -> None:
-        unknown = set(values) - set(self.schema.parameters)
+        unknown = set(values) - set(self.prompts)
         if unknown:
-            joined = ", ".join(sorted(unknown))
-            raise ResolutionError(f"unknown parameter(s) in {source}: {joined}")
+            raise ResolutionError(
+                f"unknown runtime value(s) in {source}: {', '.join(sorted(unknown))}"
+            )
+
+
+def materialize(node: Any, prefix: str, context: ResolvedContext) -> Any:
+    if isinstance(node, PromptValue):
+        if prefix not in context:
+            raise MissingValueError((prefix,))
+        return context[prefix]
+    if isinstance(node, BaseModel):
+        return {
+            name: materialize(getattr(node, name), f"{prefix}.{name}" if prefix else name, context)
+            for name in type(node).model_fields
+        }
+    if isinstance(node, Mapping):
+        return {
+            name: materialize(value, f"{prefix}.{name}" if prefix else str(name), context)
+            for name, value in node.items()
+        }
+    if isinstance(node, (list, tuple)):
+        return [
+            materialize(value, f"{prefix}.{index}" if prefix else str(index), context)
+            for index, value in enumerate(node)
+        ]
+    return node
+
+
+def materialize_as(
+    template: BaseModel,
+    prefix: str,
+    context: ResolvedContext,
+    target: type[ModelT],
+) -> ModelT:
+    try:
+        return target.model_validate(materialize(template, prefix, context))
+    except ValidationError as exc:
+        first = exc.errors(include_url=False)[0]
+        location = ".".join(str(item) for item in first.get("loc", ()))
+        path = f"{prefix}.{location}" if location else prefix
+        raise ResolutionError(f"invalid resolved value for {path}: {first['msg']}") from exc

@@ -46,4 +46,3 @@ class SubprocessRunner:
             stdout=completed.stdout or "",
             stderr=completed.stderr or "",
         )
-

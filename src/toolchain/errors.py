@@ -1,4 +1,4 @@
-"""Actionable errors exposed by the parameter engine."""
+"""Actionable errors exposed by toolchain application boundaries."""
 
 from __future__ import annotations
 
@@ -48,14 +48,8 @@ class SchemaValidationError(ToolchainError):
     exit_code = 2
 
 
-class DependencyError(ToolchainError):
-    """Parameter conditions contain invalid or cyclic dependencies."""
-
-    exit_code = 2
-
-
 class ResolutionError(ToolchainError):
-    """A parameter value could not be resolved or validated."""
+    """A runtime value could not be resolved or validated."""
 
     exit_code = 3
 
@@ -65,7 +59,8 @@ class MissingValueError(ResolutionError):
         ordered = sorted(names)
         joined = ", ".join(ordered)
         super().__init__(
-            f"missing required parameter(s): {joined}; provide values, environment variables, "
+            f"missing required runtime value(s): {joined}; provide a values file, "
+            "environment variables, "
             "--set overrides, or run interactively"
         )
         self.names = tuple(ordered)

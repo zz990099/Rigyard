@@ -15,4 +15,3 @@ class MenuSession:
     config: ToolchainConfig
     values_path: Path | None = None
     overrides: dict[str, Any] = field(default_factory=dict)
-

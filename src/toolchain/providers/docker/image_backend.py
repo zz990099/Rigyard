@@ -55,4 +55,3 @@ class DockerImageBackend:
 def _detail(stderr: str, stdout: str) -> str:
     message = stderr.strip() or stdout.strip()
     return f": {message}" if message else ""
-

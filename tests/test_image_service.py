@@ -4,8 +4,8 @@ import pytest
 
 from toolchain.errors import ImageBuildError
 from toolchain.images.models import BuildStepResult, ImageSpec
+from toolchain.images.planner import ImageBuildPlanner
 from toolchain.images.service import ImageBuildService
-from toolchain.parameters.context import ResolvedContext
 
 
 class RecordingBackend:
@@ -45,9 +45,8 @@ def setup_spec(tmp_path: Path) -> tuple[Path, ImageSpec]:
 def test_service_builds_every_step_in_order(tmp_path: Path) -> None:
     config, spec = setup_spec(tmp_path)
     backend = RecordingBackend()
-    result = ImageBuildService(backend).build(
-        "test", spec, ResolvedContext({}), config
-    )
+    plan = ImageBuildPlanner().create_plan("test", spec, config)
+    result = ImageBuildService(backend).build(plan)
     assert backend.available
     assert [step.layer_name for step in backend.steps] == ["one", "two", "three"]
     assert result.final_tag == "example/test:latest"
@@ -56,7 +55,7 @@ def test_service_builds_every_step_in_order(tmp_path: Path) -> None:
 def test_service_stops_at_first_failure(tmp_path: Path) -> None:
     config, spec = setup_spec(tmp_path)
     backend = RecordingBackend(fail_at=2)
+    plan = ImageBuildPlanner().create_plan("test", spec, config)
     with pytest.raises(ImageBuildError, match="stopped"):
-        ImageBuildService(backend).build("test", spec, ResolvedContext({}), config)
+        ImageBuildService(backend).build(plan)
     assert [step.index for step in backend.steps] == [1, 2]
-

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from typing import Any
 
 from ...application.images import BuildImageUseCase
@@ -18,8 +17,7 @@ def register_image_commands(commands: Any) -> None:
     actions = image.add_subparsers(dest="image_command", required=True)
 
     build = actions.add_parser("build", help="build one layered image")
-    build.add_argument("schema", type=Path)
-    build.add_argument("image_name")
+    build.add_argument("image_name", help="image configuration name under images")
     add_resolution_arguments(build)
     build.set_defaults(handler=_build)
 
@@ -29,14 +27,16 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         overrides = parse_overrides(args.sets)
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
-    result = BuildImageUseCase(DockerImageBackend()).execute(
+    use_case = BuildImageUseCase(DockerImageBackend())
+    plan = use_case.plan(
         BuildImageRequest(
-            config_path=args.schema,
+            config_path=args.config_path,
             image_name=args.image_name,
             values_path=args.values,
             overrides=overrides,
             interactive=not args.non_interactive,
         )
     )
+    result = use_case.execute(plan)
     print(f"Built {result.final_tag} ({len(result.steps)} layer(s))")
     return 0
