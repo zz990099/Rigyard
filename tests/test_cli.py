@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from toolchain.cli import run
+from toolchain.cli.main import run
 
 
 def write(path: Path, text: str) -> Path:
@@ -56,4 +56,3 @@ def test_noninteractive_failure_exit_code(tmp_path: Path, capsys) -> None:
     )
     assert run(["resolve", str(schema), "--non-interactive"]) == 3
     assert "missing required" in capsys.readouterr().err
-

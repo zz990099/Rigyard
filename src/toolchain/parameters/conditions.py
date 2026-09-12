@@ -1,4 +1,4 @@
-"""Structured, non-executable condition grammar."""
+"""Structured, non-executable parameter condition grammar."""
 
 from __future__ import annotations
 
@@ -63,4 +63,3 @@ def evaluate_condition(data: ConditionData, values: Mapping[str, Any]) -> bool:
     if "not" in data:
         return not evaluate_condition(data["not"], values)
     return all(values.get(name) == expected for name, expected in data.items())
-

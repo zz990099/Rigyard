@@ -7,10 +7,10 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
+from ..errors import MissingValueError, ResolutionError
 from .coercion import coerce_value
 from .conditions import evaluate_condition
 from .context import ResolvedContext, ResolvedValue, ValueSource
-from .errors import MissingValueError, ResolutionError
 from .graph import build_dependencies, topological_order
 from .models import ParameterSchema, ParameterSpec
 from .prompt import InputFunction, prompt_for_value
@@ -140,4 +140,3 @@ class ParameterEngine:
         if unknown:
             joined = ", ".join(sorted(unknown))
             raise ResolutionError(f"unknown parameter(s) in {source}: {joined}")
-

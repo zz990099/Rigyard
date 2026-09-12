@@ -22,4 +22,3 @@ def prompt_for_value(name: str, spec: ParameterSpec, input_fn: InputFunction = i
             return coerce_value(name, raw, spec)
         except Exception as exc:  # retry is the intended interactive boundary
             print(f"Error: {exc}")
-

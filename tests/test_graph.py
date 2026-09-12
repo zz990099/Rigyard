@@ -1,8 +1,8 @@
 import pytest
 
 from toolchain.errors import DependencyError
-from toolchain.graph import topological_order
-from toolchain.models import ParameterSchema
+from toolchain.parameters.graph import topological_order
+from toolchain.parameters.models import ParameterSchema
 
 
 def schema(parameters):
@@ -35,4 +35,3 @@ def test_cycle_is_rejected() -> None:
     )
     with pytest.raises(DependencyError, match="a -> b -> a"):
         topological_order(model.parameters)
-

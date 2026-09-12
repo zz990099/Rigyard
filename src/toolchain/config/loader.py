@@ -9,8 +9,8 @@ import yaml
 from pydantic import ValidationError
 from yaml.nodes import MappingNode, Node, SequenceNode
 
-from .errors import ConfigIOError, SchemaValidationError, SourceLocation
-from .models import ParameterSchema
+from ..errors import ConfigIOError, SchemaValidationError, SourceLocation
+from ..parameters.models import ParameterSchema
 
 
 def _locations(node: Node, prefix: tuple[Any, ...] = ()) -> dict[tuple[Any, ...], tuple[int, int]]:

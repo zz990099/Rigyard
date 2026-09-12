@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "robot-toolchain"
-version = "0.1.0"
+version = "0.2.0"
 description = "A YAML-driven declarative parameter engine for development toolchains"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,7 +23,7 @@ dev = [
 ]
 
 [project.scripts]
-toolchain = "toolchain.cli:main"
+toolchain = "toolchain.cli.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/toolchain"]
@@ -38,4 +38,3 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
-

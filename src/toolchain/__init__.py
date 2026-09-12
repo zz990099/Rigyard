@@ -1,9 +1,10 @@
 """Declarative parameter engine for development toolchains."""
 
-from .context import ResolvedContext, ResolvedValue, ValueSource
-from .engine import ParameterEngine
+from .config.loader import load_schema, load_values
 from .errors import ToolchainError
-from .loader import load_schema, load_values
+from .parameters.context import ResolvedContext, ResolvedValue, ValueSource
+from .parameters.resolver import ParameterEngine
+from .version import __version__
 
 __all__ = [
     "ParameterEngine",
@@ -11,9 +12,7 @@ __all__ = [
     "ResolvedValue",
     "ToolchainError",
     "ValueSource",
+    "__version__",
     "load_schema",
     "load_values",
 ]
-
-__version__ = "0.1.0"
-

@@ -57,4 +57,3 @@ class ResolvedContext(Mapping[str, Any]):
                 for name, item in self._resolved.items()
             }
         return {name: item.value for name, item in self._resolved.items()}
-

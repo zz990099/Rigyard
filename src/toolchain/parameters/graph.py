@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from ..errors import DependencyError
 from .conditions import condition_dependencies
-from .errors import DependencyError
 from .models import ParameterSpec
 
 

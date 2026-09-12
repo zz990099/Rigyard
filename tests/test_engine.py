@@ -2,10 +2,10 @@ from types import MappingProxyType
 
 import pytest
 
-from toolchain.context import ValueSource
-from toolchain.engine import ParameterEngine
 from toolchain.errors import DependencyError, MissingValueError, ResolutionError
-from toolchain.models import ParameterSchema
+from toolchain.parameters.context import ValueSource
+from toolchain.parameters.models import ParameterSchema
+from toolchain.parameters.resolver import ParameterEngine
 
 
 def engine(parameters) -> ParameterEngine:
@@ -103,4 +103,3 @@ def test_environment_name_collision_is_rejected() -> None:
 def test_self_dependency_is_rejected() -> None:
     with pytest.raises(DependencyError, match="references itself"):
         engine({"mode": {"enabled_if": {"mode": True}}})
-

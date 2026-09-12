@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from toolchain.coercion import coerce_value
 from toolchain.errors import ResolutionError
-from toolchain.models import ParameterSpec
+from toolchain.parameters.coercion import coerce_value
+from toolchain.parameters.models import ParameterSpec
 
 
 @pytest.mark.parametrize(
@@ -35,4 +35,3 @@ def test_supported_types(definition, raw, expected) -> None:
 def test_constraints_are_enforced(definition, raw) -> None:
     with pytest.raises(ResolutionError, match="invalid value"):
         coerce_value("value", raw, ParameterSpec.model_validate(definition))
-

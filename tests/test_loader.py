@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
+from toolchain.config.loader import load_schema, load_values
 from toolchain.errors import ConfigIOError, SchemaValidationError
-from toolchain.loader import load_schema, load_values
 
 
 def write(path: Path, text: str) -> Path:
@@ -33,4 +33,3 @@ def test_values_must_be_mapping(tmp_path: Path) -> None:
     values = write(tmp_path / "values.yaml", "- one\n- two\n")
     with pytest.raises(SchemaValidationError, match="must contain a mapping"):
         load_values(values)
-

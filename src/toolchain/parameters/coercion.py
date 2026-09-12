@@ -1,4 +1,4 @@
-"""Strict, predictable conversion and validation of external values."""
+"""Strict, predictable conversion and validation of parameter values."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .errors import ResolutionError
+from ..errors import ResolutionError
 from .models import ParameterSpec, ParameterType
 
 TRUE_VALUES = {"1", "true", "yes", "on"}
