@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ..containers.models import ContainerSpec
 from ..images.models import IMAGE_NAME, ImageSpec
 from ..parameters.models import ParameterSchema, ParameterSpec
 
@@ -14,6 +15,14 @@ class ToolchainConfig(BaseModel):
     version: int = Field(strict=True)
     parameters: dict[str, ParameterSpec] = Field(default_factory=dict)
     images: dict[str, ImageSpec] = Field(default_factory=dict)
+    containers: dict[str, ContainerSpec] = Field(default_factory=dict)
+
+    @field_validator("containers")
+    @classmethod
+    def valid_container_keys(cls, value: dict[str, ContainerSpec]) -> dict[str, ContainerSpec]:
+        if any(not IMAGE_NAME.fullmatch(name) for name in value):
+            raise ValueError("invalid container configuration name")
+        return value
 
     @field_validator("version")
     @classmethod
@@ -37,4 +46,3 @@ class ToolchainConfig(BaseModel):
 
     def parameter_schema(self) -> ParameterSchema:
         return ParameterSchema(version=self.version, parameters=self.parameters)
-

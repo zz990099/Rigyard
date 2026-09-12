@@ -11,25 +11,12 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ..parameters.models import PARAMETER_NAME
+from ..parameters.references import ParameterRef as ParameterRef
 
 BUILD_ARG_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 IMAGE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*$")
 
 Scalar = str | int | float | bool
-
-
-class ParameterRef(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    parameter: str
-
-    @field_validator("parameter")
-    @classmethod
-    def valid_parameter_name(cls, value: str) -> str:
-        if not PARAMETER_NAME.fullmatch(value):
-            raise ValueError(f"invalid parameter name {value!r}")
-        return value
 
 
 ScalarSource = Scalar | ParameterRef

@@ -1,0 +1,36 @@
+version: 1
+
+parameters:
+  container_name:
+    type: string
+    default: robot-development
+  image:
+    type: string
+    default: ubuntu:24.04
+  workspace:
+    type: path
+    default: ..
+
+containers:
+  development:
+    description: Interactive robot development container
+    name: {parameter: container_name}
+    image: {parameter: image}
+    privileged: true
+    devices: [/dev/dri]
+    group_add: [video]
+    network: host
+    ipc: host
+    mounts:
+      - source: /tmp/.X11-unix
+        target: /tmp/.X11-unix
+      - source: {parameter: workspace}
+        target: /workspace
+      - source: /dev/bus/usb
+        target: /dev/bus/usb
+    workdir: /workspace
+    environment:
+      DISPLAY: {env: DISPLAY}
+      DOCKER_USER: {env: USER}
+      USER: {env: USER}
+    command: [/bin/bash]

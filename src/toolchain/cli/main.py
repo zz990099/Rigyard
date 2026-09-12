@@ -10,6 +10,7 @@ from typing import TextIO
 
 from ..errors import ToolchainError
 from ..version import __version__
+from .commands.containers import register_container_commands
 from .commands.images import register_image_commands
 from .commands.parameters import register_parameter_commands
 from .menu import MenuApp, MenuIO
@@ -38,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command")
     register_parameter_commands(commands)
     register_image_commands(commands)
+    register_container_commands(commands)
     return parser
 
 

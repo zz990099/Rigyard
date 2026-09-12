@@ -25,6 +25,7 @@ flowchart TD
 | `config` | Load YAML and compose top-level feature models | Execute commands or resolve runtime values |
 | `parameters` | Validate, order, and resolve declarative parameters | Know about images or Docker |
 | `images` | Validate image semantics, create plans, orchestrate builds | Read YAML or invoke subprocesses |
+| `containers` | Resolve typed run definitions into immutable plans and orchestrate creation | Read environment variables or construct Docker CLI commands |
 | `providers.docker` | Translate build steps into Docker CLI calls | Read project configuration or parameter sources |
 | `application` | Accept typed requests and coordinate loaders, resolvers, and services | Render terminal output or depend on `argparse` |
 | `cli.commands` | Parse scriptable commands and render command results | Contain domain rules or construct Docker commands |
@@ -39,6 +40,12 @@ The command frontend and menu frontend meet at application use cases. A menu act
 `ImageBuildPlan` is the only input needed by an image backend. It contains resolved paths, image references, build arguments, ordered steps, and Dockerfile fragments. The Docker provider never receives the original YAML model.
 
 Both objects are immutable. This prevents a backend from changing the configuration that was validated and presented to the user.
+
+`ContainerRunPlan` is the corresponding container boundary. Host environment
+references are resolved from an explicit application-provided snapshot, not by a
+provider or shell. `parameters.references.ParameterRef` is shared by image and
+container configuration; neither feature domain imports the other. See
+[container creation](containers.md) for the lifecycle and safety boundaries.
 
 ## Layered image invariant
 

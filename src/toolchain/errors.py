@@ -94,3 +94,14 @@ class ImageBuildError(ToolchainError):
 
     exit_code = 4
 
+
+class ContainerPlanError(ToolchainError):
+    """A container definition cannot be resolved into an execution plan."""
+
+    exit_code = 3
+
+
+class ContainerCreateError(ToolchainError):
+    """Docker failed to create and start a container."""
+
+    exit_code = 4

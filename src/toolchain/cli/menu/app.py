@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from ...application.containers import CreateContainerUseCase
 from ...application.images import BuildImageUseCase
 from ...application.parameters import ResolveParametersUseCase, ValidateConfigUseCase
 from ...application.requests import BuildImageRequest, ParameterRequest
@@ -15,6 +16,8 @@ from ...parameters.context import ResolvedContext
 from ...parameters.models import ParameterSpec, ParameterType
 from ...parameters.resolver import ParameterEngine
 from ...providers.docker import DockerImageBackend
+from ...providers.docker.container_backend import DockerContainerBackend
+from ..container_output import describe_container
 from .model import MenuAction, MenuRegistry
 from .prompt import MenuIO
 from .session import MenuSession
@@ -28,9 +31,11 @@ class MenuApp:
         self,
         io: MenuIO | None = None,
         backend_factory: BackendFactory = DockerImageBackend,
+        container_backend_factory: BackendFactory = DockerContainerBackend,
     ) -> None:
         self.io = io or MenuIO()
         self.backend_factory = backend_factory
+        self.container_backend_factory = container_backend_factory
         self.registry = MenuRegistry(
             (
                 MenuAction(
@@ -43,6 +48,11 @@ class MenuApp:
                 MenuAction("parameters.configure", "Configure parameters", self._configure),
                 MenuAction("parameters.show", "Show effective parameters", self._show),
                 MenuAction("config.validate", "Validate configuration", self._validate),
+                MenuAction(
+                    "container.create", "Create container", self._create_container,
+                    enabled=lambda session: bool(session.config.containers),
+                    disabled_reason="no containers configured",
+                ),
             )
         )
 
@@ -91,6 +101,25 @@ class MenuApp:
         if action.enabled(session):
             return action.label
         return f"{action.label} [{action.disabled_reason}]"
+
+    def _create_container(self, session: MenuSession) -> None:
+        names = list(session.config.containers)
+        labels = [
+            f"{name} — {session.config.containers[name].description}"
+            if session.config.containers[name].description else name for name in names
+        ]
+        selected = self.io.select("Create container", labels, back_label="Back")
+        if selected is None:
+            return
+        use_case = CreateContainerUseCase(self.container_backend_factory())
+        plan = use_case.plan(names[selected], self._request(session, interactive=True))
+        for line in describe_container(plan):
+            self.io.write(line)
+        if not self.io.confirm("Create and start this container now?"):
+            self.io.write("Container creation cancelled.")
+            return
+        result = use_case.execute(plan)
+        self.io.write(f"Created and started {result.container_name} ({result.container_id})")
 
     def _validate(self, session: MenuSession) -> None:
         session.config = ValidateConfigUseCase().execute(session.config_path)
@@ -215,4 +244,3 @@ class MenuApp:
             )
         )
         self.io.write(f"Built {result.final_tag} ({len(result.steps)} layer(s))")
-

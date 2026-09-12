@@ -30,9 +30,14 @@ The first menu contains only implemented capabilities:
 2. Configure parameters
 3. Show effective parameters
 4. Validate configuration
+5. Create container
 0. Exit
 
 The action registry is explicit and static. `Build image` is unavailable when the loaded configuration has no images. Its image submenu is generated from `ToolchainConfig.images`.
+
+`Create container` is unavailable without `containers`. Its submenu is generated
+from container definitions. The resolved plan is displayed before confirmation;
+the confirmed plan is executed without re-reading configuration or environment.
 
 ## Session overrides
 
@@ -55,4 +60,3 @@ Changing a dependency can enable or disable other parameters. The parameter scre
 - Successful and failed actions return to the main menu.
 
 This is deliberately a numbered prompt, not a full-screen TUI. It uses no additional UI dependency.
-

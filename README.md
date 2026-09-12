@@ -10,7 +10,7 @@
 - 条件采用结构化数据，不执行字符串表达式。
 - `choice.options` 是静态选项；第一阶段没有命令执行、变量插值、模板或动态选项。
 - 镜像由一个基础镜像和有序 layer 组成，每个 layer 自动继承上一层结果。
-- 当前 Docker Provider 使用本机 Docker CLI；不包含容器启动、Compose、多架构、推送和场景编排。
+- 当前 Docker Provider 使用本机 Docker CLI，支持镜像构建和容器创建启动；不包含 Compose、多架构、推送和场景编排。
 
 ## 安装
 
@@ -234,6 +234,36 @@ toolchain image build toolchain.yaml development \
 退出码：`0` 成功，`2` 为 YAML、Schema、依赖或镜像定义错误，`3` 为参数/构建计划解析错误，`4` 为 Docker Backend 或镜像构建错误。
 
 > 环境变量和 CLI 参数可能出现在进程列表、Shell 历史或日志中。密码、令牌等敏感数据应由后续 Provider 的专用秘密输入机制处理；Schema v1 不提供 `secret` 类型。
+
+## 容器创建与启动
+
+`container create` 底层执行 `docker run`，默认 `-i -t -d`。完整配置示例见
+[examples/container.yaml](examples/container.yaml)，架构和边界见
+[容器设计](docs/containers.md)。`privileged` 默认为 `false`，示例显式启用了
+特权、host 网络、host IPC 和设备挂载，仅适合可信的本地开发环境。
+
+```bash
+# 不调用 Docker，只检查参数并显示计划（不显示 environment 的值）
+toolchain container create examples/container.yaml development --dry-run \
+  --set image=your/robot:latest --non-interactive
+
+# 创建并启动容器；默认执行示例中的 /bin/bash
+toolchain container create examples/container.yaml development \
+  --set container_name=robot-dev --set image=your/robot:latest
+
+# 菜单中选择 5) Create container
+toolchain --config examples/container.yaml
+```
+
+示例需要宿主机设置 `DISPLAY` 和 `USER`，并存在对应设备和挂载源。
+环境引用写作 `{env: DISPLAY}`，参数引用写作 `{parameter: image}`；不展开
+`${...}`，不执行 Shell。`mounts` 默认是 bind 挂载，相对路径以配置目录为基准，
+使用 Docker `--mount`，不存在的 bind 源由 Docker 报错，不自动创建目录。
+`environment.USER` / `DOCKER_USER` 仅设置环境变量，不切换容器运行用户。
+
+同名容器已存在时直接报错，不自动删除或替换。成功输出表示 Docker 已接受
+后台启动，不代表应用健康检查通过。当前仅支持后台模式，不支持
+`detach: false`、任意附加选项串、自动构建镜像和创建后脚本。
 
 ## Python API
 
