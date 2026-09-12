@@ -1,0 +1,34 @@
+development:
+  description: Interactive robot development container
+  name:
+    default: robot-development
+    prompt:
+      mode: input
+      message: Enter the container name
+  image: example/robot-development:latest
+  privileged:
+    default: false
+    prompt:
+      mode: confirm
+      message: Enable privileged mode?
+  devices: [/dev/dri]
+  group_add: [video]
+  network: host
+  ipc: host
+  mounts:
+    default:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ../:/workspace
+      - /dev/bus/usb:/dev/bus/usb
+    prompt:
+      mode: input
+      repeat: true
+      message: Enter a mount
+      item_hint: SOURCE:TARGET[:ro]
+  workdir: /workspace
+  environment:
+    DISPLAY: {env: DISPLAY}
+    DOCKER_USER: {env: USER}
+    USER: {env: USER}
+  command: [/bin/bash]
+

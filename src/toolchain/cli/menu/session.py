@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from ...config.models import ToolchainConfig
 
@@ -14,4 +13,3 @@ class MenuSession:
     config_path: Path
     config: ToolchainConfig
     values_path: Path | None = None
-    overrides: dict[str, Any] = field(default_factory=dict)

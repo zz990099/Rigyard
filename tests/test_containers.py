@@ -146,9 +146,13 @@ def test_backend_missing_and_empty_id(tmp_path):
 
 def write_config(tmp_path):
     path = tmp_path / "toolchain.yaml"
-    path.write_text("""version: 1
-containers:
-  development:
+    path.write_text("""version: 2
+metadata: {name: container-test}
+sources: {containers: config/containers.yaml}
+""")
+    source = tmp_path / "config/containers.yaml"
+    source.parent.mkdir()
+    source.write_text("""development:
     name:
       default: robot-dev
       prompt: {mode: input, message: Container name}
@@ -211,8 +215,8 @@ def test_menu_resolves_prompts_before_confirmation(tmp_path, answer, expected):
     backend = FakeBackend()
     output = io.StringIO()
     # Create container, select development, accept name/default mounts,
-    # answer privileged, then confirm or cancel, finally exit.
-    inputs = io.StringIO(f"5\n1\n\n{answer}\n\n{answer}\n0\n")
+    # answer privileged, then confirm or cancel. The process exits after the action.
+    inputs = io.StringIO(f"2\n1\n\n{answer}\n\n{answer}\n")
     app = MenuApp(MenuIO(inputs, output), container_backend_factory=lambda: backend)
     assert app.run(config) == 0
     assert len(backend.plans) == expected

@@ -1,35 +1,43 @@
 # 架构
 
-## 设计边界
+## 配置组合
 
-仓库按照“配置模板、运行时取值、严格业务模型、执行计划、后端”拆分：
+Schema v2 将磁盘配置和应用内配置分开：
 
 ```mermaid
 flowchart TD
-    A[ToolchainConfig 模板] --> B[选择 image/container 子树]
-    B --> C[RuntimeValueResolver]
-    C --> D[ResolvedContext]
-    D --> E[严格 ImageSpec / ContainerSpec]
-    E --> F[不可变 BuildPlan / RunPlan]
-    F --> G[Docker Backend]
+    A[toolchain.yaml manifest] --> B[images source]
+    A --> C[containers source]
+    B --> D[ToolchainConfig]
+    C --> D
+    D --> E[选择一个操作子树]
+    E --> F[Spec 与执行计划]
 ```
 
-- `config` 只负责 YAML I/O 和根模型。
-- `parameters` 发现内联 `PromptValue`、按照路径取值，并物化严格模型；它不知道 Docker。
-- `images` 和 `containers` 各自定义模板、严格模型、计划器和后端协议。
-- `application` 选择配置、协调解析和计划，不处理终端展示。
-- `cli` 与 `cli.menu` 是两个薄前端，共用相同 use case。
-- `providers.docker` 是副作用边界，输入只能是已经校验的不可变计划。
+根 manifest 包含 `version`、`metadata` 和 `sources`。加载器以 manifest 所在目录解析 source 路径，分别校验外部文件，并组装不可变的 `ToolchainConfig`。外部文件错误保留其真实文件、行和列；Dockerfile、context 和 bind mount 则始终相对于 manifest 目录。
 
-## 运行时值
+当前不支持递归 include、多文件合并或覆盖。后续加入 builds、tests、scenarios 时，可以在 `sources` 下扩展，不改变根配置职责。
 
-`PromptValue` 直接出现在业务字段位置，不建立全局参数表，也不使用引用。运行时路径由配置位置自然产生，例如 `containers.development.privileged`。
+## 应用边界
 
-执行某个操作时只收集所选子树的 prompts。因此构建 `images.development` 不会询问任何容器参数，也不会询问其他镜像的参数。values 文件和 overrides 会先与整份配置的已知路径核对，以捕获拼写错误，再过滤到当前操作。
+- `config` 负责 manifest、外部 YAML I/O、错误定位和配置组装。
+- `parameters` 发现内联 `PromptValue`，按完整路径取值并物化严格模型。
+- `images` 与 `containers` 定义模板、严格 Spec、不可变计划和后端协议。
+- `application` 选择配置并协调解析与计划。
+- `cli` 和一次性 `cli.menu` 共用应用 use case。
+- `providers.docker` 只接受已经验证的计划。
 
-解析器仅校验交互语义：confirm、select 和 repeat。随后 `materialize_as` 将解析值放回模板并创建 `ImageSpec` 或 `ContainerSpec`，由目标模型执行数据类型校验。计划器继续校验需要文件系统或领域上下文的规则，例如 Dockerfile 是否存在、挂载是否合法。
+运行流程为：
 
-## 执行安全
+```mermaid
+flowchart LR
+    A[Template] --> B[ResolvedContext]
+    B --> C[ImageSpec / ContainerSpec]
+    C --> D[BuildPlan / RunPlan]
+    D --> E[Docker Backend]
+```
 
-镜像与容器都先创建完整计划，再调用后端。菜单在展示计划后确认，确认前不会检查或调用 Docker。Docker 命令以 argv 元组传给 runner，不经过 shell。计划和解析上下文均不可变，容器输出对环境变量值进行隐藏。
+执行某个操作只收集选中子树的 prompts。因此构建 `images.development` 不会询问其他镜像或容器。values 和 overrides 先与全局已知路径比对以捕获拼写错误，再过滤到当前操作。
+
+镜像和容器都先生成完整计划。菜单展示计划并确认后才调用 Docker；命令通过 argv 传给 runner，不经过 shell。
 

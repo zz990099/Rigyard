@@ -1,59 +1,10 @@
-version: 1
+version: 2
 
-images:
-  development:
-    description: Layered robot development image
-    base:
-      default: ubuntu:22.04
-      prompt:
-        mode: select
-        message: Select the base image
-        options: [ubuntu:22.04, ubuntu:24.04]
-    context: .
-    tag: example/robot-development:latest
-    build_args:
-      VEHICLE_COUNT:
-        default: 1
-        prompt:
-          mode: input
-          message: Enter the simulated vehicle count
-    layers:
-      - name: system
-        dockerfile: docker/layers/10-system.Dockerfile
-      - name: application
-        dockerfile: docker/layers/20-application.Dockerfile
+metadata:
+  name: robot-development
+  description: Example robot development toolchain
 
-containers:
-  development:
-    description: Interactive robot development container
-    name:
-      default: robot-development
-      prompt:
-        mode: input
-        message: Enter the container name
-    image: example/robot-development:latest
-    privileged:
-      default: false
-      prompt:
-        mode: confirm
-        message: Enable privileged mode?
-    devices: [/dev/dri]
-    group_add: [video]
-    network: host
-    ipc: host
-    mounts:
-      default:
-        - /tmp/.X11-unix:/tmp/.X11-unix
-        - ../:/workspace
-        - /dev/bus/usb:/dev/bus/usb
-      prompt:
-        mode: input
-        repeat: true
-        message: Enter a mount
-        item_hint: SOURCE:TARGET[:ro]
-    workdir: /workspace
-    environment:
-      DISPLAY: {env: DISPLAY}
-      DOCKER_USER: {env: USER}
-      USER: {env: USER}
-    command: [/bin/bash]
+sources:
+  images: config/images.yaml
+  containers: config/containers.yaml
+

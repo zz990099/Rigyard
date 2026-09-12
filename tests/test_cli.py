@@ -5,32 +5,44 @@ from toolchain.images.models import BuildStepResult
 
 
 def write(path: Path, text: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
     return path
 
 
 def config_file(tmp_path: Path) -> Path:
-    return write(
+    config = write(
         tmp_path / "toolchain.yaml",
-        """version: 1
-images:
-  development:
-    base:
-      default: ubuntu:22.04
-      prompt:
-        mode: select
-        message: Select base
-        options: [ubuntu:22.04, ubuntu:24.04]
-    tag: example/development:latest
-    layers: [{name: system, dockerfile: system.Dockerfile}]
-containers:
-  development:
-    image: ubuntu:24.04
-    privileged:
-      default: false
-      prompt: {mode: confirm, message: "Privileged?"}
+        """version: 2
+metadata: {name: test-project}
+sources:
+  images: config/images.yaml
+  containers: config/containers.yaml
 """,
     )
+    write(
+        tmp_path / "config/images.yaml",
+        """development:
+  base:
+    default: ubuntu:22.04
+    prompt:
+      mode: select
+      message: Select base
+      options: [ubuntu:22.04, ubuntu:24.04]
+  tag: example/development:latest
+  layers: [{name: system, dockerfile: system.Dockerfile}]
+""",
+    )
+    write(
+        tmp_path / "config/containers.yaml",
+        """development:
+  image: ubuntu:24.04
+  privileged:
+    default: false
+    prompt: {mode: confirm, message: "Privileged?"}
+""",
+    )
+    return config
 
 
 def test_validate_and_inspect_use_global_project_config(tmp_path: Path, capsys):
@@ -80,11 +92,16 @@ containers:
 def test_noninteractive_missing_runtime_value(tmp_path: Path, capsys):
     config = write(
         tmp_path / "toolchain.yaml",
-        """version: 1
-containers:
-  dev:
-    image:
-      prompt: {mode: input, message: Image}
+        """version: 2
+metadata: {name: test-project}
+sources: {containers: config/containers.yaml}
+""",
+    )
+    write(
+        tmp_path / "config/containers.yaml",
+        """dev:
+  image:
+    prompt: {mode: input, message: Image}
 """,
     )
     assert run(["--config", str(config), "container", "create", "dev", "--non-interactive"]) == 3
@@ -122,6 +139,7 @@ def test_image_build_resolves_only_selected_image(tmp_path: Path, monkeypatch, c
         == 0
     )
     assert backend.steps[0].base_image == "ubuntu:22.04"
+    assert backend.steps[0].context == tmp_path
     assert "Built example/development:latest" in capsys.readouterr().out
 
 

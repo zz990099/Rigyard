@@ -1,0 +1,22 @@
+development:
+  description: Layered robot development image
+  base:
+    default: ubuntu:22.04
+    prompt:
+      mode: select
+      message: Select the base image
+      options: [ubuntu:22.04, ubuntu:24.04]
+  context: .
+  tag: example/robot-development:latest
+  build_args:
+    VEHICLE_COUNT:
+      default: 1
+      prompt:
+        mode: input
+        message: Enter the simulated vehicle count
+  layers:
+    - name: system
+      dockerfile: docker/layers/10-system.Dockerfile
+    - name: application
+      dockerfile: docker/layers/20-application.Dockerfile
+

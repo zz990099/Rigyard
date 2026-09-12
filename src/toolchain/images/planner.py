@@ -84,7 +84,7 @@ def _read_fragment(path: Path, image_name: str, layer_name: str) -> str:
         )
     if PARSER_DIRECTIVE.search(fragment):
         raise ImageConfigError(
-            f"{field} cannot contain Docker parser directives in schema v1",
+            f"{field} cannot contain Docker parser directives in schema v2",
             SourceLocation(path),
         )
     if not fragment.strip():

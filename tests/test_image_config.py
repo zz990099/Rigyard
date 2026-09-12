@@ -4,31 +4,39 @@ import pytest
 from pydantic import ValidationError
 
 from toolchain.config.loader import load_config
-from toolchain.config.models import ToolchainConfig
+from toolchain.config.models import ImageDefinitions
 from toolchain.parameters.models import PromptValue
 
 
-def test_project_config_contains_inline_image_prompts(tmp_path: Path):
-    path = tmp_path / "toolchain.yaml"
-    path.write_text("""version: 1
-images:
-  development:
-    base:
-      default: ubuntu:22.04
-      prompt:
-        mode: select
-        message: Select base
-        options: [ubuntu:22.04, ubuntu:24.04]
-    tag: example/development:latest
-    build_args:
-      MODE:
-        default: release
-        prompt: {mode: input, message: Build mode}
-    layers:
-      - name: system
-        dockerfile: system.Dockerfile
-""")
-    image = load_config(path).images["development"]
+def test_external_image_source_contains_inline_prompts(tmp_path: Path):
+    manifest = tmp_path / "toolchain.yaml"
+    manifest.write_text(
+        """version: 2
+metadata: {name: test-project}
+sources: {images: config/images.yaml}
+"""
+    )
+    source = tmp_path / "config/images.yaml"
+    source.parent.mkdir()
+    source.write_text(
+        """development:
+  base:
+    default: ubuntu:22.04
+    prompt:
+      mode: select
+      message: Select base
+      options: [ubuntu:22.04, ubuntu:24.04]
+  tag: example/development:latest
+  build_args:
+    MODE:
+      default: release
+      prompt: {mode: input, message: Build mode}
+  layers:
+    - name: system
+      dockerfile: system.Dockerfile
+"""
+    )
+    image = load_config(manifest).images["development"]
     assert isinstance(image.base, PromptValue)
     assert isinstance(image.build_args["MODE"], PromptValue)
 
@@ -56,4 +64,17 @@ images:
 )
 def test_invalid_image_templates_are_rejected(image):
     with pytest.raises(ValidationError):
-        ToolchainConfig.model_validate({"version": 1, "images": {"test": image}})
+        ImageDefinitions.model_validate({"test": image})
+
+
+def test_invalid_image_name_is_rejected():
+    with pytest.raises(ValidationError, match="invalid image name"):
+        ImageDefinitions.model_validate(
+            {
+                "bad name": {
+                    "base": "ubuntu",
+                    "tag": "test",
+                    "layers": [{"name": "one", "dockerfile": "one"}],
+                }
+            }
+        )

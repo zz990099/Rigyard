@@ -1,16 +1,23 @@
-"""YAML loading with source locations and normalized errors."""
+"""Load a v2 project manifest and its referenced YAML configuration sources."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import yaml
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from yaml.nodes import MappingNode, Node, SequenceNode
 
 from ..errors import ConfigIOError, SchemaValidationError, SourceLocation
-from .models import ToolchainConfig
+from .models import (
+    ContainerDefinitions,
+    ImageDefinitions,
+    ToolchainConfig,
+    ToolchainManifest,
+)
+
+ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 def _locations(node: Node, prefix: tuple[Any, ...] = ()) -> dict[tuple[Any, ...], tuple[int, int]]:
@@ -62,20 +69,46 @@ def _nearest_location(
     return SourceLocation(path, line, column)
 
 
-def load_config(path: str | Path) -> ToolchainConfig:
-    file_path = Path(path)
-    data, locations = _read_yaml(file_path)
+def _validate_file(path: Path, model: type[ModelT], *, label: str) -> ModelT:
+    data, locations = _read_yaml(path)
     if data is None:
-        raise SchemaValidationError("schema must not be empty", SourceLocation(file_path))
+        raise SchemaValidationError(f"{label} must not be empty", SourceLocation(path))
     try:
-        return ToolchainConfig.model_validate(data)
+        return model.model_validate(data)
     except ValidationError as exc:
         first = exc.errors(include_url=False)[0]
         error_path = tuple(first.get("loc", ()))
-        location = _nearest_location(file_path, locations, error_path)
+        location = _nearest_location(path, locations, error_path)
         dotted = ".".join(str(part) for part in error_path)
         prefix = f"{dotted}: " if dotted else ""
         raise SchemaValidationError(f"{prefix}{first['msg']}", location) from exc
+
+
+def _source_path(manifest_path: Path, configured: Path) -> Path:
+    source = configured.expanduser()
+    if not source.is_absolute():
+        source = manifest_path.parent / source
+    return source.resolve()
+
+
+def load_config(path: str | Path) -> ToolchainConfig:
+    manifest_path = Path(path).resolve()
+    manifest = _validate_file(manifest_path, ToolchainManifest, label="manifest")
+    images: dict[str, Any] = {}
+    containers: dict[str, Any] = {}
+    if manifest.sources.images is not None:
+        source = _source_path(manifest_path, manifest.sources.images)
+        images = _validate_file(source, ImageDefinitions, label="image source").root
+    if manifest.sources.containers is not None:
+        source = _source_path(manifest_path, manifest.sources.containers)
+        containers = _validate_file(source, ContainerDefinitions, label="container source").root
+    return ToolchainConfig(
+        version=manifest.version,
+        metadata=manifest.metadata,
+        sources=manifest.sources,
+        images=images,
+        containers=containers,
+    )
 
 
 def load_values(path: str | Path) -> dict[str, Any]:

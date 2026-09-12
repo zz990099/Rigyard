@@ -43,7 +43,7 @@ class ConfigIOError(ToolchainError):
 
 
 class SchemaValidationError(ToolchainError):
-    """The YAML document does not conform to schema v1."""
+    """A YAML document does not conform to the active schema."""
 
     exit_code = 2
 

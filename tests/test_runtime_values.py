@@ -41,7 +41,9 @@ def test_prompt_schema_validates_modes_and_defaults():
 def test_prompts_are_discovered_by_configuration_path():
     config = ToolchainConfig.model_validate(
         {
-            "version": 1,
+            "version": 2,
+            "metadata": {"name": "test"},
+            "sources": {"containers": "containers.yaml"},
             "containers": {
                 "development": {
                     "image": "ubuntu",
@@ -136,7 +138,9 @@ def test_input_select_confirm_and_repeated_input():
 def test_target_model_performs_type_validation_after_interaction():
     template = ToolchainConfig.model_validate(
         {
-            "version": 1,
+            "version": 2,
+            "metadata": {"name": "test"},
+            "sources": {"containers": "containers.yaml"},
             "containers": {
                 "dev": {
                     "image": "ubuntu",

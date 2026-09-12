@@ -4,6 +4,7 @@ from pathlib import Path
 from toolchain.cli.main import run
 from toolchain.cli.menu.app import MenuApp
 from toolchain.cli.menu.prompt import MenuIO
+from toolchain.errors import ImageBuildError
 from toolchain.images.models import BuildStepResult
 
 
@@ -17,34 +18,56 @@ class InterruptingTTY(TTYBuffer):
         raise KeyboardInterrupt
 
 
-def write_config(tmp_path: Path, body: str) -> Path:
-    path = tmp_path / "toolchain.yaml"
-    path.write_text(body)
+def write(path: Path, text: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
     return path
 
 
+def project(
+    tmp_path: Path,
+    *,
+    images: str | None = None,
+    containers: str | None = None,
+) -> Path:
+    sources = []
+    if images is not None:
+        sources.append("  images: config/images.yaml")
+        write(tmp_path / "config/images.yaml", images)
+    if containers is not None:
+        sources.append("  containers: config/containers.yaml")
+        write(tmp_path / "config/containers.yaml", containers)
+    return write(
+        tmp_path / "toolchain.yaml",
+        "version: 2\nmetadata: {name: menu-test}\nsources:\n" + "\n".join(sources) + "\n",
+    )
+
+
 def prompt_config(tmp_path: Path) -> Path:
-    return write_config(
+    return project(
         tmp_path,
-        """version: 1
-containers:
-  dev:
-    image: ubuntu
-    network:
-      default: host
-      prompt:
-        mode: select
-        message: Select network
-        options: [host, bridge]
+        containers="""dev:
+  image: ubuntu
+  network:
+    default: host
+    prompt:
+      mode: select
+      message: Select network
+      options: [host, bridge]
 """,
     )
 
 
-def test_bare_command_enters_menu_only_for_tty(tmp_path: Path):
+def test_bare_command_enters_two_action_menu_only_for_tty(tmp_path: Path):
     config = prompt_config(tmp_path)
     output = TTYBuffer()
     assert run(["--config", str(config)], stdin=TTYBuffer("0\n"), stdout=output) == 0
-    assert "1) Build image [no images configured]" in output.getvalue()
+    rendered = output.getvalue()
+    assert "1) Build image [no images configured]" in rendered
+    assert "2) Create container" in rendered
+    assert "Configure parameters" not in rendered
+    assert "Show effective parameters" not in rendered
+    assert "Validate configuration" not in rendered
 
 
 def test_non_tty_bare_command_prints_help_without_loading_config():
@@ -53,42 +76,22 @@ def test_non_tty_bare_command_prints_help_without_loading_config():
     assert "usage: toolchain" in output.getvalue()
 
 
-def test_menu_edits_inline_prompt_as_session_override(tmp_path: Path):
-    config = prompt_config(tmp_path)
-    output = TTYBuffer()
-    app = MenuApp(MenuIO(TTYBuffer("2\n1\n2\n0\n3\n0\n"), output))
-    assert app.run(config) == 0
-    assert "containers.dev.network = bridge [session]" in output.getvalue()
-    assert config.read_text().count("bridge") == 1
-
-
-def test_menu_values_file_is_shown_without_prompting(tmp_path: Path):
-    config = prompt_config(tmp_path)
-    values = tmp_path / "values.yaml"
-    values.write_text("containers: {dev: {network: bridge}}\n")
-    output = TTYBuffer()
-    assert MenuApp(MenuIO(TTYBuffer("3\n0\n"), output)).run(config, values) == 0
-    assert "containers.dev.network = bridge [values]" in output.getvalue()
-
-
-def test_image_menu_resolves_inline_select_prompt(tmp_path: Path):
-    config = write_config(
+def test_image_menu_executes_once_and_exits(tmp_path: Path):
+    config = project(
         tmp_path,
-        """version: 1
-images:
-  development:
-    description: Development environment
-    base:
-      default: ubuntu:22.04
-      prompt:
-        mode: select
-        message: Select base
-        options: [ubuntu:22.04, ubuntu:24.04]
-    tag: example/development:latest
-    layers: [{name: system, dockerfile: system.Dockerfile}]
+        images="""development:
+  description: Development environment
+  base:
+    default: ubuntu:22.04
+    prompt:
+      mode: select
+      message: Select base
+      options: [ubuntu:22.04, ubuntu:24.04]
+  tag: example/development:latest
+  layers: [{name: system, dockerfile: system.Dockerfile}]
 """,
     )
-    (tmp_path / "system.Dockerfile").write_text("RUN echo system\n")
+    write(tmp_path / "system.Dockerfile", "RUN echo system\n")
 
     class FakeBackend:
         def __init__(self):
@@ -103,9 +106,44 @@ images:
 
     backend = FakeBackend()
     output = TTYBuffer()
-    app = MenuApp(MenuIO(TTYBuffer("1\n1\n2\ny\n0\n"), output), backend_factory=lambda: backend)
+    app = MenuApp(MenuIO(TTYBuffer("1\n1\n2\ny\n"), output), backend_factory=lambda: backend)
     assert app.run(config) == 0
     assert backend.steps[0].base_image == "ubuntu:24.04"
+    assert output.getvalue().count("Configuration:") == 1
+
+
+def test_failed_menu_action_exits_with_backend_error(tmp_path: Path, monkeypatch):
+    config = project(
+        tmp_path,
+        images="""development:
+  base: ubuntu
+  tag: example/development
+  layers: [{name: system, dockerfile: system.Dockerfile}]
+""",
+    )
+    write(tmp_path / "system.Dockerfile", "RUN false\n")
+
+    class FailingBackend:
+        def check_available(self):
+            pass
+
+        def build_step(self, step):
+            raise ImageBuildError("failed")
+
+    monkeypatch.setattr("toolchain.cli.menu.app.DockerImageBackend", FailingBackend)
+    output = TTYBuffer()
+    error = io.StringIO()
+    assert (
+        run(
+            ["--config", str(config)],
+            stdin=TTYBuffer("1\n1\ny\n"),
+            stdout=output,
+            stderr=error,
+        )
+        == 4
+    )
+    assert output.getvalue().count("Configuration:") == 1
+    assert "Error: failed" in error.getvalue()
 
 
 def test_invalid_selection_and_interrupt(tmp_path: Path):
