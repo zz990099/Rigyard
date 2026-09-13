@@ -42,14 +42,22 @@ def collect_prompts(node: Any, prefix: str = "") -> dict[str, PromptValue]:
     return result
 
 
-def flatten_values(values: Mapping[str, Any], prefix: str = "") -> dict[str, Any]:
+def flatten_values(values: Any, prefix: str = "") -> dict[str, Any]:
     result: dict[str, Any] = {}
-    for name, value in values.items():
-        path = f"{prefix}.{name}" if prefix else str(name)
-        if isinstance(value, Mapping):
+    if isinstance(values, Mapping):
+        for name, value in values.items():
+            path = f"{prefix}.{name}" if prefix else str(name)
             result.update(flatten_values(value, path))
-        else:
-            result[path] = value
+    elif (
+        isinstance(values, (list, tuple))
+        and values
+        and all(isinstance(value, Mapping) for value in values)
+    ):
+        for index, value in enumerate(values):
+            path = f"{prefix}.{index}" if prefix else str(index)
+            result.update(flatten_values(value, path))
+    elif prefix:
+        result[prefix] = values
     return result
 
 

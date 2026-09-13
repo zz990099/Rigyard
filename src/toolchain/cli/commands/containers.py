@@ -45,5 +45,8 @@ def _create(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         print("\n".join(describe_container(plan)))
         return 0
     result = use_case.execute(plan)
-    print(f"Created and started {result.container_name} ({result.container_id})")
+    print(
+        f"Created and started {result.container_name} ({result.container_id}); "
+        f"completed {len(result.hooks)} lifecycle hook(s)"
+    )
     return 0

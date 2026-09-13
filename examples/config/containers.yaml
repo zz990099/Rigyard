@@ -32,3 +32,30 @@ development:
     USER: {env: USER}
   command: [/bin/bash]
 
+cross-aarch64:
+  description: AArch64 cross-compilation environment
+  name: robot-cross-aarch64
+  image: example/cross-aarch64-base:latest
+  mounts:
+    - .:/workspace
+    - /opt/robot/sysroot-aarch64:/opt/sysroot
+  workdir: /workspace
+  lifecycle:
+    post_create:
+      - name: prepare-sysroot
+        script: scripts/cross/prepare-sysroot.sh
+        interpreter: [/bin/bash, -eu]
+        user: root
+        workdir: /workspace
+        environment:
+          SYSROOT: /opt/sysroot
+        timeout_seconds: 300
+    post_start:
+      - name: verify-toolchain
+        script: scripts/cross/verify-toolchain.sh
+        interpreter: [/bin/bash, -eu]
+        workdir: /workspace
+        environment:
+          SYSROOT: /opt/sysroot
+        timeout_seconds: 30
+  command: [/bin/bash]

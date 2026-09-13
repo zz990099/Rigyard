@@ -152,6 +152,31 @@ toolchain container create NAME --dry-run
 
 `mounts` 使用 `SOURCE:TARGET[:ro|rw]` 字符串。source 以 `/`、`.` 或 `~` 开头时是 bind mount，否则是 named volume。
 
+## 容器生命周期
+
+容器可以声明创建后的脚本。首次创建时固定按照 `post_create`、`post_start` 的顺序执行：
+
+```yaml
+cross-aarch64:
+  image: example/cross-aarch64-base:latest
+  mounts:
+    - .:/workspace
+    - /opt/robot/sysroot-aarch64:/opt/sysroot
+  lifecycle:
+    post_create:
+      - name: prepare-sysroot
+        script: scripts/cross/prepare-sysroot.sh
+        interpreter: [/bin/bash, -eu]
+        user: root
+        workdir: /workspace
+        environment:
+          SYSROOT: /opt/sysroot
+        timeout_seconds: 300
+  command: [/bin/bash]
+```
+
+`script` 是相对于根 `toolchain.yaml` 的 UTF-8 文件。工具链在确认前读取并计算 SHA-256，随后通过 stdin 交给 `docker exec -i`，不会调用宿主 shell。hook 失败时命令返回错误，但默认保留已经创建的容器用于诊断。
+
 ## 开发
 
 ```bash
@@ -163,4 +188,3 @@ uv build
 ```
 
 详细设计见 [架构](docs/architecture.md)、[CLI 与菜单](docs/cli-menu.md) 和 [容器配置](docs/containers.md)。
-

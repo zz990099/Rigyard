@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "robot-toolchain"
-version = "0.6.0"
-description = "A configuration-driven development toolchain with layered image builds"
+version = "0.7.0"
+description = "A configuration-driven development toolchain for images and containers"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

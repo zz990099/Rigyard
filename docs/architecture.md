@@ -41,3 +41,15 @@ flowchart LR
 
 镜像和容器都先生成完整计划。菜单展示计划并确认后才调用 Docker；命令通过 argv 传给 runner，不经过 shell。
 
+## 容器生命周期
+
+`ContainerRunPlan` 除了 Docker run 参数，还包含已经冻结的 `ContainerHookPlan`。每个 hook 记录阶段、脚本路径和内容、SHA-256、解释器 argv、容器用户、工作目录、环境变量和超时。
+
+创建服务先调用容器 backend，再依次调用 phase-aware hook executor。当前支持：
+
+1. `post_create`：容器首次创建并启动后执行。
+2. `post_start`：容器每次启动后执行；当前创建流程也算首次启动，因此排在 `post_create` 之后执行。
+
+目前还没有独立的 start/stop/remove 命令，所以不接受不会被执行的 `pre_stop` 或 `pre_remove` 配置。以后增加相应操作时，可以复用同一个 hook 计划与执行端口。
+
+脚本从工程侧读取并通过 stdin 交给容器解释器，宿主机不执行脚本。hook 失败不回滚 `docker run`，错误会明确说明容器已保留；这让交叉编译环境能够进入容器诊断，同时避免假装跨宿主挂载的修改具有事务性。

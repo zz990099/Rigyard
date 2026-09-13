@@ -114,7 +114,10 @@ class MenuApp:
             self.io.write("Container creation cancelled.")
             return
         result = use_case.execute(plan)
-        self.io.write(f"Created and started {result.container_name} ({result.container_id})")
+        self.io.write(
+            f"Created and started {result.container_name} ({result.container_id}); "
+            f"completed {len(result.hooks)} lifecycle hook(s)"
+        )
 
     def _build_image(self, session: MenuSession) -> None:
         image_names = list(session.config.images)

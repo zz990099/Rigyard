@@ -21,6 +21,7 @@ class CommandRunner(Protocol):
         *,
         stdin: str | None = None,
         capture: bool = False,
+        timeout_seconds: int | None = None,
     ) -> CommandResult:
         """Run a command without invoking a shell."""
 
@@ -32,6 +33,7 @@ class SubprocessRunner:
         *,
         stdin: str | None = None,
         capture: bool = False,
+        timeout_seconds: int | None = None,
     ) -> CommandResult:
         completed = subprocess.run(
             command,
@@ -40,6 +42,7 @@ class SubprocessRunner:
             stdout=subprocess.PIPE if capture else None,
             stderr=subprocess.PIPE if capture else None,
             check=False,
+            timeout=timeout_seconds,
         )
         return CommandResult(
             returncode=completed.returncode,

@@ -9,4 +9,9 @@ class ContainerCreateService:
         self.backend = backend
 
     def create(self, plan: ContainerRunPlan) -> ContainerCreateResult:
-        return self.backend.create(plan)
+        created = self.backend.create(plan)
+        hooks = tuple(
+            self.backend.run_hook(created.container_name, created.container_id, hook)
+            for hook in plan.hooks
+        )
+        return ContainerCreateResult(created.container_name, created.container_id, hooks)

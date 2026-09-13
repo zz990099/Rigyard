@@ -100,3 +100,7 @@ class ContainerCreateError(ToolchainError):
     """Docker failed to create and start a container."""
 
     exit_code = 4
+
+
+class ContainerLifecycleError(ContainerCreateError):
+    """A lifecycle hook failed after its container was created."""
