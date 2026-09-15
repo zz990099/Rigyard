@@ -14,6 +14,7 @@ from .commands.builds import register_build_commands
 from .commands.containers import register_container_commands
 from .commands.images import register_image_commands
 from .commands.parameters import register_parameter_commands
+from .commands.scenarios import register_scenario_commands
 from .menu import MenuApp, MenuIO
 
 
@@ -42,6 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     register_image_commands(commands)
     register_container_commands(commands)
     register_build_commands(commands)
+    register_scenario_commands(commands)
     return parser
 
 

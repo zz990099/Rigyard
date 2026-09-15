@@ -20,6 +20,12 @@ from ..parameters.resolver import (
     flatten_values,
     materialize_as,
 )
+from ..scenarios.models import (
+    ComposeSupervisorProfileSpec,
+    ComposeSupervisorProfileTemplate,
+    ScenarioGroupSpec,
+    TmuxProfileSpec,
+)
 from .requests import ResolutionRequest
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -53,6 +59,26 @@ class ResolveParametersUseCase:
                 materialize_as(template, f"containers.{name}", context, ContainerSpec)
             for name, template in config.builds.items():
                 materialize_as(template, f"builds.{name}", context, BuildSpec)
+            for scene_name, scenario in config.scenarios.items():
+                for group_name, group in scenario.groups.items():
+                    materialize_as(
+                        group,
+                        f"scenarios.{scene_name}.groups.{group_name}",
+                        context,
+                        ScenarioGroupSpec,
+                    )
+                for profile_name, profile in scenario.profiles.items():
+                    target = (
+                        ComposeSupervisorProfileSpec
+                        if isinstance(profile, ComposeSupervisorProfileTemplate)
+                        else TmuxProfileSpec
+                    )
+                    materialize_as(
+                        profile,
+                        f"scenarios.{scene_name}.profiles.{profile_name}",
+                        context,
+                        target,
+                    )
         return context
 
 
@@ -97,3 +123,24 @@ def resolve_template(
         input_fn=request.input_fn,
     )
     return materialize_as(template, prefix, context, target), context
+
+
+def resolve_selected_prompts(
+    root: BaseModel,
+    selected: dict[str, Any],
+    request: ResolutionRequest,
+) -> ResolvedContext:
+    """Resolve an explicitly composed set of prompt paths from one config root."""
+
+    available = collect_prompts(root)
+    values = load_values(request.values_path) if request.values_path else {}
+    flat_values = flatten_values(values)
+    unknown = (set(flat_values) | set(request.overrides)) - set(available)
+    if unknown:
+        raise ResolutionError(f"unknown runtime value(s): {', '.join(sorted(unknown))}")
+    return RuntimeValueResolver(selected).resolve(
+        values={key: value for key, value in flat_values.items() if key in selected},
+        overrides={key: value for key, value in request.overrides.items() if key in selected},
+        interactive=request.interactive,
+        input_fn=request.input_fn,
+    )

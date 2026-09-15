@@ -1,0 +1,48 @@
+robot-system:
+  description: Example multi-process robot system
+  groups:
+    drivers:
+      container: robot-development
+      service: robot
+      script: /workspace/scripts/scenarios/drivers.sh
+      interpreter: [/bin/bash, -euo, pipefail]
+      workdir: /workspace
+      environment:
+        ROS_DOMAIN_ID:
+          default: "7"
+          prompt:
+            mode: input
+            message: Enter the ROS domain ID
+      supervisor:
+        priority: 10
+
+    navigation:
+      container: robot-development
+      service: robot
+      script: /workspace/scripts/scenarios/navigation.sh
+      interpreter: [/bin/bash, -euo, pipefail]
+      workdir: /workspace
+      supervisor:
+        priority: 20
+
+    application:
+      container: robot-development
+      service: robot
+      script: /workspace/scripts/scenarios/application.sh
+      interpreter: [/bin/bash, -euo, pipefail]
+      workdir: /workspace
+      supervisor:
+        priority: 30
+
+  profiles:
+    development:
+      backend: tmux
+      attach: true
+      replace: false
+      stop_grace_seconds: 5
+
+    deployment:
+      backend: compose-supervisor
+      compose_file: deploy/compose.yaml
+      project_name: robot-system
+      supervisor_config_dir: deploy/generated/supervisor

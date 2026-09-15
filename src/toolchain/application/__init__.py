@@ -9,6 +9,7 @@ from .parameters import (
     ValidateConfigUseCase,
 )
 from .requests import BuildImageRequest, ResolutionRequest
+from .scenarios import PlanScenarioUseCase
 
 __all__ = [
     "BuildImageRequest",
@@ -16,6 +17,7 @@ __all__ = [
     "BuildProjectUseCase",
     "CreateContainerUseCase",
     "InspectParametersUseCase",
+    "PlanScenarioUseCase",
     "ResolutionRequest",
     "ResolveParametersUseCase",
     "ValidateConfigUseCase",

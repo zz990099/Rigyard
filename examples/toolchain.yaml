@@ -8,3 +8,4 @@ sources:
   images: config/images.yaml
   containers: config/containers.yaml
   builds: config/builds.yaml
+  scenarios: config/scenarios.yaml

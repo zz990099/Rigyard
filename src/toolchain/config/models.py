@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, m
 from ..builds.models import BuildTemplate
 from ..containers.models import ContainerTemplate
 from ..images.models import IMAGE_NAME, ImageTemplate
+from ..scenarios.models import ScenarioTemplate
 
 
 def _invalid_names(values: dict[str, object]) -> list[str]:
@@ -36,10 +37,13 @@ class ToolchainSources(BaseModel):
     images: Path | None = None
     containers: Path | None = None
     builds: Path | None = None
+    scenarios: Path | None = None
 
     @model_validator(mode="after")
     def at_least_one_source(self) -> ToolchainSources:
-        if self.images is None and self.containers is None and self.builds is None:
+        if all(
+            source is None for source in (self.images, self.containers, self.builds, self.scenarios)
+        ):
             raise ValueError("at least one configuration source is required")
         return self
 
@@ -88,6 +92,18 @@ class BuildDefinitions(RootModel[dict[str, BuildTemplate]]):
         return value
 
 
+class ScenarioDefinitions(RootModel[dict[str, ScenarioTemplate]]):
+    model_config = ConfigDict(frozen=True)
+
+    @field_validator("root")
+    @classmethod
+    def valid_names(cls, value: dict[str, ScenarioTemplate]) -> dict[str, ScenarioTemplate]:
+        invalid = _invalid_names(value)
+        if invalid:
+            raise ValueError(f"invalid scenario name(s): {', '.join(invalid)}")
+        return value
+
+
 class ToolchainConfig(BaseModel):
     """Fully loaded immutable configuration used by application services."""
 
@@ -99,6 +115,7 @@ class ToolchainConfig(BaseModel):
     images: dict[str, ImageTemplate] = Field(default_factory=dict)
     containers: dict[str, ContainerTemplate] = Field(default_factory=dict)
     builds: dict[str, BuildTemplate] = Field(default_factory=dict)
+    scenarios: dict[str, ScenarioTemplate] = Field(default_factory=dict)
 
     @field_validator("images")
     @classmethod
@@ -124,4 +141,14 @@ class ToolchainConfig(BaseModel):
         invalid = _invalid_names(value)
         if invalid:
             raise ValueError(f"invalid build name(s): {', '.join(invalid)}")
+        return value
+
+    @field_validator("scenarios")
+    @classmethod
+    def valid_scenario_names(
+        cls, value: dict[str, ScenarioTemplate]
+    ) -> dict[str, ScenarioTemplate]:
+        invalid = _invalid_names(value)
+        if invalid:
+            raise ValueError(f"invalid scenario name(s): {', '.join(invalid)}")
         return value

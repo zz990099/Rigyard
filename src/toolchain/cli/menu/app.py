@@ -11,16 +11,23 @@ from ...application.containers import CreateContainerUseCase
 from ...application.images import BuildImageUseCase
 from ...application.parameters import ValidateConfigUseCase
 from ...application.requests import BuildImageRequest, ResolutionRequest
+from ...application.scenarios import PlanScenarioUseCase
 from ...providers.docker import DockerImageBackend
 from ...providers.docker.container_backend import DockerContainerBackend
 from ...providers.host import HostBuildBackend
+from ...providers.scenarios import scenario_backend
+from ...scenarios.backend import ScenarioBackend
+from ...scenarios.models import ScenarioPlan
+from ...scenarios.service import ScenarioService
 from ..build_output import describe_build
 from ..container_output import describe_container
+from ..scenario_output import describe_scenario
 from .model import MenuAction, MenuRegistry
 from .prompt import MenuIO
 from .session import MenuSession
 
 BackendFactory = Callable[[], Any]
+ScenarioBackendFactory = Callable[[ScenarioPlan], ScenarioBackend]
 
 
 class MenuApp:
@@ -30,11 +37,13 @@ class MenuApp:
         backend_factory: BackendFactory | None = None,
         container_backend_factory: BackendFactory | None = None,
         build_backend_factory: BackendFactory | None = None,
+        scenario_backend_factory: ScenarioBackendFactory | None = None,
     ) -> None:
         self.io = io or MenuIO()
         self.backend_factory = backend_factory or DockerImageBackend
         self.container_backend_factory = container_backend_factory or DockerContainerBackend
         self.build_backend_factory = build_backend_factory or HostBuildBackend
+        self.scenario_backend_factory = scenario_backend_factory or scenario_backend
         self.registry = MenuRegistry(
             (
                 MenuAction(
@@ -57,6 +66,13 @@ class MenuApp:
                     self._build_project,
                     enabled=lambda session: bool(session.config.builds),
                     disabled_reason="no builds configured",
+                ),
+                MenuAction(
+                    "scene.start",
+                    "Start scene",
+                    self._start_scene,
+                    enabled=lambda session: bool(session.config.scenarios),
+                    disabled_reason="no scenarios configured",
                 ),
             )
         )
@@ -178,3 +194,33 @@ class MenuApp:
             return
         result = use_case.execute(plan)
         self.io.write(f"Build {result.build_name!r} completed")
+
+    def _start_scene(self, session: MenuSession) -> None:
+        scene_names = list(session.config.scenarios)
+        scene_labels = [
+            f"{name} — {session.config.scenarios[name].description}"
+            if session.config.scenarios[name].description
+            else name
+            for name in scene_names
+        ]
+        selected = self.io.select("Start scene", scene_labels, back_label="Back")
+        if selected is None:
+            return
+        scene_name = scene_names[selected]
+        profile_names = list(session.config.scenarios[scene_name].profiles)
+        selected = self.io.select("Select profile", profile_names, back_label="Back")
+        if selected is None:
+            return
+        profile_name = profile_names[selected]
+        plan = PlanScenarioUseCase().plan(
+            scene_name,
+            profile_name,
+            self._request(session),
+        )
+        for line in describe_scenario(plan):
+            self.io.write(line)
+        if not self.io.confirm("Start this scenario now?"):
+            self.io.write("Scenario start cancelled.")
+            return
+        result = ScenarioService(self.scenario_backend_factory(plan)).start(plan)
+        self.io.write(f"Started scenario {result.scene_name!r} profile {result.profile_name!r}")

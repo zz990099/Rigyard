@@ -78,6 +78,18 @@ class BuildExecutionError(ToolchainError):
     exit_code = 4
 
 
+class ScenarioPlanError(ToolchainError):
+    """A scenario cannot be converted into a backend execution plan."""
+
+    exit_code = 3
+
+
+class ScenarioExecutionError(ToolchainError):
+    """A scenario backend operation failed."""
+
+    exit_code = 4
+
+
 class ImageConfigError(ToolchainError):
     """An image definition or Dockerfile fragment is invalid."""
 

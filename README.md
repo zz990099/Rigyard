@@ -1,6 +1,6 @@
 # Toolchain
 
-Toolchain 是一个配置驱动的开发环境工具，当前支持工程编译、分层构建 Docker 镜像，以及从命名配置创建开发容器。直接 CLI 和交互式菜单共用同一套应用层。
+Toolchain 是一个配置驱动的开发环境工具，当前支持工程编译、分层构建 Docker 镜像、创建开发容器，以及用 tmux 或 Docker Compose + supervisord 启动命名场景。直接 CLI 和交互式菜单共用同一套应用层。
 
 ## 安装
 
@@ -21,6 +21,7 @@ pip install -e .
 ```bash
 toolchain                              # 一次性交互菜单
 toolchain build native
+toolchain scene start robot-system development
 toolchain image build development
 toolchain container create development
 ```
@@ -31,6 +32,7 @@ toolchain container create development
 toolchain --config examples/toolchain.yaml image build development
 toolchain --config examples/toolchain.yaml container create development --dry-run
 toolchain --config examples/toolchain.yaml build native --dry-run
+toolchain --config examples/toolchain.yaml scene start robot-system development --dry-run
 ```
 
 `native`、`development` 是外部领域配置中的名称，不是文件路径。
@@ -50,6 +52,7 @@ sources:
   images: config/images.yaml
   containers: config/containers.yaml
   builds: config/builds.yaml
+  scenarios: config/scenarios.yaml
 ```
 
 source 路径相对于根 `toolchain.yaml`。当前每个领域最多引用一个 YAML 文件，至少需要配置一个 source。
@@ -112,9 +115,36 @@ development:
 
 Dockerfile、构建 context 和相对 bind mount 均以根 `toolchain.yaml` 所在目录为基准，而不是以 source 文件为基准。
 
+## 场景启动
+
+一个场景声明公共节点组和多个运行 profile。开发 profile 在宿主机创建 tmux session，每个 group 使用 `docker exec -it` 进入容器；部署 profile 生成 supervisord program 配置，再由 Docker Compose 管理容器：
+
+```yaml
+robot-system:
+  groups:
+    drivers:
+      container: robot-development
+      service: robot
+      script: /workspace/scripts/scenarios/drivers.sh
+    navigation:
+      container: robot-development
+      service: robot
+      script: /workspace/scripts/scenarios/navigation.sh
+  profiles:
+    development:
+      backend: tmux
+      attach: true
+    deployment:
+      backend: compose-supervisor
+      compose_file: deploy/compose.yaml
+      supervisor_config_dir: deploy/generated/supervisor
+```
+
+`container` 供 tmux profile 使用，`service` 供 Compose profile 使用。脚本路径是容器内路径，同一组脚本可以被两种模式复用。只解析公共 groups 和被选中的 profile；被禁用 group 的其他参数不会被询问。
+
 ## 运行时值
 
-固定值直接写在业务字段中。需要运行时取值时，原位置改写为 `default + prompt`，无需顶层参数声明或参数引用。只有执行被选中的镜像、容器或编译入口时，才会解析该子树中的运行时值。
+固定值直接写在业务字段中。需要运行时取值时，原位置改写为 `default + prompt`，无需顶层参数声明或参数引用。只有执行被选中的镜像、容器、编译入口或场景 profile 时，才会解析相应子树中的运行时值。
 
 | `mode` | 用途 | 约束 |
 | --- | --- | --- |
@@ -159,6 +189,7 @@ containers:
 1) Build image
 2) Create container
 3) Build project
+4) Start scene
 0) Exit
 ```
 
@@ -173,6 +204,11 @@ toolchain container create NAME
 toolchain container create NAME --dry-run
 toolchain build NAME
 toolchain build NAME --dry-run
+toolchain scene start SCENE PROFILE
+toolchain scene attach SCENE PROFILE [--group GROUP]
+toolchain scene status SCENE PROFILE
+toolchain scene logs SCENE PROFILE [--group GROUP] [--follow]
+toolchain scene stop SCENE PROFILE
 ```
 
 `mounts` 使用 `SOURCE:TARGET[:ro|rw]` 字符串。source 以 `/`、`.` 或 `~` 开头时是 bind mount，否则是 named volume。
@@ -212,4 +248,4 @@ uv run ruff format --check src tests
 uv build
 ```
 
-详细设计见 [架构](docs/architecture.md)、[工程编译](docs/builds.md)、[CLI 与菜单](docs/cli-menu.md) 和 [容器配置](docs/containers.md)。
+详细设计见 [架构](docs/architecture.md)、[场景启动](docs/scenarios.md)、[工程编译](docs/builds.md)、[CLI 与菜单](docs/cli-menu.md) 和 [容器配置](docs/containers.md)。
