@@ -1,4 +1,4 @@
-"""One-shot interactive frontend for image builds and container creation."""
+"""One-shot interactive frontend for primary toolchain operations."""
 
 from __future__ import annotations
 
@@ -6,12 +6,15 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from ...application.builds import BuildProjectUseCase
 from ...application.containers import CreateContainerUseCase
 from ...application.images import BuildImageUseCase
 from ...application.parameters import ValidateConfigUseCase
 from ...application.requests import BuildImageRequest, ResolutionRequest
 from ...providers.docker import DockerImageBackend
 from ...providers.docker.container_backend import DockerContainerBackend
+from ...providers.host import HostBuildBackend
+from ..build_output import describe_build
 from ..container_output import describe_container
 from .model import MenuAction, MenuRegistry
 from .prompt import MenuIO
@@ -26,10 +29,12 @@ class MenuApp:
         io: MenuIO | None = None,
         backend_factory: BackendFactory | None = None,
         container_backend_factory: BackendFactory | None = None,
+        build_backend_factory: BackendFactory | None = None,
     ) -> None:
         self.io = io or MenuIO()
         self.backend_factory = backend_factory or DockerImageBackend
         self.container_backend_factory = container_backend_factory or DockerContainerBackend
+        self.build_backend_factory = build_backend_factory or HostBuildBackend
         self.registry = MenuRegistry(
             (
                 MenuAction(
@@ -45,6 +50,13 @@ class MenuApp:
                     self._create_container,
                     enabled=lambda session: bool(session.config.containers),
                     disabled_reason="no containers configured",
+                ),
+                MenuAction(
+                    "project.build",
+                    "Build project",
+                    self._build_project,
+                    enabled=lambda session: bool(session.config.builds),
+                    disabled_reason="no builds configured",
                 ),
             )
         )
@@ -145,3 +157,24 @@ class MenuApp:
             return
         result = use_case.execute(plan)
         self.io.write(f"Built {result.final_tag} ({len(result.steps)} layer(s))")
+
+    def _build_project(self, session: MenuSession) -> None:
+        names = list(session.config.builds)
+        labels = [
+            f"{name} — {session.config.builds[name].description}"
+            if session.config.builds[name].description
+            else name
+            for name in names
+        ]
+        selected = self.io.select("Build project", labels, back_label="Back")
+        if selected is None:
+            return
+        use_case = BuildProjectUseCase(self.build_backend_factory())
+        plan = use_case.plan(names[selected], self._request(session))
+        for line in describe_build(plan):
+            self.io.write(line)
+        if not self.io.confirm("Run this build now?"):
+            self.io.write("Build cancelled.")
+            return
+        result = use_case.execute(plan)
+        self.io.write(f"Build {result.build_name!r} completed")

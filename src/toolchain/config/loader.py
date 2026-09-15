@@ -11,6 +11,7 @@ from yaml.nodes import MappingNode, Node, SequenceNode
 
 from ..errors import ConfigIOError, SchemaValidationError, SourceLocation
 from .models import (
+    BuildDefinitions,
     ContainerDefinitions,
     ImageDefinitions,
     ToolchainConfig,
@@ -96,18 +97,23 @@ def load_config(path: str | Path) -> ToolchainConfig:
     manifest = _validate_file(manifest_path, ToolchainManifest, label="manifest")
     images: dict[str, Any] = {}
     containers: dict[str, Any] = {}
+    builds: dict[str, Any] = {}
     if manifest.sources.images is not None:
         source = _source_path(manifest_path, manifest.sources.images)
         images = _validate_file(source, ImageDefinitions, label="image source").root
     if manifest.sources.containers is not None:
         source = _source_path(manifest_path, manifest.sources.containers)
         containers = _validate_file(source, ContainerDefinitions, label="container source").root
+    if manifest.sources.builds is not None:
+        source = _source_path(manifest_path, manifest.sources.builds)
+        builds = _validate_file(source, BuildDefinitions, label="build source").root
     return ToolchainConfig(
         version=manifest.version,
         metadata=manifest.metadata,
         sources=manifest.sources,
         images=images,
         containers=containers,
+        builds=builds,
     )
 
 

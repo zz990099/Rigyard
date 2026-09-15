@@ -7,6 +7,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
+from ..builds.models import BuildSpec
 from ..config.loader import load_config, load_values
 from ..config.models import ToolchainConfig
 from ..containers.models import ContainerSpec
@@ -50,6 +51,8 @@ class ResolveParametersUseCase:
                 materialize_as(template, f"images.{name}", context, ImageSpec)
             for name, template in config.containers.items():
                 materialize_as(template, f"containers.{name}", context, ContainerSpec)
+            for name, template in config.builds.items():
+                materialize_as(template, f"builds.{name}", context, BuildSpec)
         return context
 
 

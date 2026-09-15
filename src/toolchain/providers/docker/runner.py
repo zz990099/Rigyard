@@ -1,51 +1,5 @@
-"""Injectable process runner used by the Docker provider."""
+"""Backward-compatible imports for the shared process runner."""
 
-from __future__ import annotations
+from ...execution.runner import CommandResult, CommandRunner, SubprocessRunner
 
-import subprocess
-from dataclasses import dataclass
-from typing import Protocol
-
-
-@dataclass(frozen=True)
-class CommandResult:
-    returncode: int
-    stdout: str = ""
-    stderr: str = ""
-
-
-class CommandRunner(Protocol):
-    def run(
-        self,
-        command: tuple[str, ...],
-        *,
-        stdin: str | None = None,
-        capture: bool = False,
-        timeout_seconds: int | None = None,
-    ) -> CommandResult:
-        """Run a command without invoking a shell."""
-
-
-class SubprocessRunner:
-    def run(
-        self,
-        command: tuple[str, ...],
-        *,
-        stdin: str | None = None,
-        capture: bool = False,
-        timeout_seconds: int | None = None,
-    ) -> CommandResult:
-        completed = subprocess.run(
-            command,
-            input=stdin,
-            text=True,
-            stdout=subprocess.PIPE if capture else None,
-            stderr=subprocess.PIPE if capture else None,
-            check=False,
-            timeout=timeout_seconds,
-        )
-        return CommandResult(
-            returncode=completed.returncode,
-            stdout=completed.stdout or "",
-            stderr=completed.stderr or "",
-        )
+__all__ = ["CommandResult", "CommandRunner", "SubprocessRunner"]

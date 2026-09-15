@@ -66,6 +66,18 @@ class MissingValueError(ResolutionError):
         self.names = tuple(ordered)
 
 
+class BuildPlanError(ToolchainError):
+    """A project build definition cannot be converted into an execution plan."""
+
+    exit_code = 3
+
+
+class BuildExecutionError(ToolchainError):
+    """A configured project build process failed."""
+
+    exit_code = 4
+
+
 class ImageConfigError(ToolchainError):
     """An image definition or Dockerfile fragment is invalid."""
 

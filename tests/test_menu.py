@@ -58,13 +58,14 @@ def prompt_config(tmp_path: Path) -> Path:
     )
 
 
-def test_bare_command_enters_two_action_menu_only_for_tty(tmp_path: Path):
+def test_bare_command_enters_primary_action_menu_only_for_tty(tmp_path: Path):
     config = prompt_config(tmp_path)
     output = TTYBuffer()
     assert run(["--config", str(config)], stdin=TTYBuffer("0\n"), stdout=output) == 0
     rendered = output.getvalue()
     assert "1) Build image [no images configured]" in rendered
     assert "2) Create container" in rendered
+    assert "3) Build project [no builds configured]" in rendered
     assert "Configure parameters" not in rendered
     assert "Show effective parameters" not in rendered
     assert "Validate configuration" not in rendered

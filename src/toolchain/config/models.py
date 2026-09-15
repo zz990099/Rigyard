@@ -7,6 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
+from ..builds.models import BuildTemplate
 from ..containers.models import ContainerTemplate
 from ..images.models import IMAGE_NAME, ImageTemplate
 
@@ -34,10 +35,11 @@ class ToolchainSources(BaseModel):
 
     images: Path | None = None
     containers: Path | None = None
+    builds: Path | None = None
 
     @model_validator(mode="after")
     def at_least_one_source(self) -> ToolchainSources:
-        if self.images is None and self.containers is None:
+        if self.images is None and self.containers is None and self.builds is None:
             raise ValueError("at least one configuration source is required")
         return self
 
@@ -74,6 +76,18 @@ class ContainerDefinitions(RootModel[dict[str, ContainerTemplate]]):
         return value
 
 
+class BuildDefinitions(RootModel[dict[str, BuildTemplate]]):
+    model_config = ConfigDict(frozen=True)
+
+    @field_validator("root")
+    @classmethod
+    def valid_names(cls, value: dict[str, BuildTemplate]) -> dict[str, BuildTemplate]:
+        invalid = _invalid_names(value)
+        if invalid:
+            raise ValueError(f"invalid build name(s): {', '.join(invalid)}")
+        return value
+
+
 class ToolchainConfig(BaseModel):
     """Fully loaded immutable configuration used by application services."""
 
@@ -84,6 +98,7 @@ class ToolchainConfig(BaseModel):
     sources: ToolchainSources
     images: dict[str, ImageTemplate] = Field(default_factory=dict)
     containers: dict[str, ContainerTemplate] = Field(default_factory=dict)
+    builds: dict[str, BuildTemplate] = Field(default_factory=dict)
 
     @field_validator("images")
     @classmethod
@@ -101,4 +116,12 @@ class ToolchainConfig(BaseModel):
         invalid = _invalid_names(value)
         if invalid:
             raise ValueError(f"invalid container name(s): {', '.join(invalid)}")
+        return value
+
+    @field_validator("builds")
+    @classmethod
+    def valid_build_names(cls, value: dict[str, BuildTemplate]) -> dict[str, BuildTemplate]:
+        invalid = _invalid_names(value)
+        if invalid:
+            raise ValueError(f"invalid build name(s): {', '.join(invalid)}")
         return value

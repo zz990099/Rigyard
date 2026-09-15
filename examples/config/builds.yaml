@@ -1,0 +1,17 @@
+native:
+  description: Example host build
+  script: scripts/build-native.sh
+  interpreter: [/bin/bash, -euo, pipefail]
+  workdir: .
+  environment:
+    BUILD_TYPE:
+      default: Release
+      prompt:
+        mode: select
+        message: Select the build type
+        options: [Debug, Release, RelWithDebInfo]
+    PARALLEL_JOBS:
+      default: "4"
+      prompt:
+        mode: input
+        message: Enter the parallel job count

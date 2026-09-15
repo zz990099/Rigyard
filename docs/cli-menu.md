@@ -6,6 +6,7 @@
 
 ```bash
 toolchain
+toolchain build native
 toolchain image build development
 toolchain container create development
 ```
@@ -14,7 +15,7 @@ toolchain container create development
 
 ## 一次性菜单
 
-一级菜单只有镜像构建和容器创建。选择一个动作后，程序完成以下流程：
+一级菜单包含镜像构建、容器创建和工程编译。选择一个动作后，程序完成以下流程：
 
 1. 选择命名配置。
 2. 按需询问该配置内的运行时值。
@@ -41,6 +42,10 @@ CI 中必须明确禁止交互，并通过可选 values 文件、环境变量或
 ```bash
 toolchain --config toolchain.yaml image build development \
   --values ci-values.yaml --non-interactive
+
+toolchain build native \
+  --set builds.native.environment.BUILD_TYPE=Release \
+  --non-interactive
 
 toolchain container create development \
   --set containers.development.name=robot-ci \

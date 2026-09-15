@@ -1,5 +1,6 @@
 """Reusable application use cases shared by command and menu frontends."""
 
+from .builds import BuildProjectUseCase
 from .containers import CreateContainerUseCase
 from .images import BuildImageUseCase
 from .parameters import (
@@ -12,6 +13,7 @@ from .requests import BuildImageRequest, ResolutionRequest
 __all__ = [
     "BuildImageRequest",
     "BuildImageUseCase",
+    "BuildProjectUseCase",
     "CreateContainerUseCase",
     "InspectParametersUseCase",
     "ResolutionRequest",
