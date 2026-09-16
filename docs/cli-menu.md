@@ -12,7 +12,30 @@ toolchain image build development
 toolchain container create development
 ```
 
-两条路径共用应用 use case。全局 `--config/-f` 指定 Schema v2 manifest，默认是 `./toolchain.yaml`。
+两条路径共用应用 use case。全局 `--config/-f` 显式指定 Schema v2 manifest，并覆盖工作区初始化记录。
+
+## 工作区初始化
+
+当根配置不在日常执行命令的目录时，可以将当前目录绑定到该配置：
+
+```bash
+cd /ros2_ws
+toolchain init -f src/xbot/.toolchain/toolchain.yaml
+```
+
+命令验证配置后写入当前目录的 `.toolchain/context.yaml`。后续只有从 `/ros2_ws` 本身运行
+`toolchain` 才会读取该记录；不会从子目录向上搜索。配置定位优先级为：
+
+1. 显式全局 `--config/-f`。
+2. 当前目录的 `.toolchain/context.yaml`。
+3. 当前目录的 `toolchain.yaml`。
+
+初始化目标位于当前目录内部时记录相对路径，位于外部时记录绝对路径。重复初始化到同一配置
+不会改写文件；切换到另一配置需要显式使用 `--force`：
+
+```bash
+toolchain init -f /opt/robot/toolchain.yaml --force
+```
 
 ## 一次性菜单
 

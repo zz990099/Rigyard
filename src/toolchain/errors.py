@@ -48,6 +48,12 @@ class SchemaValidationError(ToolchainError):
     exit_code = 2
 
 
+class WorkspaceError(ToolchainError):
+    """A workspace binding cannot be read or updated."""
+
+    exit_code = 2
+
+
 class ResolutionError(ToolchainError):
     """A runtime value could not be resolved or validated."""
 

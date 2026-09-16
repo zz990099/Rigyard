@@ -10,11 +10,13 @@ from typing import TextIO
 
 from ..errors import ToolchainError
 from ..version import __version__
+from ..workspace import resolve_config_path
 from .commands.builds import register_build_commands
 from .commands.containers import register_container_commands
 from .commands.images import register_image_commands
 from .commands.parameters import register_parameter_commands
 from .commands.scenarios import register_scenario_commands
+from .commands.workspace import register_workspace_commands
 from .menu import MenuApp, MenuIO
 
 
@@ -29,8 +31,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--config",
         dest="config_path",
         type=Path,
-        default=Path("toolchain.yaml"),
-        help="toolchain configuration file (default: ./toolchain.yaml)",
+        default=None,
+        help="toolchain configuration file (overrides workspace initialization)",
     )
     parser.add_argument(
         "--values",
@@ -39,6 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="optional values file used by the interactive menu",
     )
     commands = parser.add_subparsers(dest="command")
+    register_workspace_commands(commands)
     register_parameter_commands(commands)
     register_image_commands(commands)
     register_container_commands(commands)
@@ -65,7 +68,10 @@ def run(
             if not io.is_interactive:
                 parser.print_help(file=output_stream)
                 return 2
+            args.config_path = resolve_config_path(args.config_path)
             return MenuApp(io).run(args.config_path, args.values)
+        if args.command != "init":
+            args.config_path = resolve_config_path(args.config_path)
         return args.handler(args, parser)
     except ToolchainError as exc:
         print(f"Error: {exc}", file=error_stream)

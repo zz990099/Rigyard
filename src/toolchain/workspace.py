@@ -1,0 +1,136 @@
+"""Bind a working directory to one toolchain project manifest."""
+
+from __future__ import annotations
+
+import os
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from .config.loader import load_config
+from .errors import SourceLocation, WorkspaceError
+
+WORKSPACE_DIR = ".toolchain"
+WORKSPACE_FILE = "context.yaml"
+DEFAULT_CONFIG_FILE = "toolchain.yaml"
+WORKSPACE_VERSION = 1
+
+
+@dataclass(frozen=True)
+class WorkspaceInitialization:
+    root: Path
+    config_path: Path
+    stored_path: Path
+    changed: bool
+
+
+def workspace_file(root: str | Path) -> Path:
+    return Path(root).resolve() / WORKSPACE_DIR / WORKSPACE_FILE
+
+
+def resolve_config_path(
+    explicit_path: str | Path | None,
+    *,
+    root: str | Path | None = None,
+) -> Path:
+    """Resolve the manifest without searching any parent directories."""
+
+    workspace_root = Path.cwd().resolve() if root is None else Path(root).resolve()
+    if explicit_path is not None:
+        return _resolve_from_root(workspace_root, Path(explicit_path).expanduser())
+
+    marker = workspace_file(workspace_root)
+    if marker.is_file():
+        return _read_workspace_config(marker, workspace_root)
+    return (workspace_root / DEFAULT_CONFIG_FILE).resolve()
+
+
+def initialize_workspace(
+    config_path: str | Path,
+    *,
+    root: str | Path | None = None,
+    force: bool = False,
+) -> WorkspaceInitialization:
+    """Validate a manifest and persist its binding in the selected directory."""
+
+    workspace_root = Path.cwd().resolve() if root is None else Path(root).resolve()
+    manifest_path = _resolve_from_root(workspace_root, Path(config_path).expanduser())
+    load_config(manifest_path)
+
+    marker = workspace_file(workspace_root)
+    stored_path = _portable_path(manifest_path, workspace_root)
+    if marker.exists():
+        current_path = _read_workspace_config(marker, workspace_root)
+        if current_path == manifest_path:
+            return WorkspaceInitialization(workspace_root, manifest_path, stored_path, False)
+        if not force:
+            raise WorkspaceError(
+                f"workspace is already initialized with {current_path}; use --force to replace it",
+                SourceLocation(marker),
+            )
+
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    payload = yaml.safe_dump(
+        {"version": WORKSPACE_VERSION, "config": str(stored_path)},
+        sort_keys=False,
+        allow_unicode=True,
+    )
+    _atomic_write(marker, payload)
+    return WorkspaceInitialization(workspace_root, manifest_path, stored_path, True)
+
+
+def _resolve_from_root(root: Path, path: Path) -> Path:
+    if not path.is_absolute():
+        path = root / path
+    return path.resolve()
+
+
+def _portable_path(config_path: Path, root: Path) -> Path:
+    try:
+        return config_path.relative_to(root)
+    except ValueError:
+        return config_path
+
+
+def _read_workspace_config(marker: Path, root: Path) -> Path:
+    try:
+        data: Any = yaml.safe_load(marker.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise WorkspaceError(str(exc), SourceLocation(marker)) from exc
+    except yaml.YAMLError as exc:
+        raise WorkspaceError(f"invalid workspace YAML: {exc}", SourceLocation(marker)) from exc
+
+    if not isinstance(data, dict):
+        raise WorkspaceError("workspace context must be a mapping", SourceLocation(marker))
+    if data.get("version") != WORKSPACE_VERSION:
+        raise WorkspaceError(
+            f"unsupported workspace context version: {data.get('version')!r}",
+            SourceLocation(marker),
+        )
+    configured = data.get("config")
+    if not isinstance(configured, str) or not configured.strip():
+        raise WorkspaceError("workspace config must be a non-empty path", SourceLocation(marker))
+    return _resolve_from_root(root, Path(configured).expanduser())
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    temporary_name: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
+        ) as stream:
+            stream.write(content)
+            temporary_name = stream.name
+        os.replace(temporary_name, path)
+    except OSError as exc:
+        raise WorkspaceError(str(exc), SourceLocation(path)) from exc
+    finally:
+        if temporary_name is not None:
+            Path(temporary_name).unlink(missing_ok=True)

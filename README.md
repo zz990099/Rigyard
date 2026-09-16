@@ -37,6 +37,20 @@ toolchain --config examples/toolchain.yaml scene start robot-system development 
 
 `native`、`development` 是外部领域配置中的名称，不是文件路径。
 
+也可以将当前工作目录显式绑定到其他位置的根配置：
+
+```bash
+cd /ros2_ws
+toolchain init -f src/xbot/.toolchain/toolchain.yaml
+toolchain build native
+```
+
+`init` 会验证配置并写入当前目录的 `.toolchain/context.yaml`。此后从这个目录运行
+`toolchain` 时会使用绑定的配置；工具不会向父目录搜索初始化记录。配置路径解析顺序为：
+显式 `--config/-f`、当前目录初始化记录、当前目录 `toolchain.yaml`。位于工作目录内部的配置
+会记录为相对路径，便于在宿主机和容器使用不同挂载路径时复用。重复绑定同一配置是幂等的；
+改绑其他配置需要 `toolchain init -f PATH --force`。
+
 ## 工程配置
 
 Schema v2 将根文件作为 manifest。它只保存工具链版本、工程元信息和各领域配置文件的位置：
