@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -13,6 +14,7 @@ from ..errors import MissingValueError, ResolutionError
 from .context import ResolvedContext, ResolvedValue, ValueSource
 from .models import PromptMode, PromptValue
 from .prompt import InputFunction, prompt_for_value
+from .templates import StringTemplateRenderer, TemplateContext
 
 ENV_PREFIX = "TOOL_PARAM_"
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -168,26 +170,51 @@ class RuntimeValueResolver:
             )
 
 
-def materialize(node: Any, prefix: str, context: ResolvedContext) -> Any:
+def materialize(
+    node: Any,
+    prefix: str,
+    context: ResolvedContext,
+    renderer: StringTemplateRenderer | None = None,
+) -> Any:
+    renderer = renderer or StringTemplateRenderer(TemplateContext.capture(os.environ))
     if isinstance(node, PromptValue):
         if prefix not in context:
             raise MissingValueError((prefix,))
-        return context[prefix]
+        return renderer.render_value(context[prefix], prefix)
     if isinstance(node, BaseModel):
         return {
-            name: materialize(getattr(node, name), f"{prefix}.{name}" if prefix else name, context)
+            name: materialize(
+                getattr(node, name),
+                f"{prefix}.{name}" if prefix else name,
+                context,
+                renderer,
+            )
             for name in type(node).model_fields
         }
     if isinstance(node, Mapping):
         return {
-            name: materialize(value, f"{prefix}.{name}" if prefix else str(name), context)
+            name: materialize(
+                value,
+                f"{prefix}.{name}" if prefix else str(name),
+                context,
+                renderer,
+            )
             for name, value in node.items()
         }
     if isinstance(node, (list, tuple)):
         return [
-            materialize(value, f"{prefix}.{index}" if prefix else str(index), context)
+            materialize(
+                value,
+                f"{prefix}.{index}" if prefix else str(index),
+                context,
+                renderer,
+            )
             for index, value in enumerate(node)
         ]
+    if isinstance(node, str):
+        return renderer.render(node, prefix)
+    if isinstance(node, Path):
+        return Path(renderer.render(str(node), prefix))
     return node
 
 
@@ -196,9 +223,10 @@ def materialize_as(
     prefix: str,
     context: ResolvedContext,
     target: type[ModelT],
+    renderer: StringTemplateRenderer | None = None,
 ) -> ModelT:
     try:
-        return target.model_validate(materialize(template, prefix, context))
+        return target.model_validate(materialize(template, prefix, context, renderer))
     except ValidationError as exc:
         first = exc.errors(include_url=False)[0]
         location = ".".join(str(item) for item in first.get("loc", ()))

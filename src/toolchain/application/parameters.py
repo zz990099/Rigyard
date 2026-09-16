@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -20,6 +21,11 @@ from ..parameters.resolver import (
     flatten_values,
     materialize_as,
 )
+from ..parameters.templates import (
+    StringTemplateRenderer,
+    TemplateContext,
+    validate_template_syntax,
+)
 from ..scenarios.models import (
     ComposeSupervisorProfileSpec,
     ComposeSupervisorProfileTemplate,
@@ -33,12 +39,15 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 
 class ValidateConfigUseCase:
     def execute(self, config_path: str | Path) -> ToolchainConfig:
-        return load_config(config_path)
+        config = load_config(config_path)
+        validate_template_syntax(config)
+        return config
 
 
 class InspectParametersUseCase:
     def execute(self, config_path: str | Path) -> dict[str, Any]:
         config = load_config(config_path)
+        validate_template_syntax(config)
         prompts = collect_prompts(config)
         return {
             "version": config.version,
@@ -52,13 +61,14 @@ class ResolveParametersUseCase:
     ) -> ResolvedContext:
         config = load_config(request.config_path)
         context = resolve_prompts(config, request, allow_missing=allow_missing)
+        renderer = StringTemplateRenderer(TemplateContext.capture(os.environ))
         if not allow_missing:
             for name, template in config.images.items():
-                materialize_as(template, f"images.{name}", context, ImageSpec)
+                materialize_as(template, f"images.{name}", context, ImageSpec, renderer)
             for name, template in config.containers.items():
-                materialize_as(template, f"containers.{name}", context, ContainerSpec)
+                materialize_as(template, f"containers.{name}", context, ContainerSpec, renderer)
             for name, template in config.builds.items():
-                materialize_as(template, f"builds.{name}", context, BuildSpec)
+                materialize_as(template, f"builds.{name}", context, BuildSpec, renderer)
             for scene_name, scenario in config.scenarios.items():
                 for group_name, group in scenario.groups.items():
                     materialize_as(
@@ -66,6 +76,7 @@ class ResolveParametersUseCase:
                         f"scenarios.{scene_name}.groups.{group_name}",
                         context,
                         ScenarioGroupSpec,
+                        renderer,
                     )
                 for profile_name, profile in scenario.profiles.items():
                     target = (
@@ -78,6 +89,7 @@ class ResolveParametersUseCase:
                         f"scenarios.{scene_name}.profiles.{profile_name}",
                         context,
                         target,
+                        renderer,
                     )
         return context
 
@@ -106,6 +118,7 @@ def resolve_template(
     request: ResolutionRequest,
     prefix: str,
     target: type[ModelT],
+    renderer: StringTemplateRenderer | None = None,
 ) -> tuple[ModelT, ResolvedContext]:
     selected = collect_prompts(template, prefix)
     available = collect_prompts(root)
@@ -122,7 +135,7 @@ def resolve_template(
         interactive=request.interactive,
         input_fn=request.input_fn,
     )
-    return materialize_as(template, prefix, context, target), context
+    return materialize_as(template, prefix, context, target, renderer), context
 
 
 def resolve_selected_prompts(

@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
+from datetime import datetime
+
 from ..config.loader import load_config
 from ..errors import SchemaValidationError
 from ..parameters.models import PromptValue
 from ..parameters.resolver import collect_prompts, materialize_as
+from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from ..scenarios.models import (
     ComposeSupervisorProfileSpec,
     ComposeSupervisorProfileTemplate,
@@ -26,8 +31,16 @@ class PlanScenarioUseCase:
         request: ResolutionRequest,
         *,
         resolve_group_runtime: bool = True,
+        environment: Mapping[str, str] | None = None,
+        now: datetime | None = None,
     ) -> ScenarioPlan:
         config = load_config(request.config_path)
+        renderer = StringTemplateRenderer(
+            TemplateContext.capture(
+                dict(os.environ if environment is None else environment),
+                now=now,
+            )
+        )
         if scene_name not in config.scenarios:
             available = ", ".join(sorted(config.scenarios)) or "none"
             raise SchemaValidationError(
@@ -97,6 +110,7 @@ class PlanScenarioUseCase:
                     f"{group_prefix}.{name}",
                     context,
                     ScenarioGroupSpec,
+                    renderer,
                 )
                 for name, group in scenario.groups.items()
                 if name in enabled_names
@@ -106,10 +120,13 @@ class PlanScenarioUseCase:
             groups = {
                 name: ScenarioGroupSpec(
                     container="management" if not compose_profile else None,
-                    service=(
-                        context[f"{group_prefix}.{name}.service"]
-                        if isinstance(group.service, PromptValue)
-                        else group.service
+                    service=renderer.render_value(
+                        (
+                            context[f"{group_prefix}.{name}.service"]
+                            if isinstance(group.service, PromptValue)
+                            else group.service
+                        ),
+                        f"{group_prefix}.{name}.service",
                     ),
                     script=":",
                 )
@@ -121,7 +138,13 @@ class PlanScenarioUseCase:
             if isinstance(profile_template, ComposeSupervisorProfileTemplate)
             else TmuxProfileSpec
         )
-        profile = materialize_as(profile_template, profile_prefix, context, profile_type)
+        profile = materialize_as(
+            profile_template,
+            profile_prefix,
+            context,
+            profile_type,
+            renderer,
+        )
         return ScenarioPlanner().create_plan(
             scene_name,
             profile_name,

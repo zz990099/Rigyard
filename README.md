@@ -195,6 +195,39 @@ containers:
     privileged: true
 ```
 
+## 字符串模板
+
+运行时字符串和路径支持一个受限的单次模板展开阶段：
+
+```yaml
+development:
+  image: "robot/app:${date:%Y%m%d}"
+  name: "dev_${env:USER}_${date:%Y%m%d%H%M}"
+  mounts: ["/home/${env:USER}:/workspace"]
+  environment:
+    DISPLAY: {env: DISPLAY}
+    RUN_ID: "${utcdate:%Y%m%dT%H%M%SZ}"
+```
+
+| 模板 | 含义 |
+| --- | --- |
+| `${env:NAME}` | 读取工具链进程的环境变量；不存在时报错 |
+| `${date:FORMAT}` | 按工具链进程的本地时区格式化命令开始时间 |
+| `${utcdate:FORMAT}` | 按 UTC 格式化同一个命令开始时间 |
+| `$${...}` | 输出字面量 `${...}`，不执行模板 |
+
+日期格式采用 `strftime` 指令，例如 `%Y` 年、`%m` 月、`%d` 日、`%H` 时、`%M` 分、
+`%S` 秒。同一条命令只采集一次时间，因此多个字段生成的时间戳一致。模板只展开一次：如果
+环境变量的内容本身是 `${date:%Y}`，不会继续递归展开。
+
+模板应用于所选操作中的字符串、路径、字符串列表和最终解析出的 PromptValue；不会展开
+mapping 键或配置定义名称。执行所选操作不会读取其他未选配置中的环境模板。
+`toolchain validate` 会检查全部模板语法，但不会要求引用的环境变量当时存在。
+
+现有 `{env: NAME, default: optional}` 是容器环境字段的结构化宿主环境引用，继续保留。
+`${env:NAME}` 是普通字符串模板，展开值可能出现在计划、错误或命令预览中，不应用来承载
+需要自动脱敏的 secret。
+
 ## 菜单和命令
 
 菜单只包含：

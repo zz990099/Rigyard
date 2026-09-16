@@ -37,12 +37,18 @@ flowchart TD
 ```mermaid
 flowchart LR
     A[Template] --> B[ResolvedContext]
-    B --> C[业务 Spec]
-    C --> D[不可变执行计划]
-    D --> E[Host / Docker Backend]
+    B --> C[字符串模板展开]
+    C --> D[业务 Spec]
+    D --> E[不可变执行计划]
+    E --> F[Host / Docker Backend]
 ```
 
 执行某个操作只收集选中子树的 prompts。因此执行 `builds.native` 不会询问其他 build、镜像或容器。values 和 overrides 先与全局已知路径比对以捕获拼写错误，再过滤到当前操作。
+
+字符串模板同样只物化所选操作子树。Application 在一次计划操作开始时冻结宿主环境和一个
+带时区的时间快照，并将同一 renderer 传给该操作的所有字段；Scenario 的多个 group 和 profile
+也共享同一个快照。renderer 支持 `env`、本地 `date`、UTC `utcdate` 和转义，不递归处理替换
+结果。模板展开后再由严格 Spec 和 Planner 完成类型及业务约束校验。
 
 build、镜像和容器都先生成完整计划。菜单展示计划并确认后才调用 backend；命令通过 argv 传给 runner，不经过 shell。
 
