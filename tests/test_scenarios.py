@@ -427,3 +427,103 @@ def test_following_compose_logs_does_not_capture(tmp_path: Path):
     ComposeSupervisorBackend(runner).logs(plan, follow=True)
     assert runner.calls[-1][1]["capture"] is False
     assert "--follow" in runner.calls[-1][0]
+
+
+def managed_tmux_plan(tmp_path, *groups):
+    from dataclasses import replace
+
+    return replace(
+        tmux_plan(*groups), compose_file=tmp_path / 'compose.yaml', project_name='robot-debug',
+        wait_timeout_seconds=30,
+    )
+
+
+def compose_tmux_handler(command, _):
+    if command[:2] == ('tmux', 'has-session'):
+        return CommandResult(1)
+    if command[-2:] == ('config', '--services'):
+        return CommandResult(0, 'robot\n')
+    if command[-3:] == ('ps', '-q', 'robot'):
+        return CommandResult(0, 'container-id\n')
+    if command[:2] == ('docker', 'inspect'):
+        return CommandResult(0, 'true\n')
+    return CommandResult(0)
+
+
+def test_compose_tmux_restarts_once_then_resolves_container_and_creates_windows(tmp_path):
+    runner = DispatchRunner(compose_tmux_handler)
+    plan = managed_tmux_plan(tmp_path, group('drivers'), group('navigation'))
+    TmuxScenarioBackend(runner).start(plan)
+    commands = [call[0] for call in runner.calls]
+    stop = next(i for i, cmd in enumerate(commands) if cmd[-2:] == ('stop', 'robot'))
+    up = next(i for i, cmd in enumerate(commands) if '--wait' in cmd)
+    ps = next(i for i, cmd in enumerate(commands) if cmd[-3:] == ('ps', '-q', 'robot'))
+    window = next(i for i, cmd in enumerate(commands) if cmd[:2] == ('tmux', 'new-session'))
+    assert stop < up < ps < window
+    assert commands[up][-6:] == ('up', '-d', '--wait', '--wait-timeout', '30', 'robot')
+    assert sum(cmd[-2:] == ('stop', 'robot') for cmd in commands) == 1
+    processes = [cmd[-1] for cmd in commands if cmd[:2] == ('tmux', 'respawn-pane')]
+    assert len(processes) == 2
+    assert all('container-id' in cmd and 'robot-dev' not in cmd for cmd in processes)
+
+
+@pytest.mark.parametrize('stage', ['validation', 'stop', 'up', 'replicas'])
+def test_compose_tmux_failures_do_not_create_windows(tmp_path, stage):
+    def handler(command, kwargs):
+        if stage == 'validation' and command[-2:] == ('config', '--services'):
+            return CommandResult(0, 'other\n')
+        if stage == 'stop' and command[-2:] == ('stop', 'robot'):
+            return CommandResult(1, stderr='stop failed')
+        if stage == 'up' and '--wait' in command:
+            return CommandResult(1, stderr='up failed')
+        if stage == 'replicas' and command[-3:] == ('ps', '-q', 'robot'):
+            return CommandResult(0, 'one\ntwo\n')
+        return compose_tmux_handler(command, kwargs)
+
+    runner = DispatchRunner(handler)
+    with pytest.raises((ScenarioExecutionError, ScenarioPlanError)):
+        TmuxScenarioBackend(runner).start(managed_tmux_plan(tmp_path, group('drivers')))
+    assert not any(cmd[:2] == ('tmux', 'new-session') for cmd, _ in runner.calls)
+    if stage == 'validation':
+        assert not any(cmd[-2:] == ('stop', 'robot') for cmd, _ in runner.calls)
+
+
+def test_managed_tmux_replaces_old_session_before_stopping_containers(tmp_path):
+    checks = iter([0, 0, 0])
+
+    def handler(command, kwargs):
+        if command[:2] == ('tmux', 'has-session'):
+            return CommandResult(next(checks))
+        return compose_tmux_handler(command, kwargs)
+
+    runner = DispatchRunner(handler)
+    TmuxScenarioBackend(runner).start(managed_tmux_plan(tmp_path, group('drivers')))
+    commands = [cmd for cmd, _ in runner.calls]
+    assert commands.index(('tmux', 'kill-session', '-t', 'robot-session')) < next(
+        i for i, cmd in enumerate(commands) if cmd[-2:] == ('stop', 'robot')
+    )
+
+
+def test_compose_tmux_management_resolves_service_but_not_script(tmp_path):
+    config = project(tmp_path, '''robot:
+  groups:
+    drivers:
+      service: {default: robot, prompt: {mode: input, message: Service}}
+      script: {prompt: {mode: input, message: Script}}
+  profiles:
+    development:
+      backend: tmux
+      compose_file: deploy/compose.yaml
+      project_name: robot-debug
+      attach: false
+''')
+    write(tmp_path / 'deploy/compose.yaml', 'services: {robot: {image: ubuntu}}\n')
+    plan = PlanScenarioUseCase().plan(
+        'robot', 'development', ResolutionRequest(config, interactive=False),
+        resolve_group_runtime=False,
+    )
+    assert plan.compose_file == tmp_path / 'deploy/compose.yaml'
+    assert plan.groups[0].service == 'robot'
+    runner = DispatchRunner(compose_tmux_handler)
+    TmuxScenarioBackend(runner).stop(plan)
+    assert all(cmd[0] == 'tmux' for cmd, _ in runner.calls)

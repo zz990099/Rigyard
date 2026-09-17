@@ -58,6 +58,10 @@ class PlanScenarioUseCase:
         group_prefix = f"scenarios.{scene_name}.groups"
         profile_prefix = f"scenarios.{scene_name}.profiles.{profile_name}"
         profile_template = scenario.profiles[profile_name]
+        compose_profile = (
+            isinstance(profile_template, ComposeSupervisorProfileTemplate)
+            or profile_template.compose_file is not None
+        )
         profile_prompts = collect_prompts(profile_template, profile_prefix)
         enabled_prompts = {
             path: value
@@ -86,9 +90,7 @@ class PlanScenarioUseCase:
             prefix = f"{group_prefix}.{name}"
             if name in enabled_names and resolve_group_runtime:
                 selected.update(collect_prompts(group, prefix))
-            elif name in enabled_names and isinstance(
-                profile_template, ComposeSupervisorProfileTemplate
-            ):
+            elif name in enabled_names and compose_profile:
                 selected.update(collect_prompts(group.service, f"{prefix}.service"))
             else:
                 selected.update(collect_prompts(group.enabled, f"{prefix}.enabled"))
@@ -117,7 +119,6 @@ class PlanScenarioUseCase:
                 if name in enabled_names
             }
         else:
-            compose_profile = isinstance(profile_template, ComposeSupervisorProfileTemplate)
             groups = {
                 name: ScenarioGroupSpec(
                     container="management" if not compose_profile else None,

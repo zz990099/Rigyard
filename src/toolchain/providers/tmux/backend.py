@@ -6,6 +6,7 @@ import os
 import shlex
 import time
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 
 from ...errors import BackendUnavailableError, ScenarioExecutionError, ScenarioPlanError
 from ...execution import CommandResult, CommandRunner, SubprocessRunner
@@ -26,12 +27,16 @@ class TmuxScenarioBackend:
     def start(self, plan: TmuxScenarioPlan) -> ScenarioResult:
         self._require_tmux()
         self._require_docker()
+        if plan.compose_file is not None:
+            self._preflight_compose(plan)
         if self._session_exists(plan.session):
-            if not plan.replace:
+            if not plan.replace and plan.compose_file is None:
                 raise ScenarioExecutionError(
                     f"tmux session {plan.session!r} already exists; stop it or enable replace"
                 )
             self.stop(plan)
+        if plan.compose_file is not None:
+            plan = self._prepare_compose(plan)
         self._check_containers(plan)
 
         created = False
@@ -159,6 +164,55 @@ class TmuxScenarioBackend:
             raise BackendUnavailableError(f"cannot execute {label}: {exc}") from exc
         if result.returncode:
             raise BackendUnavailableError(f"{label} is unavailable")
+
+    def _compose_base(self, plan: TmuxScenarioPlan) -> tuple[str, ...]:
+        return (
+            "docker", "compose", "-f", str(plan.compose_file),
+            "--project-name", plan.project_name or "",
+        )
+
+    def _services(self, plan: TmuxScenarioPlan) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(group.service or "" for group in plan.groups))
+
+    def _preflight_compose(self, plan: TmuxScenarioPlan) -> None:
+        self._require(("docker", "compose", "version"), "Docker Compose")
+        result = self._checked(
+            (*self._compose_base(plan), "config", "--services"),
+            "cannot validate Compose services",
+        )
+        available = set(result.stdout.splitlines())
+        missing = set(self._services(plan)) - available
+        if missing:
+            raise ScenarioPlanError("unknown Compose service(s): " + ", ".join(sorted(missing)))
+
+    def _prepare_compose(self, plan: TmuxScenarioPlan) -> TmuxScenarioPlan:
+        base = self._compose_base(plan)
+        services = self._services(plan)
+        self._checked((*base, "stop", *services), "Docker Compose stop failed")
+        self._checked(
+            (*base, "up", "-d", "--wait", "--wait-timeout",
+             str(plan.wait_timeout_seconds), *services),
+            "Docker Compose up failed",
+        )
+        containers: dict[str, str] = {}
+        for service in services:
+            result = self._checked(
+                (*base, "ps", "-q", service),
+                f"cannot locate Compose service {service!r}",
+            )
+            ids = result.stdout.split()
+            if len(ids) != 1:
+                raise ScenarioExecutionError(
+                    f"Compose service {service!r} must have exactly one running container"
+                )
+            containers[service] = ids[0]
+        return replace(
+            plan,
+            groups=tuple(
+                replace(group, container=containers[group.service or ""])
+                for group in plan.groups
+            ),
+        )
 
     def _check_containers(self, plan: TmuxScenarioPlan) -> None:
         for container in dict.fromkeys(group.container for group in plan.groups):

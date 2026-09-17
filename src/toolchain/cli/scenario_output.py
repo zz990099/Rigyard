@@ -28,4 +28,11 @@ def describe_scenario(plan: ScenarioPlan) -> tuple[str, ...]:
                 f"Replace existing: {plan.replace}",
             )
         )
+        if plan.compose_file is not None:
+            lines.extend((
+                f"Compose file: {plan.compose_file}",
+                f"Compose project: {plan.project_name}",
+                "Container startup: stop, up -d, wait for readiness",
+                f"Wait timeout: {plan.wait_timeout_seconds}s",
+            ))
     return tuple(lines)

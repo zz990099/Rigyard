@@ -49,9 +49,43 @@ robot-system:
 
 ## tmux 开发模式
 
+tmux 始终在宿主机运行，窗口通过 `docker exec -it` 执行容器内脚本。
+
+开发 profile 可配置 Compose，公共 groups 的格式保持不变：
+
+```yaml
+development:
+  backend: tmux
+  compose_file: deploy/compose.development.yaml
+  project_name: robot-system-development
+  wait_timeout_seconds: 60
+  attach: true
+```
+
+此模式每个启用的 group 必须指定 `service`，其值是 Compose 文件 `services` 下的名称。
+工具链按 service 查找实际容器 ID；`container` 字段在此模式不参与定位。一个 service 必须
+对应一个运行中的容器，多个 group 可共用同一个 service。
+
+启动时先验证 Compose 配置及目标服务，停止该场景的旧 tmux session，再对目标服务执行
+`docker compose stop` 和 `docker compose up -d --wait --wait-timeout 60`。无容器时会创建，
+已有容器会先停止再启动；配置变化时 Compose 可重新创建容器。`--wait` 在有健康检查时等待
+健康检查通过，否则等待容器运行。设备或 ROS 层的 readiness 仍应由启动脚本检查。
+要求 Docker Compose v2 支持 `up --wait --wait-timeout`。
+
+开发 Compose 应运行持续存活的基础进程，例如 `exec sleep infinity`，由 tmux 执行 groups；
+不能同时用 supervisord 自动启动同一批节点，否则会重复启动。参考
+`examples/deploy/compose.development.yaml`，部署仍使用原有 Compose + supervisord 文件。
+停止再启动不会清空容器可写层，不执行 `down`，不删除 volumes。
+
+Compose 模式启动会自动替换当前场景的旧 tmux session，无需 `replace: true`。
+`scene stop` 只停止启动项并关闭 session，保留容器；`status/attach/logs` 不重启容器。
+Compose 启动或健康检查失败时不会创建窗口，保留容器现场用于诊断；窗口创建失败时清理
+本次新建的 session。停止旧 session 或容器的操作不会自动回滚。
+
+不配置 `compose_file` 时，保持原有连接已有容器的方式：每个 group 必须填写 `container`。
 Toolchain 在宿主机执行预检，确认 tmux、Docker 和所有目标容器可用。每个启用的 group 对应一个开启 `remain-on-exit` 的 tmux window，窗口命令为结构化生成的 `docker exec -it`。节点异常退出后窗口仍然保留，可查看退出码和日志。
 
-同名 session 默认报错，不会终止现有调试现场。只有 profile 的 `replace: true` 或 CLI 的 `--replace` 才会替换。停止时先向每个窗口发送 `Ctrl+C`，等待 `stop_grace_seconds` 后再关闭 session。
+连接已有容器的模式下，同名 session 默认报错，不会终止现有调试现场。只有 profile 的 `replace: true` 或 CLI 的 `--replace` 才会替换。停止时先向每个窗口发送 `Ctrl+C`，等待 `stop_grace_seconds` 后再关闭 session。
 
 ```bash
 toolchain scene start robot-system development

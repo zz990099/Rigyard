@@ -1,0 +1,6 @@
+services:
+  robot:
+    image: example/robot-development:latest
+    command: [/bin/sh, -c, "exec sleep infinity"]
+    volumes:
+      - ../:/workspace:ro

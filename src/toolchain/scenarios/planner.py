@@ -50,11 +50,30 @@ class ScenarioPlanner:
 
         config_file = Path(config_path).resolve()
         if isinstance(profile, TmuxProfileSpec):
-            missing = [group.name for group in enabled if not group.container]
+            compose_file = None
+            compose_project = None
+            if profile.compose_file is not None:
+                compose_file = _resolve_path(config_file.parent, profile.compose_file)
+                if not compose_file.is_file():
+                    raise ScenarioPlanError(f"compose file is not a file: {compose_file}")
+                compose_project = profile.project_name or _runtime_name(
+                    config_file, project_name, scene_name
+                )
+                _validate_compose_name(compose_project, "Compose project")
+                missing = [group.name for group in enabled if not group.service]
+            else:
+                if profile.project_name is not None:
+                    raise ScenarioPlanError("tmux project_name requires compose_file")
+                missing = [group.name for group in enabled if not group.container]
             if missing:
                 raise ScenarioPlanError(
-                    "tmux profile requires container for group(s): " + ", ".join(missing)
+                    "tmux profile requires "
+                    + ("service" if compose_file else "container")
+                    + " for group(s): " + ", ".join(missing)
                 )
+            if compose_file is not None:
+                for group in enabled:
+                    _validate_compose_name(group.service or "", "Compose service")
             session = profile.session or _runtime_name(config_file, project_name, scene_name)
             _validate_tmux_name(session)
             return TmuxScenarioPlan(
@@ -62,9 +81,12 @@ class ScenarioPlanner:
                 profile_name,
                 session,
                 profile.attach,
-                profile.replace,
+                profile.replace or compose_file is not None,
                 profile.stop_grace_seconds,
                 enabled,
+                compose_file,
+                compose_project,
+                profile.wait_timeout_seconds,
             )
 
         missing = [group.name for group in enabled if not group.service]

@@ -75,6 +75,9 @@ class TmuxProfileTemplate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     backend: Literal["tmux"]
+    compose_file: RuntimePath | None = None
+    project_name: RuntimeText | None = None
+    wait_timeout_seconds: RuntimeInteger = 60
     session: RuntimeText | None = None
     attach: RuntimeBool = True
     replace: RuntimeBool = False
@@ -167,6 +170,9 @@ class TmuxProfileSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     backend: Literal["tmux"]
+    compose_file: Path | None = None
+    project_name: str | None = None
+    wait_timeout_seconds: int = Field(default=60, ge=1, le=3600)
     session: str | None = None
     attach: bool = True
     replace: bool = False
@@ -204,6 +210,9 @@ class TmuxScenarioPlan:
     replace: bool
     stop_grace_seconds: int
     groups: tuple[ScenarioGroupPlan, ...]
+    compose_file: Path | None = None
+    project_name: str | None = None
+    wait_timeout_seconds: int = 60
 
 
 @dataclass(frozen=True)
