@@ -214,11 +214,27 @@ development:
 | `${env:NAME}` | 读取工具链进程的环境变量；不存在时报错 |
 | `${date:FORMAT}` | 按工具链进程的本地时区格式化命令开始时间 |
 | `${utcdate:FORMAT}` | 按 UTC 格式化同一个命令开始时间 |
+| `${WORKSPACE_ROOT}` | 当前工作区绝对路径，即运行 `toolchain init` 的目录 |
+| `${PROJECT_ROOT}` | 工程绝对路径：配置目录名为 `.toolchain` 时取父目录，否则取配置目录 |
+| `${TOOLCHAIN_ROOT}` | 实际 `toolchain.yaml` 所在配置目录的绝对路径 |
 | `$${...}` | 输出字面量 `${...}`，不执行模板 |
 
 日期格式采用 `strftime` 指令，例如 `%Y` 年、`%m` 月、`%d` 日、`%H` 时、`%M` 分、
 `%S` 秒。同一条命令只采集一次时间，因此多个字段生成的时间戳一致。模板只展开一次：如果
 环境变量的内容本身是 `${date:%Y}`，不会继续递归展开。
+
+例如在 `/ros2_ws` 初始化并绑定 `src/xbot/.toolchain/toolchain.yaml` 后，三个参数分别为
+`/ros2_ws`、`/ros2_ws/src/xbot`、`/ros2_ws/src/xbot/.toolchain`。工作区仍按既有规则仅绑定
+当前目录，不查找父目录；直接使用 `--config` 或未初始化时，`WORKSPACE_ROOT` 取当前目录。
+路径参数是工具链内置值，不读取同名环境变量，也不要求工程是 Git 仓库。
+
+```yaml
+mounts:
+  - "${WORKSPACE_ROOT}:/ros2_ws"
+  - "${PROJECT_ROOT}:/project"
+environment:
+  CONFIG_ROOT: "${TOOLCHAIN_ROOT}"
+```
 
 模板应用于所选操作中的字符串、路径、字符串列表和最终解析出的 PromptValue；不会展开
 mapping 键或配置定义名称。执行所选操作不会读取其他未选配置中的环境模板。

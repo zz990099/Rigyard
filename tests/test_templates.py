@@ -151,3 +151,65 @@ def test_syntax_validation_handles_nested_values_and_escaped_literals():
     validate_template_syntax(
         {"items": ["${env:MISSING}", Path("${date:%Y%m%d}"), "$${unknown:value}"]}
     )
+
+
+def test_root_templates_are_explicit_immutable_and_escaped(tmp_path: Path):
+    config = tmp_path / 'src' / 'robot' / '.toolchain' / 'toolchain.yaml'
+    active = StringTemplateRenderer(
+        TemplateContext.capture(
+            {'WORKSPACE_ROOT': '/wrong'},
+            config_path=config,
+            workspace_root=tmp_path,
+            now=NOW,
+        )
+    )
+    assert active.render('${WORKSPACE_ROOT}', 'mounts') == str(tmp_path)
+    assert active.render('${PROJECT_ROOT}', 'mounts') == str(config.parent.parent)
+    assert active.render('${TOOLCHAIN_ROOT}', 'mounts') == str(config.parent)
+    assert active.render('$${PROJECT_ROOT}', 'script') == '${PROJECT_ROOT}'
+    with pytest.raises(TypeError):
+        active.context.roots['WORKSPACE_ROOT'] = '/wrong'
+    validate_template_syntax(['${WORKSPACE_ROOT}', '${PROJECT_ROOT}', '${TOOLCHAIN_ROOT}'])
+    with pytest.raises(ResolutionError, match='requires a config path'):
+        renderer().render('${PROJECT_ROOT}', 'mounts')
+
+
+@pytest.mark.parametrize('initialized', [False, True])
+def test_container_roots_follow_workspace_binding(tmp_path: Path, monkeypatch, initialized):
+    from toolchain.workspace import initialize_workspace, resolve_config_path
+
+    config_dir = tmp_path / 'src' / 'robot' / '.toolchain'
+    config = write(
+        config_dir / 'toolchain.yaml',
+        'version: 2\nmetadata: {name: roots}\nsources: {containers: containers.yaml}\n',
+    )
+    write(
+        config_dir / 'containers.yaml',
+        '''development:
+  image: ubuntu
+  mounts:
+    - "${WORKSPACE_ROOT}:/workspace"
+    - "${PROJECT_ROOT}:/project"
+  environment:
+    CONFIG_ROOT: "${TOOLCHAIN_ROOT}"
+''',
+    )
+    monkeypatch.chdir(tmp_path)
+    if initialized:
+        initialize_workspace(config)
+    selected = resolve_config_path(None if initialized else config)
+    plan = CreateContainerUseCase(backend=None).plan(
+        'development', ResolutionRequest(selected, interactive=False), environment={}, now=NOW,
+    )
+    mounts = {(mount.source, mount.target) for mount in plan.mounts}
+    assert (str(tmp_path), '/workspace') in mounts
+    assert (str(config_dir.parent), '/project') in mounts
+    assert dict(plan.environment)['CONFIG_ROOT'] == str(config_dir)
+
+
+def test_flat_config_layout_uses_manifest_directory_as_project_root(tmp_path: Path):
+    active = StringTemplateRenderer(
+        TemplateContext.capture({}, config_path=tmp_path / 'toolchain.yaml', now=NOW)
+    )
+    assert active.render('${PROJECT_ROOT}', 'value') == str(tmp_path)
+    assert active.render('${TOOLCHAIN_ROOT}', 'value') == str(tmp_path)

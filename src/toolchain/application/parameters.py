@@ -61,7 +61,9 @@ class ResolveParametersUseCase:
     ) -> ResolvedContext:
         config = load_config(request.config_path)
         context = resolve_prompts(config, request, allow_missing=allow_missing)
-        renderer = StringTemplateRenderer(TemplateContext.capture(os.environ))
+        renderer = StringTemplateRenderer(
+            TemplateContext.capture(os.environ, config_path=request.config_path)
+        )
         if not allow_missing:
             for name, template in config.images.items():
                 materialize_as(template, f"images.{name}", context, ImageSpec, renderer)

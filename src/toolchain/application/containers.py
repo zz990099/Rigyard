@@ -33,7 +33,9 @@ class CreateContainerUseCase:
         if container_name not in config.containers:
             raise SchemaValidationError(f"unknown container {container_name!r}")
         host_environment = dict(os.environ if environment is None else environment)
-        renderer = StringTemplateRenderer(TemplateContext.capture(host_environment, now=now))
+        renderer = StringTemplateRenderer(
+            TemplateContext.capture(host_environment, now=now, config_path=request.config_path)
+        )
         spec, _ = resolve_template(
             config,
             config.containers[container_name],

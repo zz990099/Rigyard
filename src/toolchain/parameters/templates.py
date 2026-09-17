@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from types import MappingProxyType
@@ -16,6 +16,7 @@ from ..errors import ResolutionError
 from .models import PromptValue
 
 ENVIRONMENT_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+ROOT_NAMES = frozenset({"WORKSPACE_ROOT", "PROJECT_ROOT", "TOOLCHAIN_ROOT"})
 SUPPORTED_DATE_DIRECTIVES = frozenset("aAwdbBmyYHIpMSfzZjUWcxXGuV%")
 
 
@@ -24,6 +25,7 @@ class TemplateContext:
     environment: Mapping[str, str]
     local_now: datetime
     utc_now: datetime
+    roots: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
 
     @classmethod
     def capture(
@@ -31,14 +33,32 @@ class TemplateContext:
         environment: Mapping[str, str],
         *,
         now: datetime | None = None,
+        config_path: str | Path | None = None,
+        workspace_root: str | Path | None = None,
     ) -> TemplateContext:
         captured = datetime.now().astimezone() if now is None else now
         if captured.tzinfo is None or captured.utcoffset() is None:
             raise ValueError("template time must include timezone information")
+        roots: dict[str, str] = {}
+        if config_path is not None:
+            toolchain_root = Path(config_path).resolve().parent
+            project_root = (
+                toolchain_root.parent if toolchain_root.name == ".toolchain" else toolchain_root
+            )
+            roots = {
+                "WORKSPACE_ROOT": str(
+                    Path.cwd().resolve()
+                    if workspace_root is None
+                    else Path(workspace_root).resolve()
+                ),
+                "PROJECT_ROOT": str(project_root),
+                "TOOLCHAIN_ROOT": str(toolchain_root),
+            }
         return cls(
             MappingProxyType(dict(environment)),
             captured,
             captured.astimezone(timezone.utc),
+            MappingProxyType(roots),
         )
 
 
@@ -118,6 +138,10 @@ class StringTemplateRenderer:
 
     def _evaluate(self, source: str, path: str) -> str:
         kind, argument = self._validate_expression(source, path)
+        if kind == "root":
+            if argument not in self.context.roots:
+                raise self._error(path, f"workspace template {argument!r} requires a config path")
+            return self.context.roots[argument]
         if kind == "env":
             if argument not in self.context.environment:
                 raise self._error(path, f"missing environment variable {argument!r}")
@@ -126,6 +150,8 @@ class StringTemplateRenderer:
         return instant.strftime(argument)
 
     def _validate_expression(self, source: str, path: str) -> tuple[str, str]:
+        if source in ROOT_NAMES:
+            return "root", source
         if ":" not in source:
             raise self._error(path, f"invalid template {source!r}; expected KIND:ARGUMENT")
         kind, argument = source.split(":", 1)

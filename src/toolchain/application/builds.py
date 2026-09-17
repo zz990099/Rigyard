@@ -36,7 +36,9 @@ class BuildProjectUseCase:
                 f"unknown build {build_name!r}; configured builds: {available}"
             )
         host_environment = dict(os.environ if environment is None else environment)
-        renderer = StringTemplateRenderer(TemplateContext.capture(host_environment, now=now))
+        renderer = StringTemplateRenderer(
+            TemplateContext.capture(host_environment, now=now, config_path=request.config_path)
+        )
         spec, _ = resolve_template(
             config,
             config.builds[build_name],

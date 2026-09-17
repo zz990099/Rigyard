@@ -39,6 +39,7 @@ class PlanScenarioUseCase:
             TemplateContext.capture(
                 dict(os.environ if environment is None else environment),
                 now=now,
+                config_path=request.config_path,
             )
         )
         if scene_name not in config.scenarios:
