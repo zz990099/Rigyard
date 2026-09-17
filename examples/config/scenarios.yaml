@@ -41,7 +41,7 @@ robot-system:
       project_name: robot-system-development
       wait_timeout_seconds: 60
       attach: true
-      replace: false
+      replace: true
       stop_grace_seconds: 5
 
     deployment:

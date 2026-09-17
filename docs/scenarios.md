@@ -85,7 +85,8 @@ Compose 启动或健康检查失败时不会创建窗口，保留容器现场用
 不配置 `compose_file` 时，保持原有连接已有容器的方式：每个 group 必须填写 `container`。
 Toolchain 在宿主机执行预检，确认 tmux、Docker 和所有目标容器可用。每个启用的 group 对应一个开启 `remain-on-exit` 的 tmux window，窗口命令为结构化生成的 `docker exec -it`。节点异常退出后窗口仍然保留，可查看退出码和日志。
 
-连接已有容器的模式下，同名 session 默认报错，不会终止现有调试现场。只有 profile 的 `replace: true` 或 CLI 的 `--replace` 才会替换。停止时先向每个窗口发送 `Ctrl+C`，等待 `stop_grace_seconds` 后再关闭 session。
+所有 tmux 模式遇到同名 session 都会自动停止并替换。`replace` 和 `--replace` 保留兼容，
+不再用于禁止替换。停止时先向每个窗口发送 `Ctrl+C`，等待 `stop_grace_seconds` 后再关闭 session。
 
 ```bash
 toolchain scene start robot-system development

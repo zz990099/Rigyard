@@ -81,7 +81,7 @@ class ScenarioPlanner:
                 profile_name,
                 session,
                 profile.attach,
-                profile.replace or compose_file is not None,
+                True,
                 profile.stop_grace_seconds,
                 enabled,
                 compose_file,

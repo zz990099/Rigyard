@@ -80,7 +80,7 @@ class TmuxProfileTemplate(BaseModel):
     wait_timeout_seconds: RuntimeInteger = 60
     session: RuntimeText | None = None
     attach: RuntimeBool = True
-    replace: RuntimeBool = False
+    replace: RuntimeBool = True
     stop_grace_seconds: RuntimeInteger = 5
 
 
@@ -175,7 +175,7 @@ class TmuxProfileSpec(BaseModel):
     wait_timeout_seconds: int = Field(default=60, ge=1, le=3600)
     session: str | None = None
     attach: bool = True
-    replace: bool = False
+    replace: bool = True
     stop_grace_seconds: int = Field(default=5, ge=0, le=30)
 
 

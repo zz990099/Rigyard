@@ -224,14 +224,18 @@ def test_tmux_start_preflights_container_and_creates_windows():
     assert len(inspect_calls) == 1
 
 
-def test_tmux_existing_session_fails_without_replace():
-    runner = DispatchRunner(
-        lambda command, _: (
-            CommandResult(0) if command[:2] == ("tmux", "has-session") else CommandResult(0)
-        )
+def test_tmux_existing_session_is_replaced_even_without_replace():
+    def handler(command, _):
+        if command[:2] == ("docker", "inspect"):
+            return CommandResult(0, "true\n")
+        return CommandResult(0)
+
+    runner = DispatchRunner(handler)
+    TmuxScenarioBackend(runner).start(tmux_plan(group("drivers")))
+    commands = [command for command, _ in runner.calls]
+    assert commands.index(("tmux", "kill-session", "-t", "robot-session")) < next(
+        i for i, cmd in enumerate(commands) if cmd[:2] == ("tmux", "new-session")
     )
-    with pytest.raises(ScenarioExecutionError, match="already exists"):
-        TmuxScenarioBackend(runner).start(tmux_plan(group("drivers")))
 
 
 def test_tmux_partial_start_failure_cleans_new_session():

@@ -30,10 +30,6 @@ class TmuxScenarioBackend:
         if plan.compose_file is not None:
             self._preflight_compose(plan)
         if self._session_exists(plan.session):
-            if not plan.replace and plan.compose_file is None:
-                raise ScenarioExecutionError(
-                    f"tmux session {plan.session!r} already exists; stop it or enable replace"
-                )
             self.stop(plan)
         if plan.compose_file is not None:
             plan = self._prepare_compose(plan)
