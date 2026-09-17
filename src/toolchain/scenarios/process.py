@@ -1,9 +1,4 @@
-"""Derive the container-side argv for one scenario group process.
-
-tmux and supervisord consume the same group definition, so the command has to be
-derived once and reused. The result stays an argv tuple: the host never spawns a
-shell, and callers that need a single string (supervisord) quote it themselves.
-"""
+"""Derive the container-side argv for one scenario group process."""
 
 from __future__ import annotations
 

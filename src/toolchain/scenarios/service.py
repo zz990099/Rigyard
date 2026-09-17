@@ -1,23 +1,23 @@
-"""Scenario operation service independent of concrete process managers."""
+"""Application service for tmux-based development scenarios."""
 
 from __future__ import annotations
 
-from .backend import ScenarioBackend
+from .executor import ScenarioExecutor
 from .models import ScenarioPlan, ScenarioResult
 
 
 class ScenarioService:
-    def __init__(self, backend: ScenarioBackend) -> None:
-        self.backend = backend
+    def __init__(self, executor: ScenarioExecutor | None = None) -> None:
+        self.executor = executor or ScenarioExecutor()
 
     def start(self, plan: ScenarioPlan) -> ScenarioResult:
-        return self.backend.start(plan)
+        return self.executor.start(plan)
 
     def stop(self, plan: ScenarioPlan) -> ScenarioResult:
-        return self.backend.stop(plan)
+        return self.executor.stop(plan)
 
     def status(self, plan: ScenarioPlan) -> ScenarioResult:
-        return self.backend.status(plan)
+        return self.executor.status(plan)
 
     def attach(
         self,
@@ -25,7 +25,7 @@ class ScenarioService:
         instance_name: str | None = None,
         group_name: str | None = None,
     ) -> ScenarioResult:
-        return self.backend.attach(plan, instance_name, group_name)
+        return self.executor.attach(plan, instance_name, group_name)
 
     def logs(
         self,
@@ -35,4 +35,4 @@ class ScenarioService:
         *,
         follow: bool = False,
     ) -> ScenarioResult:
-        return self.backend.logs(plan, instance_name, group_name, follow=follow)
+        return self.executor.logs(plan, instance_name, group_name, follow=follow)

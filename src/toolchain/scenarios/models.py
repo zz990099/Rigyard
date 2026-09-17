@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Annotated, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 
@@ -18,8 +17,6 @@ RuntimeText = PromptValue | str
 RuntimeBool = PromptValue | StrictBool
 RuntimeList = PromptValue | tuple[str, ...]
 RuntimeInteger = PromptValue | int
-RuntimePath = PromptValue | Path
-RuntimeRestart = PromptValue | Literal["false", "unexpected", "true"]
 RestartPolicy = Literal["always", "if_not_running", "never"]
 
 
@@ -42,19 +39,6 @@ def _validate_named_mapping(values: dict[str, object], label: str) -> None:
         raise ValueError(f"invalid {label} name(s): {', '.join(invalid)}")
 
 
-class SupervisorOptionsTemplate(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    priority: RuntimeInteger = 100
-    autorestart: RuntimeRestart = "unexpected"
-    startsecs: RuntimeInteger = 3
-    startretries: RuntimeInteger = 3
-    stopsignal: RuntimeText = "INT"
-    stopasgroup: RuntimeBool = True
-    killasgroup: RuntimeBool = True
-    stopwaitsecs: RuntimeInteger = 15
-
-
 class ScenarioGroupTemplate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -67,7 +51,6 @@ class ScenarioGroupTemplate(BaseModel):
     user: RuntimeText | None = None
     workdir: RuntimeText | None = None
     environment: dict[str, RuntimeText] = Field(default_factory=dict)
-    supervisor: SupervisorOptionsTemplate = Field(default_factory=SupervisorOptionsTemplate)
 
     @field_validator("interpreter")
     @classmethod
@@ -104,8 +87,7 @@ class ScenarioInstanceTemplate(BaseModel):
 
     description: str | None = None
     enabled: RuntimeBool = True
-    container: RuntimeText | None = None
-    service: RuntimeText | None = None
+    container: RuntimeText
     groups: dict[str, ScenarioGroupTemplate] = Field(min_length=1)
 
     @field_validator("groups")
@@ -117,13 +99,9 @@ class ScenarioInstanceTemplate(BaseModel):
         return values
 
 
-class TmuxProfileTemplate(BaseModel):
+class ScenarioProfileTemplate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    backend: Literal["tmux"]
-    compose_file: RuntimePath | None = None
-    project_name: RuntimeText | None = None
-    wait_timeout_seconds: RuntimeInteger = 60
     session: RuntimeText | None = None
     attach: RuntimeBool = True
     replace: RuntimeBool = True
@@ -131,21 +109,6 @@ class TmuxProfileTemplate(BaseModel):
     restart_container: RestartPolicy = "always"
     mouse: bool = True
     keep_alive: bool = True
-
-
-class ComposeSupervisorProfileTemplate(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    backend: Literal["compose-supervisor"]
-    compose_file: RuntimePath
-    project_name: RuntimeText | None = None
-    supervisor_config_dir: RuntimePath
-
-
-ScenarioProfileTemplate = Annotated[
-    TmuxProfileTemplate | ComposeSupervisorProfileTemplate,
-    Field(discriminator="backend"),
-]
 
 
 class ScenarioTemplate(BaseModel):
@@ -172,19 +135,6 @@ class ScenarioTemplate(BaseModel):
         return values
 
 
-class SupervisorOptionsSpec(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    priority: int = Field(default=100, ge=0, le=999)
-    autorestart: Literal["false", "unexpected", "true"] = "unexpected"
-    startsecs: int = Field(default=3, ge=0, le=3600)
-    startretries: int = Field(default=3, ge=0, le=100)
-    stopsignal: str = Field(default="INT", pattern=r"^[A-Z][A-Z0-9]*$")
-    stopasgroup: bool = True
-    killasgroup: bool = True
-    stopwaitsecs: int = Field(default=15, ge=0, le=3600)
-
-
 class ScenarioGroupSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -197,7 +147,6 @@ class ScenarioGroupSpec(BaseModel):
     user: str | None = None
     workdir: str | None = None
     environment: dict[str, str] = Field(default_factory=dict)
-    supervisor: SupervisorOptionsSpec = Field(default_factory=SupervisorOptionsSpec)
 
     @field_validator("script")
     @classmethod
@@ -232,18 +181,13 @@ class ScenarioInstanceSpec(BaseModel):
 
     description: str | None = None
     enabled: bool = True
-    container: str | None = None
-    service: str | None = None
+    container: str
     groups: dict[str, ScenarioGroupSpec] = Field(min_length=1)
 
 
-class TmuxProfileSpec(BaseModel):
+class ScenarioProfileSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    backend: Literal["tmux"]
-    compose_file: Path | None = None
-    project_name: str | None = None
-    wait_timeout_seconds: int = Field(default=60, ge=1, le=3600)
     session: str | None = None
     attach: bool = True
     replace: bool = True
@@ -251,15 +195,6 @@ class TmuxProfileSpec(BaseModel):
     restart_container: RestartPolicy = "always"
     mouse: bool = True
     keep_alive: bool = True
-
-
-class ComposeSupervisorProfileSpec(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    backend: Literal["compose-supervisor"]
-    compose_file: Path
-    project_name: str | None = None
-    supervisor_config_dir: Path
 
 
 @dataclass(frozen=True)
@@ -270,7 +205,6 @@ class ScenarioGroupPlan:
     user: str | None
     workdir: str | None
     environment: tuple[tuple[str, str], ...]
-    supervisor: SupervisorOptionsSpec
     command: tuple[str, ...] | None = None
     setup: tuple[str, ...] = ()
 
@@ -278,13 +212,12 @@ class ScenarioGroupPlan:
 @dataclass(frozen=True)
 class ScenarioInstancePlan:
     name: str
-    container: str | None
-    service: str | None
+    container: str
     groups: tuple[ScenarioGroupPlan, ...]
 
 
 @dataclass(frozen=True)
-class TmuxScenarioPlan:
+class ScenarioPlan:
     scene_name: str
     profile_name: str
     session: str
@@ -292,26 +225,10 @@ class TmuxScenarioPlan:
     replace: bool
     stop_grace_seconds: int
     instances: tuple[ScenarioInstancePlan, ...]
-    compose_file: Path | None = None
-    project_name: str | None = None
-    wait_timeout_seconds: int = 60
     restart_container: RestartPolicy = "always"
     mouse: bool = True
     keep_alive: bool = True
     partial: bool = False
-
-
-@dataclass(frozen=True)
-class ComposeSupervisorPlan:
-    scene_name: str
-    profile_name: str
-    compose_file: Path
-    project_name: str
-    supervisor_config_dir: Path
-    instances: tuple[ScenarioInstancePlan, ...]
-
-
-ScenarioPlan = TmuxScenarioPlan | ComposeSupervisorPlan
 
 
 @dataclass(frozen=True)

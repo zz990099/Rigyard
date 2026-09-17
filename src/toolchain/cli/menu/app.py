@@ -15,9 +15,7 @@ from ...application.scenarios import PlanScenarioUseCase
 from ...providers.docker import DockerImageBackend
 from ...providers.docker.container_backend import DockerContainerBackend
 from ...providers.host import HostBuildBackend
-from ...providers.scenarios import scenario_backend
-from ...scenarios.backend import ScenarioBackend
-from ...scenarios.models import ScenarioPlan
+from ...scenarios.executor import ScenarioExecutor
 from ...scenarios.service import ScenarioService
 from ..build_output import describe_build
 from ..container_output import describe_container
@@ -27,7 +25,7 @@ from .prompt import MenuIO
 from .session import MenuSession
 
 BackendFactory = Callable[[], Any]
-ScenarioBackendFactory = Callable[[ScenarioPlan], ScenarioBackend]
+ScenarioExecutorFactory = Callable[[], ScenarioExecutor]
 
 
 class MenuApp:
@@ -37,7 +35,7 @@ class MenuApp:
         backend_factory: BackendFactory | None = None,
         container_backend_factory: BackendFactory | None = None,
         build_backend_factory: BackendFactory | None = None,
-        scenario_backend_factory: ScenarioBackendFactory | None = None,
+        scenario_executor_factory: ScenarioExecutorFactory | None = None,
     ) -> None:
         self.io = io or MenuIO()
         self.backend_factory = backend_factory or DockerImageBackend
@@ -45,7 +43,7 @@ class MenuApp:
             lambda: DockerContainerBackend(confirm_replace=self.io.confirm)
         )
         self.build_backend_factory = build_backend_factory or HostBuildBackend
-        self.scenario_backend_factory = scenario_backend_factory or scenario_backend
+        self.scenario_executor_factory = scenario_executor_factory or ScenarioExecutor
         self.registry = MenuRegistry(
             (
                 MenuAction(
@@ -226,5 +224,5 @@ class MenuApp:
         if not self.io.confirm("Start this scenario now?"):
             self.io.write("Scenario start cancelled.")
             return
-        result = ScenarioService(self.scenario_backend_factory(plan)).start(plan)
+        result = ScenarioService(self.scenario_executor_factory()).start(plan)
         self.io.write(f"Started scenario {result.scene_name!r} profile {result.profile_name!r}")

@@ -27,10 +27,8 @@ from ..parameters.templates import (
     validate_template_syntax,
 )
 from ..scenarios.models import (
-    ComposeSupervisorProfileSpec,
-    ComposeSupervisorProfileTemplate,
-    ScenarioGroupSpec,
-    TmuxProfileSpec,
+    ScenarioInstanceSpec,
+    ScenarioProfileSpec,
 )
 from .requests import ResolutionRequest
 
@@ -72,25 +70,20 @@ class ResolveParametersUseCase:
             for name, template in config.builds.items():
                 materialize_as(template, f"builds.{name}", context, BuildSpec, renderer)
             for scene_name, scenario in config.scenarios.items():
-                for group_name, group in scenario.groups.items():
+                for instance_name, instance in scenario.instances.items():
                     materialize_as(
-                        group,
-                        f"scenarios.{scene_name}.groups.{group_name}",
+                        instance,
+                        f"scenarios.{scene_name}.instances.{instance_name}",
                         context,
-                        ScenarioGroupSpec,
+                        ScenarioInstanceSpec,
                         renderer,
                     )
                 for profile_name, profile in scenario.profiles.items():
-                    target = (
-                        ComposeSupervisorProfileSpec
-                        if isinstance(profile, ComposeSupervisorProfileTemplate)
-                        else TmuxProfileSpec
-                    )
                     materialize_as(
                         profile,
                         f"scenarios.{scene_name}.profiles.{profile_name}",
                         context,
-                        target,
+                        ScenarioProfileSpec,
                         renderer,
                     )
         return context

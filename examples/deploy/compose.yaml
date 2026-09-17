@@ -1,7 +1,0 @@
-services:
-  robot:
-    image: example/robot-development:latest
-    command: [/usr/bin/supervisord, -n, -c, /etc/supervisor/supervisord.conf]
-    volumes:
-      - ../:/workspace:ro
-      - ./generated/supervisor/robot.conf:/etc/supervisor/conf.d/toolchain.conf:ro

@@ -1,6 +1,6 @@
 # Toolchain
 
-Toolchain 是一个配置驱动的开发环境工具，当前支持工程编译、分层构建 Docker 镜像、创建开发容器，以及用 tmux 或 Docker Compose + supervisord 启动命名场景。直接 CLI 和交互式菜单共用同一套应用层。
+Toolchain 是一个配置驱动的开发环境工具，当前支持工程编译、分层构建 Docker 镜像、创建开发容器，以及在已有容器中用 tmux 启动命名调试场景。直接 CLI 和交互式菜单共用同一套应用层。
 
 ## 安装
 
@@ -131,14 +131,13 @@ Dockerfile、构建 context 和相对 bind mount 均以根 `toolchain.yaml` 所�
 
 ## 场景启动
 
-一个场景由若干 instance 组成，每个 instance 是一套跑在一个容器里的软件系统，instance 下的 group 是容器内的进程。开发 profile 在宿主机创建 tmux session（instance 一个 window、group 一个 pane，通过 `docker exec -it` 进入容器）；部署 profile 为每个 instance 生成 supervisord program 配置，再由 Docker Compose 管理容器：
+一个场景由若干 instance 组成，每个 instance 是一套跑在已有容器里的软件系统，instance 下的 group 是容器内的调试进程。启动时在宿主机创建 tmux session：一个 instance 对应一个 window，一个 group 对应一个 pane，并通过 `docker exec -it` 进入容器：
 
 ```yaml
 robot-system:
   instances:
     robot:
       container: robot-development
-      service: robot
       groups:
         drivers:
           setup: [/opt/ros/humble/setup.bash, install/setup.bash]
@@ -147,21 +146,16 @@ robot-system:
           script: /workspace/scripts/scenarios/navigation.sh
   profiles:
     development:
-      backend: tmux
       restart_container: always
       attach: true
-    deployment:
-      backend: compose-supervisor
-      compose_file: deploy/compose.yaml
-      supervisor_config_dir: deploy/generated/supervisor
 ```
 
-`container`（tmux）和 `service`（compose）都属于 instance，目标容器需提前创建；
+`container` 属于 instance 且为必填字段，目标容器需提前创建；
 `restart_container` 决定启动前如何重启它，默认开启 mouse 与 pane 边框组名；进程退出（包括
 `Ctrl+C`）后 pane 默认会落回容器内的交互式 shell 继续操作（`keep_alive: false` 可关闭）。
 每个 group 用
 容器内 `script`，或 `command` 加可选 `setup`（先 source 再 `exec`）描述进程，两种模式复用
-同一份定义。默认启动全部 `enabled` 的 instance，可用 `--instance NAME` 只启动其中几个；只解析
+同一套 tmux 启动流程。默认启动全部 `enabled` 的 instance，可用 `--instance NAME` 只启动其中几个；只解析
 被选中 instance 中启用 group 的字段，被禁用 instance / group 的其他参数不会被询问。
 
 ## 运行时值

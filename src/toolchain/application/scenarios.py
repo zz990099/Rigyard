@@ -12,13 +12,11 @@ from ..parameters.models import PromptValue
 from ..parameters.resolver import collect_prompts, materialize, materialize_as
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from ..scenarios.models import (
-    ComposeSupervisorProfileSpec,
-    ComposeSupervisorProfileTemplate,
     ScenarioGroupSpec,
     ScenarioInstanceSpec,
     ScenarioInstanceTemplate,
     ScenarioPlan,
-    TmuxProfileSpec,
+    ScenarioProfileSpec,
 )
 from ..scenarios.planner import ScenarioPlanner
 from .parameters import resolve_selected_prompts
@@ -106,18 +104,15 @@ class PlanScenarioUseCase:
         for name in selected_names:
             instance = scenario.instances[name]
             prefix = f"{instances_prefix}.{name}"
+            selected.update(collect_prompts(instance.container, f"{prefix}.container"))
             if resolve_group_runtime:
                 selected.update(collect_prompts(instance.enabled, f"{prefix}.enabled"))
-                selected.update(collect_prompts(instance.container, f"{prefix}.container"))
-                selected.update(collect_prompts(instance.service, f"{prefix}.service"))
                 for group_name in enabled_groups[name]:
                     selected.update(
                         collect_prompts(
                             instance.groups[group_name], f"{prefix}.groups.{group_name}"
                         )
                     )
-            else:
-                selected.update(collect_prompts(instance.service, f"{prefix}.service"))
         context = resolve_selected_prompts(
             config,
             selected,
@@ -146,29 +141,17 @@ class PlanScenarioUseCase:
                 else:
                     groups[group_name] = ScenarioGroupSpec(script=":")
             if not groups:
-                raise SchemaValidationError(
-                    f"scenario instance {name!r} has no enabled groups"
-                )
+                raise SchemaValidationError(f"scenario instance {name!r} has no enabled groups")
             planned[name] = ScenarioInstanceSpec(
-                container=_optional_text(
-                    template.container, "container", prefix, context, renderer
-                ),
-                service=_optional_text(
-                    template.service, "service", prefix, context, renderer
-                ),
+                container=materialize(template.container, f"{prefix}.container", context, renderer),
                 groups=groups,
             )
 
-        profile_type = (
-            ComposeSupervisorProfileSpec
-            if isinstance(profile_template, ComposeSupervisorProfileTemplate)
-            else TmuxProfileSpec
-        )
         profile = materialize_as(
             profile_template,
             profile_prefix,
             context,
-            profile_type,
+            ScenarioProfileSpec,
             renderer,
         )
         return ScenarioPlanner().create_plan(
@@ -178,7 +161,6 @@ class PlanScenarioUseCase:
             profile,
             request.config_path,
             config.metadata.name,
-            require_target=resolve_group_runtime,
             partial=bool(instances),
         )
 
@@ -210,9 +192,7 @@ def _select_instances(
     if requested:
         disabled = [name for name in requested if not enabled[name]]
         if disabled:
-            raise SchemaValidationError(
-                f"scenario instance(s) are disabled: {', '.join(disabled)}"
-            )
+            raise SchemaValidationError(f"scenario instance(s) are disabled: {', '.join(disabled)}")
         wanted = set(requested)
         return [name for name in names if name in wanted]
     return [name for name in names if enabled[name]]
@@ -221,17 +201,3 @@ def _select_instances(
 def _enabled(value: object, context: Mapping[str, object], path: str) -> bool:
     resolved = context[path] if isinstance(value, PromptValue) else value
     return bool(resolved)
-
-
-def _optional_text(
-    value: object,
-    field: str,
-    prefix: str,
-    context: Mapping[str, object],
-    renderer: StringTemplateRenderer,
-) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, PromptValue) and f"{prefix}.{field}" not in context:
-        return None
-    return materialize(value, f"{prefix}.{field}", context, renderer)

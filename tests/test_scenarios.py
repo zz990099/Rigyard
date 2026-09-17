@@ -1,6 +1,4 @@
 import io
-import shlex
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -13,16 +11,12 @@ from toolchain.cli.menu.prompt import MenuIO
 from toolchain.config.loader import load_config
 from toolchain.errors import ScenarioExecutionError, ScenarioPlanError, SchemaValidationError
 from toolchain.execution import CommandResult
-from toolchain.providers.supervisor import ComposeSupervisorBackend, render_supervisor_config
-from toolchain.providers.tmux import TmuxScenarioBackend
-from toolchain.providers.tmux.backend import PANE_GROUP_OPTION
+from toolchain.scenarios.executor import PANE_GROUP_OPTION, ScenarioExecutor
 from toolchain.scenarios.models import (
-    ComposeSupervisorPlan,
     ScenarioGroupPlan,
     ScenarioInstancePlan,
+    ScenarioPlan,
     ScenarioResult,
-    SupervisorOptionsSpec,
-    TmuxScenarioPlan,
 )
 from toolchain.scenarios.process import keep_alive_argv, process_argv, startup_exit_code
 
@@ -50,34 +44,26 @@ sources: {scenarios: config/scenarios.yaml}
     return config
 
 
-def scenario_yaml(compose_file: str = "deploy/compose.yaml") -> str:
-    return f"""robot:
+def scenario_yaml() -> str:
+    return """robot:
   description: Robot system
   instances:
     robot1:
       container: robot-dev
-      service: robot
       groups:
         drivers:
           script: /ros2_ws/drivers.sh
           environment:
             ROS_DOMAIN_ID:
               default: "7"
-              prompt: {{mode: input, message: ROS domain}}
+              prompt: {mode: input, message: ROS domain}
         navigation:
           enabled: false
           script:
-            prompt: {{mode: input, message: Navigation script}}
+            prompt: {mode: input, message: Navigation script}
   profiles:
     development:
-      backend: tmux
       attach: false
-    deployment:
-      backend: compose-supervisor
-      compose_file: {compose_file}
-      supervisor_config_dir: deploy/generated
-      project_name:
-        prompt: {{mode: input, message: Compose project}}
 """
 
 
@@ -88,7 +74,7 @@ def test_load_scenario_project_has_instances_and_groups(tmp_path: Path):
     instance = loaded.scenarios["robot"].instances["robot1"]
     assert list(instance.groups) == ["drivers", "navigation"]
     assert instance.container == "robot-dev"
-    assert set(loaded.scenarios["robot"].profiles) == {"development", "deployment"}
+    assert set(loaded.scenarios["robot"].profiles) == {"development"}
 
 
 def test_plan_is_lazy_across_profiles_instances_and_groups(tmp_path: Path):
@@ -98,7 +84,7 @@ def test_plan_is_lazy_across_profiles_instances_and_groups(tmp_path: Path):
         "robot", "development", ResolutionRequest(config, interactive=False)
     )
 
-    assert isinstance(plan, TmuxScenarioPlan)
+    assert isinstance(plan, ScenarioPlan)
     assert [instance.name for instance in plan.instances] == ["robot1"]
     groups = plan.instances[0].groups
     assert [group.name for group in groups] == ["drivers"]
@@ -116,7 +102,7 @@ def test_plan_selects_requested_instances(tmp_path: Path):
     robot1: {container: container-a, groups: {drivers: {script: /a.sh}}}
     robot2: {container: container-b, groups: {drivers: {script: /b.sh}}}
   profiles:
-    development: {backend: tmux, attach: false}
+    development: {attach: false}
 """,
     )
     plan = PlanScenarioUseCase().plan(
@@ -125,7 +111,7 @@ def test_plan_selects_requested_instances(tmp_path: Path):
         ResolutionRequest(config, interactive=False),
         instances=["robot2"],
     )
-    assert isinstance(plan, TmuxScenarioPlan)
+    assert isinstance(plan, ScenarioPlan)
     assert [instance.name for instance in plan.instances] == ["robot2"]
     assert plan.instances[0].container == "container-b"
 
@@ -142,13 +128,13 @@ def test_two_instances_plan_onto_two_containers(tmp_path: Path):
       container: container-b
       groups: {drivers: {script: /b.sh}}
   profiles:
-    development: {backend: tmux, attach: false}
+    development: {attach: false}
 """,
     )
     plan = PlanScenarioUseCase().plan(
         "robot", "development", ResolutionRequest(config, interactive=False)
     )
-    assert isinstance(plan, TmuxScenarioPlan)
+    assert isinstance(plan, ScenarioPlan)
     assert [instance.container for instance in plan.instances] == ["container-a", "container-b"]
 
 
@@ -174,7 +160,7 @@ def test_disabled_instance_cannot_be_selected(tmp_path: Path):
       container: container-b
       groups: {drivers: {script: /b.sh}}
   profiles:
-    development: {backend: tmux, attach: false}
+    development: {attach: false}
 """,
     )
     with pytest.raises(SchemaValidationError, match="disabled"):
@@ -195,7 +181,7 @@ def test_instance_container_supports_runtime_templates(tmp_path: Path):
       container: "dev_${env:USER}"
       groups: {drivers: {script: /a.sh}}
   profiles:
-    development: {backend: tmux, attach: false}
+    development: {attach: false}
 """,
     )
     plan = PlanScenarioUseCase().plan(
@@ -204,45 +190,70 @@ def test_instance_container_supports_runtime_templates(tmp_path: Path):
         ResolutionRequest(config, interactive=False),
         environment={"USER": "alice"},
     )
-    assert isinstance(plan, TmuxScenarioPlan)
+    assert isinstance(plan, ScenarioPlan)
     assert plan.instances[0].container == "dev_alice"
 
 
-def test_compose_plan_resolves_only_deployment_profile(tmp_path: Path):
-    compose = write(tmp_path / "deploy/compose.yaml", "services: {}\n")
-    config = project(tmp_path, scenario_yaml())
-
-    plan = PlanScenarioUseCase().plan(
-        "robot",
-        "deployment",
-        ResolutionRequest(
-            config,
-            overrides={"scenarios.robot.profiles.deployment.project_name": "robot-prod"},
-            interactive=False,
-        ),
-    )
-
-    assert isinstance(plan, ComposeSupervisorPlan)
-    assert plan.compose_file == compose.resolve()
-    assert plan.project_name == "robot-prod"
-    assert plan.supervisor_config_dir == (tmp_path / "deploy/generated").resolve()
-    assert [(item.name, item.service) for item in plan.instances] == [("robot1", "robot")]
-
-
-def test_tmux_instance_requires_container(tmp_path: Path):
+def test_scenario_instance_requires_container(tmp_path: Path):
     config = project(
         tmp_path,
         """robot:
   instances:
     robot1: {groups: {drivers: {script: /run.sh}}}
   profiles:
-    development: {backend: tmux, attach: false}
+    development: {attach: false}
 """,
     )
-    with pytest.raises(ScenarioPlanError, match="requires container for instance"):
-        PlanScenarioUseCase().plan(
-            "robot", "development", ResolutionRequest(config, interactive=False)
-        )
+    with pytest.raises(SchemaValidationError, match="container"):
+        load_config(config)
+
+
+@pytest.mark.parametrize(
+    "legacy_field",
+    (
+        "      backend: tmux\n",
+        "      compose_file: deploy/compose.yaml\n",
+    ),
+)
+def test_scenario_profile_rejects_removed_backend_fields(tmp_path: Path, legacy_field: str):
+    config = project(
+        tmp_path,
+        """robot:
+  instances:
+    robot1: {container: robot-dev, groups: {drivers: {script: /run.sh}}}
+  profiles:
+    development:
+"""
+        + legacy_field,
+    )
+    with pytest.raises(SchemaValidationError, match="Extra inputs are not permitted"):
+        load_config(config)
+
+
+@pytest.mark.parametrize(
+    "legacy_field",
+    (
+        "      service: robot\n",
+        "      groups: {drivers: {script: /run.sh, supervisor: {priority: 10}}}\n",
+    ),
+)
+def test_scenario_rejects_removed_deployment_fields(tmp_path: Path, legacy_field: str):
+    groups = "      groups: {drivers: {script: /run.sh}}\n"
+    if "groups:" in legacy_field:
+        groups = ""
+    config = project(
+        tmp_path,
+        """robot:
+  instances:
+    robot1:
+      container: robot-dev
+"""
+        + legacy_field
+        + groups
+        + "  profiles: {development: {attach: false}}\n",
+    )
+    with pytest.raises(SchemaValidationError, match="Extra inputs are not permitted"):
+        load_config(config)
 
 
 def test_tmux_instance_name_must_be_a_target_safe_window_name(tmp_path: Path):
@@ -252,7 +263,7 @@ def test_tmux_instance_name_must_be_a_target_safe_window_name(tmp_path: Path):
   instances:
     robot.1: {container: robot-dev, groups: {drivers: {script: /run.sh}}}
   profiles:
-    development: {backend: tmux, attach: false}
+    development: {attach: false}
 """,
     )
     with pytest.raises(ScenarioPlanError, match="invalid tmux window name"):
@@ -261,16 +272,16 @@ def test_tmux_instance_name_must_be_a_target_safe_window_name(tmp_path: Path):
         )
 
 
-def test_management_plan_does_not_require_instance_container(tmp_path: Path):
+def test_management_plan_resolves_instance_container(tmp_path: Path):
     config = project(
         tmp_path,
         """robot:
   instances:
     robot1:
-      container: {prompt: {mode: input, message: Container}}
+      container: {default: robot-dev, prompt: {mode: input, message: Container}}
       groups: {drivers: {script: /run.sh}}
   profiles:
-    development: {backend: tmux, attach: false}
+    development: {attach: false}
 """,
     )
     plan = PlanScenarioUseCase().plan(
@@ -279,7 +290,8 @@ def test_management_plan_does_not_require_instance_container(tmp_path: Path):
         ResolutionRequest(config, interactive=False),
         resolve_group_runtime=False,
     )
-    assert isinstance(plan, TmuxScenarioPlan)
+    assert isinstance(plan, ScenarioPlan)
+    assert plan.instances[0].container == "robot-dev"
     assert [group.name for group in plan.instances[0].groups] == ["drivers"]
 
 
@@ -292,7 +304,7 @@ def test_group_requires_exactly_one_of_script_or_command(tmp_path: Path):
       container: robot-dev
       groups: {drivers: {script: /run.sh, command: [/run.sh]}}
   profiles:
-    development: {backend: tmux, attach: false}
+    development: {attach: false}
 """,
     )
     with pytest.raises(SchemaValidationError, match="exactly one of script or command"):
@@ -326,7 +338,6 @@ def group(
         user=None,
         workdir=workdir,
         environment=environment,
-        supervisor=SupervisorOptionsSpec(),
         command=command,
         setup=setup,
     )
@@ -335,25 +346,22 @@ def group(
 def instance(
     name: str = "robot1",
     *,
-    container: str | None = "robot-dev",
-    service: str | None = "robot",
+    container: str = "robot-dev",
     groups: tuple[ScenarioGroupPlan, ...] = (),
 ) -> ScenarioInstancePlan:
-    return ScenarioInstancePlan(name, container, service, groups or (group("drivers"),))
+    return ScenarioInstancePlan(name, container, groups or (group("drivers"),))
 
 
-def tmux_plan(
+def scenario_plan(
     *instances: ScenarioInstancePlan,
     attach: bool = False,
     session: str = "robot-session",
     restart_container: str = "always",
     mouse: bool = True,
-    compose_file: Path | None = None,
-    project_name: str | None = None,
     partial: bool = False,
     keep_alive: bool = True,
-) -> TmuxScenarioPlan:
-    return TmuxScenarioPlan(
+) -> ScenarioPlan:
+    return ScenarioPlan(
         scene_name="robot",
         profile_name="development",
         session=session,
@@ -361,8 +369,6 @@ def tmux_plan(
         replace=False,
         stop_grace_seconds=0,
         instances=instances or (instance(),),
-        compose_file=compose_file,
-        project_name=project_name,
         restart_container=restart_container,
         mouse=mouse,
         partial=partial,
@@ -370,10 +376,10 @@ def tmux_plan(
     )
 
 
-def backend(fake, **kwargs) -> TmuxScenarioBackend:
-    """Build a tmux backend whose waits are instant so tests do not sleep."""
+def executor(fake, **kwargs) -> ScenarioExecutor:
+    """Build an executor whose waits are instant so tests do not sleep."""
 
-    return TmuxScenarioBackend(fake, sleep_fn=lambda _: None, **kwargs)
+    return ScenarioExecutor(fake, sleep_fn=lambda _: None, **kwargs)
 
 
 def split_target(target: str) -> tuple[str, int | None]:
@@ -394,14 +400,12 @@ class FakeTmux:
         windows: tuple[str, ...] = (),
         containers_running: bool = True,
         missing_containers: tuple[str, ...] = (),
-        compose_services: tuple[str, ...] = ("robot",),
     ) -> None:
         self.session = session
         self.windows = list(windows)
         self.panes: dict[str, list[str]] = {name: [name] for name in windows}
         self.containers_running = containers_running
         self.missing = set(missing_containers)
-        self.compose_services = compose_services
         self.dead: dict[str, int] = {}
         self.pane_logs: dict[str, str] = {}
         self.calls: list[tuple[tuple[str, ...], dict]] = []
@@ -514,18 +518,10 @@ class FakeTmux:
         if verb in {"restart", "start"}:
             self.containers_running = True
             return CommandResult(0)
-        if verb == "compose":
-            if "version" in command:
-                return CommandResult(0, "Docker Compose version v2.24.0\n")
-            if command[-2:] == ("config", "--services"):
-                return CommandResult(0, "".join(f"{name}\n" for name in self.compose_services))
-            if "ps" in command:
-                return CommandResult(0, f"{command[-1]}-container\n")
-            return CommandResult(0)
         return CommandResult(0)
 
 
-def test_group_command_and_setup_render_one_argv_for_every_backend():
+def test_group_command_and_setup_render_one_container_argv():
     item = group(
         "drivers",
         command=("ros2", "launch", "nhybot_bringup", "drivers.launch.py"),
@@ -540,7 +536,6 @@ def test_group_command_and_setup_render_one_argv_for_every_backend():
         "ros2 launch nhybot_bringup drivers.launch.py",
     )
     assert process_argv(item) == expected
-    assert f"command={shlex.join(expected)}" in render_supervisor_config((item,))
 
 
 def test_group_script_form_still_renders_interpreter_and_script():
@@ -574,30 +569,13 @@ def test_startup_exit_code_reads_the_keep_alive_marker():
     assert startup_exit_code("[toolchain] drivers exited with code ?\n", "drivers") is None
 
 
-def test_supervisor_renderer_has_ros_friendly_shutdown_and_escaped_environment():
-    item = group(
-        "navigation",
-        script="/workspace/nav%2.sh",
-        environment=(("VALUE", 'a%b"c'),),
-    )
-    item = replace(item, supervisor=SupervisorOptionsSpec(priority=20, stopwaitsecs=30))
-    rendered = render_supervisor_config((item,))
-    assert "[program:navigation]" in rendered
-    assert "nav%%2.sh" in rendered
-    assert "stopsignal=INT" in rendered
-    assert "stopasgroup=true" in rendered
-    assert "killasgroup=true" in rendered
-    assert 'environment=VALUE="a%%b\\"c"' in rendered
-    assert "stdout_logfile=/dev/fd/1" in rendered
-
-
 def test_tmux_start_creates_one_window_per_instance_and_one_pane_per_group():
     fake = FakeTmux()
-    plan = tmux_plan(
+    plan = scenario_plan(
         instance("robot1", groups=(group("drivers"), group("navigation"))),
         instance("robot2", container="container-b", groups=(group("application"),)),
     )
-    result = backend(fake).start(plan)
+    result = executor(fake).start(plan)
 
     assert result.detail == "tmux:robot-session"
     assert fake.windows == ["robot1", "robot2"]
@@ -627,7 +605,7 @@ def test_tmux_start_creates_one_window_per_instance_and_one_pane_per_group():
 
 def test_tmux_start_enables_mouse_and_pane_borders_by_default():
     fake = FakeTmux()
-    backend(fake).start(tmux_plan(instance()))
+    executor(fake).start(scenario_plan(instance()))
     assert (
         "tmux",
         "set-option",
@@ -652,24 +630,24 @@ def test_tmux_start_enables_mouse_and_pane_borders_by_default():
 
 def test_tmux_start_can_disable_mouse():
     fake = FakeTmux()
-    backend(fake).start(tmux_plan(instance(), mouse=False))
+    executor(fake).start(scenario_plan(instance(), mouse=False))
     assert ("tmux", "set-option", "-t", "robot-session", "mouse", "off") in fake.commands
 
 
 def test_tmux_start_restarts_every_instance_container():
     fake = FakeTmux()
-    plan = tmux_plan(
+    plan = scenario_plan(
         instance("robot1", container="container-a"),
         instance("robot2", container="container-b"),
     )
-    backend(fake).start(plan)
+    executor(fake).start(plan)
     assert ("docker", "restart", "container-a") in fake.commands
     assert ("docker", "restart", "container-b") in fake.commands
 
 
 def test_tmux_replaces_the_session_before_restarting_containers():
     fake = FakeTmux(session=True, windows=("robot1",))
-    backend(fake).start(tmux_plan(instance()))
+    executor(fake).start(scenario_plan(instance()))
     commands = [command for command, _ in fake.calls]
     assert (
         commands.index(("tmux", "kill-session", "-t", "robot-session"))
@@ -685,12 +663,10 @@ def test_tmux_replaces_the_session_before_restarting_containers():
 def test_tmux_start_replaces_a_session_left_over_from_another_layout():
     # A session owned by this scenario may still hold windows the new layout does not know about.
     fake = FakeTmux(session=True, windows=("drivers", "navigation"))
-    result = backend(fake).start(tmux_plan(instance()))
+    result = executor(fake).start(scenario_plan(instance()))
     assert result.detail == "tmux:robot-session"
     assert fake.windows == ["robot1"]
-    created = next(
-        command for command in fake.commands if command[:2] == ("tmux", "new-session")
-    )
+    created = next(command for command in fake.commands if command[:2] == ("tmux", "new-session"))
     assert created[:7] == (
         "tmux",
         "new-session",
@@ -704,8 +680,8 @@ def test_tmux_start_replaces_a_session_left_over_from_another_layout():
 
 def test_partial_start_joins_an_existing_session():
     fake = FakeTmux(session=True, windows=("robot2",))
-    plan = tmux_plan(instance("robot1"), partial=True)
-    backend(fake).start(plan)
+    plan = scenario_plan(instance("robot1"), partial=True)
+    executor(fake).start(plan)
     assert fake.windows == ["robot2", "robot1"]
     assert not any(command[:2] == ("tmux", "new-session") for command in fake.commands)
 
@@ -713,16 +689,15 @@ def test_partial_start_joins_an_existing_session():
 @pytest.mark.parametrize("policy", ["if_not_running", "never"])
 def test_tmux_restart_policy_can_leave_a_running_container_alone(policy: str):
     fake = FakeTmux()
-    backend(fake).start(tmux_plan(instance(), restart_container=policy))
+    executor(fake).start(scenario_plan(instance(), restart_container=policy))
     assert not any(
-        command[:2] in {("docker", "restart"), ("docker", "start")}
-        for command in fake.commands
+        command[:2] in {("docker", "restart"), ("docker", "start")} for command in fake.commands
     )
 
 
 def test_tmux_restart_policy_if_not_running_starts_a_stopped_container():
     fake = FakeTmux(containers_running=False)
-    backend(fake).start(tmux_plan(instance(), restart_container="if_not_running"))
+    executor(fake).start(scenario_plan(instance(), restart_container="if_not_running"))
     assert ("docker", "start", "robot-dev") in fake.commands
     assert not any(command[:2] == ("docker", "restart") for command in fake.commands)
 
@@ -730,7 +705,7 @@ def test_tmux_restart_policy_if_not_running_starts_a_stopped_container():
 def test_tmux_missing_container_reports_an_actionable_error():
     fake = FakeTmux(missing_containers=("robot-dev",))
     with pytest.raises(ScenarioExecutionError, match="toolchain container create robot-dev"):
-        backend(fake).start(tmux_plan(instance()))
+        executor(fake).start(scenario_plan(instance()))
 
 
 def test_tmux_partial_start_failure_cleans_new_session():
@@ -742,9 +717,9 @@ def test_tmux_partial_start_failure_cleans_new_session():
         return None
 
     fake.override = override
-    plan = tmux_plan(instance("robot1"), instance("robot2", container="container-b"))
+    plan = scenario_plan(instance("robot1"), instance("robot2", container="container-b"))
     with pytest.raises(ScenarioExecutionError, match="cannot create tmux window"):
-        backend(fake).start(plan)
+        executor(fake).start(plan)
     assert ("tmux", "kill-session", "-t", "robot-session") in fake.commands
     assert fake.session is False
 
@@ -752,10 +727,10 @@ def test_tmux_partial_start_failure_cleans_new_session():
 def test_tmux_uses_direct_arguments_and_refreshes_stale_docker_environment():
     fake = FakeTmux()
     item = instance(groups=(group("drivers", script="/workspace/a script.sh"),))
-    backend(
+    executor(
         fake,
         environment={"PATH": "/usr/bin", "DOCKER_HOST": "tcp://host:2375"},
-    ).start(tmux_plan(item, keep_alive=False))
+    ).start(scenario_plan(item, keep_alive=False))
     process = next(command for command in fake.commands if command[:2] == ("tmux", "respawn-pane"))
     assert process[5:8] == ("docker", "exec", "-it")
     assert process[-1] == "/workspace/a script.sh"
@@ -788,7 +763,7 @@ def test_tmux_window_runs_group_command_with_setup():
         )
     )
     fake = FakeTmux()
-    backend(fake).start(tmux_plan(item, keep_alive=False))
+    executor(fake).start(scenario_plan(item, keep_alive=False))
     process = next(command for command in fake.commands if command[:2] == ("tmux", "respawn-pane"))
     expected = (
         "/bin/bash",
@@ -803,7 +778,7 @@ def test_tmux_window_runs_group_command_with_setup():
 
 def test_tmux_keep_alive_pane_falls_back_to_a_shell_instead_of_dying():
     fake = FakeTmux()
-    backend(fake).start(tmux_plan(instance()))
+    executor(fake).start(scenario_plan(instance()))
     process = next(command for command in fake.commands if command[:2] == ("tmux", "respawn-pane"))
     assert process[5:7] == ("/bin/sh", "-c")
     program = process[-1]
@@ -820,18 +795,15 @@ def test_tmux_reports_a_group_that_exited_before_keep_alive_shell_started():
         "root@container:/ros2_ws# "
     )
     with pytest.raises(ScenarioExecutionError, match="exit 127.*No such file"):
-        backend(fake).start(tmux_plan(instance()))
+        executor(fake).start(scenario_plan(instance()))
 
 
 def test_tmux_keep_alive_can_be_disabled():
     fake = FakeTmux()
-    backend(fake).start(tmux_plan(instance(), keep_alive=False))
+    executor(fake).start(scenario_plan(instance(), keep_alive=False))
     process = next(command for command in fake.commands if command[:2] == ("tmux", "respawn-pane"))
     assert process[-1] == "/workspace/drivers.sh"
-    assert not any(
-        command[:2] == ("tmux", "capture-pane")
-        for command in fake.commands
-    )
+    assert not any(command[:2] == ("tmux", "capture-pane") for command in fake.commands)
 
 
 def test_tmux_reports_dead_pane_and_keeps_failure_logs():
@@ -839,16 +811,16 @@ def test_tmux_reports_dead_pane_and_keeps_failure_logs():
     fake.dead["robot-session:robot1.0"] = 127
     fake.pane_logs["robot-session:robot1.0"] = "docker: command not found\n"
     with pytest.raises(ScenarioExecutionError, match="exit 127.*docker: command not found"):
-        backend(fake).start(tmux_plan(instance()))
+        executor(fake).start(scenario_plan(instance()))
     assert fake.session is True
 
 
 def test_tmux_stop_interrupts_every_pane_then_kills_the_session():
     fake = FakeTmux(session=True, windows=("robot1",))
     fake.panes["robot1"] = ["drivers", "navigation"]
-    tmux_backend = backend(fake)
+    tmux_backend = executor(fake)
 
-    plan = tmux_plan(instance(groups=(group("drivers"), group("navigation"))))
+    plan = scenario_plan(instance(groups=(group("drivers"), group("navigation"))))
     assert tmux_backend.stop(plan).detail == "stopped"
     interrupts = [command for command in fake.commands if command[:2] == ("tmux", "send-keys")]
     assert [command[-2] for command in interrupts] == [
@@ -861,8 +833,8 @@ def test_tmux_stop_interrupts_every_pane_then_kills_the_session():
 
 def test_partial_stop_only_touches_selected_instances():
     fake = FakeTmux(session=True, windows=("robot1", "robot2"))
-    plan = tmux_plan(instance("robot2", container="container-b"), partial=True)
-    backend(fake).stop(plan)
+    plan = scenario_plan(instance("robot2", container="container-b"), partial=True)
+    executor(fake).stop(plan)
     assert ("tmux", "kill-window", "-t", "robot-session:robot2") in fake.commands
     assert ("tmux", "kill-window", "-t", "robot-session:robot1") not in fake.commands
     assert fake.windows == ["robot1"]
@@ -870,19 +842,17 @@ def test_partial_stop_only_touches_selected_instances():
 
 def test_tmux_logs_requires_an_instance_when_several_are_running():
     fake = FakeTmux(session=True, windows=("robot1", "robot2"))
-    plan = tmux_plan(
-        instance("robot1"), instance("robot2", container="container-b")
-    )
+    plan = scenario_plan(instance("robot1"), instance("robot2", container="container-b"))
     with pytest.raises(ScenarioPlanError, match="select one with --instance"):
-        backend(fake).logs(plan, None, "drivers")
+        executor(fake).logs(plan, None, "drivers")
 
 
 def test_tmux_logs_captures_the_named_group_pane():
     fake = FakeTmux(session=True, windows=("robot1",))
     fake.panes["robot1"] = ["drivers", "navigation"]
     fake.pane_logs["robot-session:robot1.1"] = "navigation log\n"
-    plan = tmux_plan(instance(groups=(group("drivers"), group("navigation"))))
-    result = backend(fake).logs(plan, "robot1", "navigation")
+    plan = scenario_plan(instance(groups=(group("drivers"), group("navigation"))))
+    result = executor(fake).logs(plan, "robot1", "navigation")
     assert result.detail == "navigation log"
     assert (
         "tmux",
@@ -898,16 +868,16 @@ def test_tmux_logs_captures_the_named_group_pane():
 def test_tmux_logs_follows_by_attaching():
     fake = FakeTmux(session=True, windows=("robot1",))
     fake.panes["robot1"] = ["drivers"]
-    plan = tmux_plan(instance())
-    backend(fake).logs(plan, "robot1", "drivers", follow=True)
+    plan = scenario_plan(instance())
+    executor(fake).logs(plan, "robot1", "drivers", follow=True)
     assert ("tmux", "attach-session", "-t", "robot-session") in fake.commands
 
 
 def test_tmux_attach_selects_the_instance_window_and_group_pane():
     fake = FakeTmux(session=True, windows=("robot1",))
     fake.panes["robot1"] = ["drivers", "navigation"]
-    plan = tmux_plan(instance(groups=(group("drivers"), group("navigation"))))
-    result = backend(fake).attach(plan, "robot1", "navigation")
+    plan = scenario_plan(instance(groups=(group("drivers"), group("navigation"))))
+    result = executor(fake).attach(plan, "robot1", "navigation")
     assert result.detail == "detached from robot-session:robot1.1"
     assert ("tmux", "select-window", "-t", "robot-session:robot1") in fake.commands
     assert ("tmux", "select-pane", "-t", "robot-session:robot1.1") in fake.commands
@@ -916,154 +886,18 @@ def test_tmux_attach_selects_the_instance_window_and_group_pane():
 def test_tmux_status_lists_windows_and_panes():
     fake = FakeTmux(session=True, windows=("robot1",))
     fake.panes["robot1"] = ["drivers", "navigation"]
-    result = backend(fake).status(tmux_plan(instance()))
+    result = executor(fake).status(scenario_plan(instance()))
     assert "robot1.0 drivers" in result.detail
     assert "robot1.1 navigation" in result.detail
 
 
 def test_tmux_status_reports_a_missing_session():
     fake = FakeTmux()
-    assert backend(fake).status(tmux_plan(instance())).detail == "not running"
+    assert executor(fake).status(scenario_plan(instance())).detail == "not running"
 
 
-def test_compose_tmux_restarts_services_then_resolves_containers_and_uses_panes(tmp_path: Path):
-    fake = FakeTmux(compose_services=("robot",))
-    plan = tmux_plan(
-        instance("robot1", container=None, service="robot"),
-        compose_file=tmp_path / "compose.yaml",
-        project_name="robot-debug",
-    )
-    write(tmp_path / "compose.yaml", "services: {robot: {image: ubuntu}}\n")
-    backend(fake).start(plan)
-    commands = fake.commands
-    stop = next(
-        index for index, command in enumerate(commands) if command[-2:] == ("stop", "robot")
-    )
-    up = next(index for index, command in enumerate(commands) if "--wait" in command)
-    window = next(
-        index for index, command in enumerate(commands) if command[:2] == ("tmux", "new-session")
-    )
-    assert stop < up < window
-    process = next(command for command in commands if command[:2] == ("tmux", "respawn-pane"))
-    assert "robot-container" in " ".join(process)
-
-
-@pytest.mark.parametrize("stage", ["validation", "stop", "up", "replicas"])
-def test_compose_tmux_failures_do_not_create_windows(tmp_path: Path, stage: str):
-    write(tmp_path / "compose.yaml", "services: {robot: {image: ubuntu}}\n")
-    fake = FakeTmux(compose_services=("other",) if stage == "validation" else ("robot",))
-
-    def override(command, _):
-        if stage == "stop" and command[-2:] == ("stop", "robot"):
-            return CommandResult(1, stderr="stop failed")
-        if stage == "up" and "--wait" in command:
-            return CommandResult(1, stderr="up failed")
-        if stage == "replicas" and command[-3:] == ("ps", "-q", "robot"):
-            return CommandResult(0, "one\ntwo\n")
-        return None
-
-    fake.override = override
-    plan = tmux_plan(
-        instance("robot1", container=None, service="robot"),
-        compose_file=tmp_path / "compose.yaml",
-        project_name="robot-debug",
-    )
-    with pytest.raises((ScenarioExecutionError, ScenarioPlanError)):
-        backend(fake).start(plan)
-    assert not any(command[:2] == ("tmux", "new-session") for command in fake.commands)
-
-
-def compose_plan(tmp_path: Path, *instances: ScenarioInstancePlan) -> ComposeSupervisorPlan:
-    compose = write(tmp_path / "compose.yaml", "services: {}\n")
-    return ComposeSupervisorPlan(
-        "robot",
-        "deployment",
-        compose,
-        "robot-prod",
-        tmp_path / "generated",
-        instances or (instance(service="robot"),),
-    )
-
-
-def test_compose_start_writes_one_config_per_instance_service(tmp_path: Path):
-    fake = FakeTmux()
-    plan = compose_plan(
-        tmp_path,
-        instance("robot1", service="robot", groups=(group("drivers"),)),
-        instance("robot2", service="robot2", groups=(group("drivers"), group("navigation"))),
-    )
-    result = ComposeSupervisorBackend(fake).start(plan)
-
-    assert result.detail == "compose:robot-prod"
-    first = (tmp_path / "generated/robot.conf").read_text()
-    second = (tmp_path / "generated/robot2.conf").read_text()
-    assert "[program:drivers]" in first
-    assert "[program:navigation]" not in first
-    assert "[program:navigation]" in second
-    assert fake.commands[-1] == (
-        "docker",
-        "compose",
-        "-f",
-        str(plan.compose_file),
-        "--project-name",
-        "robot-prod",
-        "up",
-        "-d",
-    )
-
-
-def test_compose_start_removes_only_stale_generated_configs(tmp_path: Path):
-    fake = FakeTmux()
-    generated = tmp_path / "generated"
-    write(generated / "stale.conf", "; Generated by toolchain. Do not edit.\nold\n")
-    manual = write(generated / "manual.conf", "[program:manual]\n")
-
-    ComposeSupervisorBackend(fake).start(compose_plan(tmp_path, instance(service="robot")))
-
-    assert not (generated / "stale.conf").exists()
-    assert manual.read_text() == "[program:manual]\n"
-
-
-def test_compose_status_and_group_logs(tmp_path: Path):
-    fake = FakeTmux()
-
-    def override(command, _):
-        if command[-1] == "ps":
-            return CommandResult(0, "running\n")
-        if "logs" in command:
-            return CommandResult(0, "navigation log\n")
-        return None
-
-    fake.override = override
-    plan = compose_plan(
-        tmp_path,
-        instance("robot1", service="robot", groups=(group("navigation"),)),
-    )
-    backend = ComposeSupervisorBackend(fake)
-    assert backend.status(plan).detail == "running"
-    assert backend.logs(plan, "robot1", "navigation").detail == "navigation log"
-    assert fake.commands[-1][-2:] == ("logs", "robot")
-    with pytest.raises(ScenarioPlanError, match="only available for tmux"):
-        backend.attach(plan)
-
-
-def test_compose_logs_rejects_ambiguous_group(tmp_path: Path):
-    fake = FakeTmux()
-    plan = compose_plan(
-        tmp_path,
-        instance("robot1", service="robot", groups=(group("drivers"),)),
-        instance("robot2", service="robot2", groups=(group("drivers"),)),
-    )
-    with pytest.raises(ScenarioPlanError, match="several instances"):
-        ComposeSupervisorBackend(fake).logs(plan, None, "drivers")
-
-
-def test_cli_dry_run_does_not_construct_backend(tmp_path: Path, monkeypatch, capsys):
+def test_cli_dry_run_describes_existing_container_runtime(tmp_path: Path, capsys):
     config = project(tmp_path, scenario_yaml())
-    monkeypatch.setattr(
-        "toolchain.cli.commands.scenarios.scenario_backend",
-        lambda _: (_ for _ in ()).throw(AssertionError("must not construct backend")),
-    )
     assert (
         run(
             [
@@ -1081,7 +915,7 @@ def test_cli_dry_run_does_not_construct_backend(tmp_path: Path, monkeypatch, cap
         == 0
     )
     output = capsys.readouterr().out
-    assert "Backend: tmux" in output
+    assert "Runtime: tmux in existing containers" in output
     assert "Instances: robot1" in output
     assert "Window robot1: robot-dev -> drivers" in output
     assert "Mouse mode: on" in output
@@ -1096,7 +930,7 @@ def test_cli_dry_run_selects_one_instance(tmp_path: Path, capsys):
     robot1: {container: container-a, groups: {drivers: {script: /a.sh}}}
     robot2: {container: container-b, groups: {drivers: {script: /b.sh}}}
   profiles:
-    development: {backend: tmux, attach: false}
+    development: {attach: false}
 """,
     )
     assert (
@@ -1121,7 +955,7 @@ def test_cli_dry_run_selects_one_instance(tmp_path: Path, capsys):
     assert "Window robot2: container-b -> drivers" in output
 
 
-class FakeScenarioBackend:
+class FakeScenarioExecutor:
     def __init__(self) -> None:
         self.started = []
 
@@ -1132,14 +966,14 @@ class FakeScenarioBackend:
 
 def test_menu_starts_scene_once_and_exits(tmp_path: Path):
     config = project(tmp_path, scenario_yaml())
-    backend = FakeScenarioBackend()
+    executor = FakeScenarioExecutor()
     output = TTYBuffer()
     app = MenuApp(
         MenuIO(TTYBuffer("4\n1\n1\n\ny\n"), output),
-        scenario_backend_factory=lambda _: backend,
+        scenario_executor_factory=lambda: executor,
     )
     assert app.run(config) == 0
-    assert len(backend.started) == 1
+    assert len(executor.started) == 1
     rendered = output.getvalue()
     assert rendered.count("Configuration:") == 1
     assert "Started scenario 'robot' profile 'development'" in rendered
@@ -1151,26 +985,4 @@ def test_tmux_runner_os_error_is_actionable():
             raise FileNotFoundError("missing")
 
     with pytest.raises(Exception, match="cannot execute tmux"):
-        TmuxScenarioBackend(Broken()).start(tmux_plan(instance()))
-
-
-def test_compose_runner_failure_is_actionable(tmp_path: Path):
-    fake = FakeTmux()
-
-    def override(command, _):
-        if command[-2:] == ("up", "-d"):
-            return CommandResult(8, stderr="compose failed")
-        return None
-
-    fake.override = override
-    with pytest.raises(ScenarioExecutionError, match="compose failed"):
-        ComposeSupervisorBackend(fake).start(compose_plan(tmp_path, instance(service="robot")))
-
-
-def test_compose_runner_os_error_is_actionable(tmp_path: Path):
-    class Broken:
-        def run(self, *_args, **_kwargs):
-            raise FileNotFoundError("missing")
-
-    with pytest.raises(Exception, match="cannot execute Docker Compose"):
-        ComposeSupervisorBackend(Broken()).start(compose_plan(tmp_path, instance()))
+        ScenarioExecutor(Broken()).start(scenario_plan(instance()))

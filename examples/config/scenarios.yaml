@@ -4,7 +4,6 @@ robot-system:
     robot:
       description: Robot software stack running in the development container
       container: robot-development
-      service: robot
       groups:
         drivers:
           script: /workspace/scripts/scenarios/drivers.sh
@@ -17,28 +16,21 @@ robot-system:
               prompt:
                 mode: input
                 message: Enter the ROS domain ID
-          supervisor:
-            priority: 10
 
         navigation:
           script: /workspace/scripts/scenarios/navigation.sh
           interpreter: [/bin/bash, -euo, pipefail]
           workdir: /workspace
-          supervisor:
-            priority: 20
 
         application:
           script: /workspace/scripts/scenarios/application.sh
           interpreter: [/bin/bash, -euo, pipefail]
           workdir: /workspace
-          supervisor:
-            priority: 30
 
     # A second instance runs a second software stack in another container:
-    # one more tmux window in development, one more Compose service in deployment.
+    # one more tmux window in another existing container.
     # simulator:
     #   container: robot-simulator
-    #   service: simulator
     #   groups:
     #     sim:
     #       setup: [install/setup.bash]
@@ -47,20 +39,6 @@ robot-system:
 
   profiles:
     development:
-      backend: tmux
       restart_container: always
       attach: true
       stop_grace_seconds: 5
-
-    development-compose:
-      backend: tmux
-      compose_file: deploy/compose.development.yaml
-      project_name: robot-system-development
-      wait_timeout_seconds: 60
-      attach: true
-
-    deployment:
-      backend: compose-supervisor
-      compose_file: deploy/compose.yaml
-      project_name: robot-system
-      supervisor_config_dir: deploy/generated/supervisor

@@ -8,8 +8,7 @@ from typing import Any
 
 from ...application.requests import ResolutionRequest
 from ...application.scenarios import PlanScenarioUseCase
-from ...providers.scenarios import scenario_backend
-from ...scenarios.models import ScenarioPlan, TmuxScenarioPlan
+from ...scenarios.models import ScenarioPlan
 from ...scenarios.service import ScenarioService
 from ..common import parse_overrides
 from ..scenario_output import describe_scenario
@@ -82,15 +81,13 @@ def _plan(
     )
 
 
-def _service(plan: ScenarioPlan) -> ScenarioService:
-    return ScenarioService(scenario_backend(plan))
+def _service() -> ScenarioService:
+    return ScenarioService()
 
 
 def _start(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
     if args.replace or args.no_attach:
-        if not isinstance(plan, TmuxScenarioPlan):
-            parser.error("--replace and --no-attach are only available for tmux profiles")
         plan = replace(
             plan,
             replace=plan.replace or args.replace,
@@ -99,30 +96,28 @@ def _start(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if args.dry_run:
         print("\n".join(describe_scenario(plan)))
         return 0
-    result = _service(plan).start(plan)
+    result = _service().start(plan)
     print(f"Started scenario {result.scene_name!r} profile {result.profile_name!r}")
     return 0
 
 
 def _stop(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
-    result = _service(plan).stop(plan)
+    result = _service().stop(plan)
     print(result.detail or f"Stopped scenario {result.scene_name!r}")
     return 0
 
 
 def _status(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
-    result = _service(plan).status(plan)
+    result = _service().status(plan)
     print(result.detail or "running")
     return 0
 
 
 def _attach(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
-    if not isinstance(plan, TmuxScenarioPlan):
-        parser.error("attach is only available for tmux profiles")
-    result = _service(plan).attach(plan, args.instance, args.group)
+    result = _service().attach(plan, args.instance, args.group)
     if result.detail:
         print(result.detail)
     return 0
@@ -130,7 +125,7 @@ def _attach(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
 def _logs(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
-    result = _service(plan).logs(plan, args.instance, args.group, follow=args.follow)
+    result = _service().logs(plan, args.instance, args.group, follow=args.follow)
     if result.detail:
         print(result.detail)
     return 0
