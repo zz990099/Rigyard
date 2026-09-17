@@ -35,6 +35,11 @@ class ImageBuildPlanner:
         _validate_reference(base, f"images.{image_name}.base")
         _validate_reference(final_tag, f"images.{image_name}.tag", output=True)
 
+        if spec.tag_alias is not None:
+            _validate_reference(spec.tag_alias, f"images.{image_name}.tag_alias", output=True)
+            if not spec.tag_alias or spec.tag_alias.startswith("-"):
+                raise ImagePlanError(f"images.{image_name}.tag_alias must be a non-empty image tag")
+
         steps: list[ImageBuildStep] = []
         previous = base
         for index, layer in enumerate(spec.layers, start=1):
@@ -63,7 +68,9 @@ class ImageBuildPlanner:
             )
             previous = output_tag
 
-        return ImageBuildPlan(image_name=image_name, final_tag=final_tag, steps=tuple(steps))
+        return ImageBuildPlan(
+            image_name=image_name, final_tag=final_tag, steps=tuple(steps), tag_alias=spec.tag_alias
+        )
 
 
 def _resolve_path(project_dir: Path, configured: Path) -> Path:

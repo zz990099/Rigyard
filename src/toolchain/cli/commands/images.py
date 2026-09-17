@@ -39,4 +39,6 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     )
     result = use_case.execute(plan)
     print(f"Built {result.final_tag} ({len(result.steps)} layer(s))")
+    if result.tag_alias is not None:
+        print(f"Alias: {result.tag_alias}")
     return 0

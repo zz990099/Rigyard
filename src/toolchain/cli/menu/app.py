@@ -170,6 +170,8 @@ class MenuApp:
             )
         )
         self.io.write(f"Image: {plan.final_tag}; layers: {len(plan.steps)}")
+        if plan.tag_alias is not None:
+            self.io.write(f"Alias: {plan.tag_alias}")
         if not self.io.confirm(f"Build {image_name} now?"):
             self.io.write("Build cancelled.")
             return

@@ -52,6 +52,7 @@ class ImageTemplate(BaseModel):
     base: RuntimeString
     context: Path | PromptValue = Path(".")
     tag: RuntimeString
+    tag_alias: RuntimeString | None = None
     layers: tuple[ImageLayerTemplate, ...] = Field(min_length=1)
     build_args: dict[str, RuntimeScalar] = Field(default_factory=dict)
 
@@ -83,6 +84,7 @@ class ImageSpec(BaseModel):
     base: str
     context: Path = Path(".")
     tag: str
+    tag_alias: str | None = None
     layers: tuple[ImageLayerSpec, ...] = Field(min_length=1)
     build_args: dict[str, Scalar] = Field(default_factory=dict)
 
@@ -106,6 +108,7 @@ class ImageBuildPlan:
     image_name: str
     final_tag: str
     steps: tuple[ImageBuildStep, ...]
+    tag_alias: str | None = None
 
 
 @dataclass(frozen=True)
@@ -121,3 +124,4 @@ class ImageBuildResult:
     image_name: str
     final_tag: str
     steps: tuple[BuildStepResult, ...]
+    tag_alias: str | None = None

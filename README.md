@@ -312,3 +312,23 @@ uv build
 ```
 
 详细设计见 [架构](docs/architecture.md)、[场景启动](docs/scenarios.md)、[工程编译](docs/builds.md)、[CLI 与菜单](docs/cli-menu.md) 和 [容器配置](docs/containers.md)。
+
+## 镜像固定别名
+
+镜像定义可添加可选的 `tag_alias`，支持现有字符串模板和交互参数：
+
+```yaml
+base-development:
+  base: ubuntu:24.04
+  tag: "nhybot_base_dev:dev_x86_64_base_${date:%Y%m%d}"
+  tag_alias: "nhybot_base_dev:dev_x86_64_base"
+  layers:
+    - name: system
+      dockerfile: docker/layers/10-system.Dockerfile
+```
+
+全部层构建成功后，执行 `docker tag <tag> <tag_alias>`。两个 tag 指向同一镜像，不会
+额外构建或复制镜像。后续容器配置的 `image` 可固定填写
+`nhybot_base_dev:dev_x86_64_base`。再次成功构建后别名更新，原时间戳 tag 保留。
+构建失败时不更新别名；别名标记失败时命令报错，已构建的原 tag 保留。省略该字段保持
+原有行为，别名与 tag 相同时不重复执行标记。同一天构建使用相同日期 tag 时仍会覆盖该 tag。

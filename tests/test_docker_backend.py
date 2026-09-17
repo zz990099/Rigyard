@@ -65,3 +65,15 @@ def test_failed_layer_has_build_context() -> None:
     backend = DockerImageBackend(FakeRunner([CommandResult(9, stderr="build failed")]))
     with pytest.raises(ImageBuildError, match="layer 1 .*system.*exit 9.*build failed"):
         backend.build_step(step())
+
+
+@pytest.mark.parametrize('code', [0, 1])
+def test_tag_alias_uses_argv_and_reports_failure(code):
+    runner = FakeRunner([CommandResult(code, stderr='tag failed' if code else '')])
+    backend = DockerImageBackend(runner)
+    if code:
+        with pytest.raises(ImageBuildError, match='was built but tagging alias'):
+            backend.tag_image('example:test-date', 'example:stable')
+    else:
+        backend.tag_image('example:test-date', 'example:stable')
+    assert runner.calls[0][0] == ('docker', 'tag', 'example:test-date', 'example:stable')

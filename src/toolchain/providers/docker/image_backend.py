@@ -24,6 +24,17 @@ class DockerImageBackend:
                 f"Docker daemon is unavailable (exit {result.returncode}){detail}"
             )
 
+    def tag_image(self, source: str, alias: str) -> None:
+        try:
+            result = self.runner.run(("docker", "tag", source, alias), capture=True)
+        except OSError as exc:
+            raise BackendUnavailableError(f"cannot execute Docker tag: {exc}") from exc
+        if result.returncode:
+            raise ImageBuildError(
+                f"image {source!r} was built but tagging alias {alias!r} failed "
+                f"(exit {result.returncode}){_detail(result.stderr, result.stdout)}"
+            )
+
     def build_step(self, step: ImageBuildStep) -> BuildStepResult:
         command: list[str] = ["docker", "build", "--file", "-", "--tag", step.output_tag]
         for name, value in step.build_args.items():

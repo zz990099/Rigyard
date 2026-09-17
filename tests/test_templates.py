@@ -213,3 +213,27 @@ def test_flat_config_layout_uses_manifest_directory_as_project_root(tmp_path: Pa
     )
     assert active.render('${PROJECT_ROOT}', 'value') == str(tmp_path)
     assert active.render('${TOOLCHAIN_ROOT}', 'value') == str(tmp_path)
+
+
+def test_image_alias_supports_templates_and_prompt_defaults(tmp_path):
+    from toolchain.application.images import BuildImageUseCase
+    from toolchain.application.requests import BuildImageRequest
+
+    config = write(tmp_path / 'toolchain.yaml',
+                   'version: 2\nmetadata: {name: alias}\nsources: {images: images.yaml}\n')
+    write(tmp_path / 'layer.Dockerfile', 'RUN true\n')
+    write(tmp_path / 'images.yaml', '''development:
+  base: ubuntu
+  tag: "example:dev_${date:%Y%m%d}"
+  tag_alias:
+    default: "example:dev_${env:ARCH}"
+    prompt: {mode: input, message: Alias}
+  layers:
+    - {name: system, dockerfile: layer.Dockerfile}
+''')
+    plan = BuildImageUseCase(None).plan(
+        BuildImageRequest(config, 'development', interactive=False),
+        environment={'ARCH': 'x86_64'}, now=NOW,
+    )
+    assert plan.final_tag == 'example:dev_20260916'
+    assert plan.tag_alias == 'example:dev_x86_64'
