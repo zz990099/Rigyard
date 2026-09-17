@@ -31,6 +31,8 @@ class FakeRunner:
 
     def run(self, command, **kwargs):
         self.calls.append((command, kwargs))
+        if command[:2] == ("docker", "ps"):
+            return CommandResult(0)
         return self.result
 
 
@@ -129,8 +131,8 @@ def test_backend_never_invokes_a_shell_and_redacts_environment(tmp_path):
     with pytest.raises(ContainerCreateError) as error:
         DockerContainerBackend(runner).create(plan)
     assert "sensitive" not in str(error.value)
-    assert len(runner.calls) == 1
-    assert runner.calls[0][0][-2:] == ("echo", "$USER")
+    assert len(runner.calls) == 2
+    assert runner.calls[-1][0][-2:] == ("echo", "$USER")
 
 
 def test_backend_missing_and_empty_id(tmp_path):
@@ -192,7 +194,9 @@ def test_cli_uses_default_project_config_and_path_overrides(tmp_path, monkeypatc
     write_config(tmp_path)
     monkeypatch.chdir(tmp_path)
     backend = FakeBackend()
-    monkeypatch.setattr("toolchain.cli.commands.containers.DockerContainerBackend", lambda: backend)
+    monkeypatch.setattr(
+        "toolchain.cli.commands.containers.DockerContainerBackend", lambda **_: backend
+    )
     command = [
         "container",
         "create",
@@ -221,3 +225,28 @@ def test_menu_resolves_prompts_before_confirmation(tmp_path, answer, expected):
     assert app.run(config) == 0
     assert len(backend.plans) == expected
     assert "never-print-this" not in output.getvalue()
+
+
+@pytest.mark.parametrize('answer', [False, True])
+def test_existing_container_requires_confirmation_and_forced_removal(tmp_path, answer):
+    class ExistingRunner(FakeRunner):
+        def run(self, command, **kwargs):
+            self.calls.append((command, kwargs))
+            if command[:2] == ('docker', 'ps'):
+                return CommandResult(0, 'original dev\nunrelated dev-other\n')
+            return CommandResult(0, 'new-id\n')
+
+    prompts = []
+    runner = ExistingRunner()
+    backend = DockerContainerBackend(
+        runner, confirm_replace=lambda message: prompts.append(message) or answer,
+    )
+    if answer:
+        assert backend.create(make_plan(tmp_path)).container_id == 'new-id'
+        assert runner.calls[1][0] == ('docker', 'rm', '-f', 'original')
+        assert runner.calls[2][0][:2] == ('docker', 'run')
+    else:
+        with pytest.raises(ContainerCreateError, match='cancelled'):
+            backend.create(make_plan(tmp_path))
+        assert len(runner.calls) == 1
+    assert len(prompts) == 1

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable
 
 from ...containers.models import (
     ContainerCreateResult,
@@ -15,8 +16,12 @@ from .runner import CommandRunner, SubprocessRunner
 
 
 class DockerContainerBackend:
-    def __init__(self, runner: CommandRunner | None = None) -> None:
+    def __init__(
+        self, runner: CommandRunner | None = None,
+        confirm_replace: Callable[[str], bool] | None = None,
+    ) -> None:
         self.runner = runner or SubprocessRunner()
+        self.confirm_replace = confirm_replace or (lambda _: False)
 
     def command(self, plan: ContainerRunPlan) -> tuple[str, ...]:
         args = ["docker", "run"]
@@ -66,6 +71,29 @@ class DockerContainerBackend:
 
     def create(self, plan: ContainerRunPlan) -> ContainerCreateResult:
         try:
+            existing = self.runner.run(
+                ("docker", "ps", "-a", "--format", "{{.ID}} {{.Names}}"), capture=True
+            )
+            if existing.returncode:
+                raise BackendUnavailableError("cannot list Docker containers")
+            container_id = next(
+                (parts[0] for line in existing.stdout.splitlines()
+                 if len(parts := line.split()) == 2 and parts[1] == plan.container_name),
+                None,
+            )
+            if container_id is not None:
+                if not self.confirm_replace(
+                    f"Container {plan.container_name!r} already exists. "
+                    "Delete it and create a new one?"
+                ):
+                    raise ContainerCreateError(
+                        f"container {plan.container_name!r} already exists; creation cancelled"
+                    )
+                removed = self.runner.run(("docker", "rm", "-f", container_id), capture=True)
+                if removed.returncode:
+                    raise ContainerCreateError(
+                        f"cannot remove existing container {plan.container_name!r}"
+                    )
             result = self.runner.run(self.command(plan), capture=True)
         except OSError as exc:
             raise BackendUnavailableError(f"cannot execute Docker: {exc}") from exc

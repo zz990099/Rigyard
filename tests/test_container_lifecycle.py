@@ -25,6 +25,8 @@ class QueueRunner:
 
     def run(self, command, **kwargs):
         self.calls.append((command, kwargs))
+        if command[:2] == ("docker", "ps"):
+            return CommandResult(0)
         result = next(self.results)
         if isinstance(result, Exception):
             raise result
@@ -130,7 +132,7 @@ def test_service_runs_hooks_in_order_through_docker_exec(tmp_path: Path):
         (LifecyclePhase.POST_CREATE, "prepare-sysroot"),
         (LifecyclePhase.POST_START, "verify-toolchain"),
     ]
-    prepare_command, prepare_options = runner.calls[1]
+    prepare_command, prepare_options = runner.calls[2]
     assert prepare_command == (
         "docker",
         "exec",

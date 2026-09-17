@@ -31,7 +31,16 @@ def _create(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         overrides = parse_overrides(args.sets)
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
-    use_case = CreateContainerUseCase(DockerContainerBackend())
+    def confirm_replace(message: str) -> bool:
+        if args.non_interactive:
+            print(f"{message} [y/N]: N (non-interactive)")
+            return False
+        try:
+            return input(f"{message} [y/N]: ").strip().lower() in {"y", "yes"}
+        except EOFError:
+            return False
+
+    use_case = CreateContainerUseCase(DockerContainerBackend(confirm_replace=confirm_replace))
     plan = use_case.plan(
         args.container_name,
         ResolutionRequest(

@@ -41,7 +41,9 @@ class MenuApp:
     ) -> None:
         self.io = io or MenuIO()
         self.backend_factory = backend_factory or DockerImageBackend
-        self.container_backend_factory = container_backend_factory or DockerContainerBackend
+        self.container_backend_factory = container_backend_factory or (
+            lambda: DockerContainerBackend(confirm_replace=self.io.confirm)
+        )
         self.build_backend_factory = build_backend_factory or HostBuildBackend
         self.scenario_backend_factory = scenario_backend_factory or scenario_backend
         self.registry = MenuRegistry(
