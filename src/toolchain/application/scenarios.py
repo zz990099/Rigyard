@@ -12,6 +12,7 @@ from ..parameters.models import PromptValue
 from ..parameters.resolver import collect_prompts, materialize, materialize_as
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from ..scenarios.models import (
+    ScenarioComposeSpec,
     ScenarioGroupSpec,
     ScenarioInstanceSpec,
     ScenarioInstanceTemplate,
@@ -58,8 +59,14 @@ class PlanScenarioUseCase:
 
         instances_prefix = f"scenarios.{scene_name}.instances"
         profile_prefix = f"scenarios.{scene_name}.profiles.{profile_name}"
+        compose_prefix = f"scenarios.{scene_name}.compose"
         profile_template = scenario.profiles[profile_name]
         profile_prompts = collect_prompts(profile_template, profile_prefix)
+        compose_prompts = (
+            collect_prompts(scenario.compose, compose_prefix)
+            if scenario.compose is not None
+            else {}
+        )
         instance_prompts = {
             path: value
             for name, instance in scenario.instances.items()
@@ -77,7 +84,7 @@ class PlanScenarioUseCase:
         }
         selection_context = resolve_selected_prompts(
             config,
-            {**profile_prompts, **instance_prompts, **group_prompts},
+            {**profile_prompts, **compose_prompts, **instance_prompts, **group_prompts},
             request,
         )
         selected_names = _select_instances(
@@ -100,7 +107,12 @@ class PlanScenarioUseCase:
             for name in scenario.instances
         }
 
-        selected = {**profile_prompts, **instance_prompts, **group_prompts}
+        selected = {
+            **profile_prompts,
+            **compose_prompts,
+            **instance_prompts,
+            **group_prompts,
+        }
         for name in selected_names:
             instance = scenario.instances[name]
             prefix = f"{instances_prefix}.{name}"
@@ -154,11 +166,23 @@ class PlanScenarioUseCase:
             ScenarioProfileSpec,
             renderer,
         )
+        compose = (
+            materialize_as(
+                scenario.compose,
+                compose_prefix,
+                context,
+                ScenarioComposeSpec,
+                renderer,
+            )
+            if scenario.compose is not None
+            else None
+        )
         return ScenarioPlanner().create_plan(
             scene_name,
             profile_name,
             planned,
             profile,
+            compose,
             request.config_path,
             config.metadata.name,
             partial=bool(instances),

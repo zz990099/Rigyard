@@ -31,6 +31,8 @@ def register_scenario_commands(commands: Any) -> None:
 
     stop = _operation(actions, "stop", "stop a scenario profile")
     stop.set_defaults(handler=_stop)
+    down = _operation(actions, "down", "stop a scenario and remove its Compose environment")
+    down.set_defaults(handler=_down)
     status = _operation(actions, "status", "show scenario status")
     status.set_defaults(handler=_status)
 
@@ -105,6 +107,15 @@ def _stop(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
     result = _service().stop(plan)
     print(result.detail or f"Stopped scenario {result.scene_name!r}")
+    return 0
+
+
+def _down(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    if args.instances:
+        parser.error("scene down does not support --instance")
+    plan = _plan(args, parser)
+    result = _service().down(plan)
+    print(result.detail or f"Removed scenario {result.scene_name!r} environment")
     return 0
 
 

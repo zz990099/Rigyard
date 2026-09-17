@@ -8,6 +8,8 @@ from pathlib import Path
 
 from ..errors import ScenarioPlanError
 from .models import (
+    ScenarioComposePlan,
+    ScenarioComposeSpec,
     ScenarioGroupPlan,
     ScenarioInstancePlan,
     ScenarioInstanceSpec,
@@ -26,6 +28,7 @@ class ScenarioPlanner:
         profile_name: str,
         instances: dict[str, ScenarioInstanceSpec],
         profile: ScenarioProfileSpec,
+        compose: ScenarioComposeSpec | None,
         config_path: str | Path,
         project_name: str,
         *,
@@ -46,6 +49,20 @@ class ScenarioPlanner:
         for instance in planned:
             _validate_window_name(instance.name)
             _validate_container_name(instance.container)
+        compose_plan = None
+        if compose is not None:
+            compose_file = _resolve_path(config_file.parent, compose.file)
+            if not compose_file.is_file():
+                raise ScenarioPlanError(f"Compose file is not a file: {compose_file}")
+            compose_project = compose.project_name or _compose_project_name(
+                config_file, project_name, scene_name, profile_name
+            )
+            _validate_compose_project(compose_project)
+            compose_plan = ScenarioComposePlan(
+                compose_file,
+                compose_project,
+                compose.wait_timeout_seconds,
+            )
         session = profile.session or _runtime_name(config_file, project_name, scene_name)
         _validate_tmux_name(session)
         return ScenarioPlan(
@@ -56,6 +73,7 @@ class ScenarioPlanner:
             replace=True,
             stop_grace_seconds=profile.stop_grace_seconds,
             instances=planned,
+            compose=compose_plan,
             restart_container=profile.restart_container,
             mouse=profile.mouse,
             keep_alive=profile.keep_alive,
@@ -90,6 +108,27 @@ def _runtime_name(config_file: Path, project_name: str, scene_name: str) -> str:
     return f"tc-{slug[:40]}-{digest}" if slug else f"tc-scene-{digest}"
 
 
+def _compose_project_name(
+    config_file: Path,
+    project_name: str,
+    scene_name: str,
+    profile_name: str,
+) -> str:
+    source = f"{config_file}:{project_name}:{scene_name}:{profile_name}:compose"
+    digest = hashlib.sha256(source.encode()).hexdigest()[:8]
+    slug = re.sub(
+        r"[^a-z0-9_-]+",
+        "-",
+        f"{project_name}-{scene_name}-{profile_name}".lower(),
+    ).strip("-")
+    return f"tc-{slug[:40]}-{digest}" if slug else f"tc-compose-{digest}"
+
+
+def _resolve_path(project_dir: Path, configured: Path) -> Path:
+    path = configured.expanduser()
+    return (project_dir / path).resolve() if not path.is_absolute() else path.resolve()
+
+
 def _validate_tmux_name(value: str) -> None:
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,62}", value):
         raise ScenarioPlanError(f"invalid tmux session name {value!r}")
@@ -106,6 +145,11 @@ def _validate_window_name(value: str) -> None:
 def _validate_container_name(value: str) -> None:
     if not CONTAINER_NAME.fullmatch(value):
         raise ScenarioPlanError(f"invalid container name {value!r}")
+
+
+def _validate_compose_project(value: str) -> None:
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,62}", value):
+        raise ScenarioPlanError(f"invalid Compose project name {value!r}")
 
 
 def _validate_group_text(group: ScenarioGroupPlan) -> None:

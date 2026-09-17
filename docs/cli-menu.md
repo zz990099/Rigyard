@@ -14,13 +14,17 @@ toolchain container create development
 
 两条路径共用应用 use case。全局 `--config/-f` 显式指定 Schema v3 manifest，并覆盖工作区初始化记录。
 
-`scene` 子命令都接受可重复的 `--instance NAME`，只操作部分 instance；`attach/logs` 还需要
+除 `scene down` 外，`scene` 子命令都接受可重复的 `--instance NAME`，只操作部分 instance；`attach/logs` 还需要
 `--instance` 才能把 `--group` 定位到具体 pane：
 
 ```bash
 toolchain scene start robot-system development --instance robot1
 toolchain scene logs  robot-system development --instance robot1 --group navigation
+toolchain scene down  robot-system development
 ```
+
+`scene down` 只用于配置了 Compose 的场景，会停止 tmux 并清理完整 Compose project，因此不接受
+`--instance`。
 
 ## 工作区初始化
 

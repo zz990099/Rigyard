@@ -16,6 +16,9 @@ class ScenarioService:
     def stop(self, plan: ScenarioPlan) -> ScenarioResult:
         return self.executor.stop(plan)
 
+    def down(self, plan: ScenarioPlan) -> ScenarioResult:
+        return self.executor.down(plan)
+
     def status(self, plan: ScenarioPlan) -> ScenarioResult:
         return self.executor.status(plan)
 

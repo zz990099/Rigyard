@@ -1,6 +1,6 @@
 # Toolchain
 
-Toolchain 是一个配置驱动的开发环境工具，当前支持工程编译、分层构建 Docker 镜像、创建开发容器，以及在已有容器中用 tmux 启动命名调试场景。直接 CLI 和交互式菜单共用同一套应用层。
+Toolchain 是一个配置驱动的开发环境工具，当前支持工程编译、分层构建 Docker 镜像、创建开发容器，以及在已有或 Docker Compose 管理的容器中用 tmux 启动命名调试场景。直接 CLI 和交互式菜单共用同一套应用层。
 
 ## 安装
 
@@ -131,7 +131,7 @@ Dockerfile、构建 context 和相对 bind mount 均以根 `toolchain.yaml` 所�
 
 ## 场景启动
 
-一个场景由若干 instance 组成，每个 instance 是一套跑在已有容器里的软件系统，instance 下的 group 是容器内的调试进程。启动时在宿主机创建 tmux session：一个 instance 对应一个 window，一个 group 对应一个 pane，并通过 `docker exec -it` 进入容器：
+一个场景由若干 instance 组成，每个 instance 是一套跑在容器里的软件系统，instance 下的 group 是容器内的调试进程。启动时在宿主机创建 tmux session：一个 instance 对应一个 window，一个 group 对应一个 pane，并通过 `docker exec -it` 进入容器：
 
 ```yaml
 robot-system:
@@ -157,6 +157,10 @@ robot-system:
 容器内 `script`，或 `command` 加可选 `setup`（先 source 再 `exec`）描述进程，两种模式复用
 同一套 tmux 启动流程。默认启动全部 `enabled` 的 instance，可用 `--instance NAME` 只启动其中几个；只解析
 被选中 instance 中启用 group 的字段，被禁用 instance / group 的其他参数不会被询问。
+
+场景级可选 `compose.file`。配置后，`container` 表示 Compose service 名，`scene start` 先执行
+`docker compose up -d --wait` 并解析对应容器；未配置时仍表示已有容器名或 ID。`scene stop`
+只停止 tmux 并保留容器，`scene down` 才停止 tmux 并执行 Compose down。
 
 ## 运行时值
 
@@ -274,9 +278,11 @@ toolchain scene attach SCENE PROFILE --instance NAME --group GROUP
 toolchain scene status SCENE PROFILE
 toolchain scene logs SCENE PROFILE [--instance NAME] [--group GROUP] [--follow]
 toolchain scene stop SCENE PROFILE
+toolchain scene down SCENE PROFILE
 ```
 
-`scene start/stop/status` 都接受可重复的 `--instance NAME`，用于只操作其中几个 instance。
+`scene start/stop/status` 都接受可重复的 `--instance NAME`，用于只操作其中几个 instance；
+`scene down` 始终作用于完整 Compose project，不接受 `--instance`。
 
 `mounts` 使用 `SOURCE:TARGET[:ro|rw]` 字符串。source 以 `/`、`.` 或 `~` 开头时是 bind mount，否则是 named volume。
 

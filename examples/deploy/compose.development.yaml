@@ -1,0 +1,7 @@
+services:
+  robot:
+    image: example/robot-development:latest
+    command: [sleep, infinity]
+    volumes:
+      - ../:/workspace
+    working_dir: /workspace

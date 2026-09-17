@@ -9,17 +9,29 @@ def describe_scenario(plan: ScenarioPlan) -> tuple[str, ...]:
     lines = [
         f"Scenario: {plan.scene_name}",
         f"Profile: {plan.profile_name}",
-        "Runtime: tmux in existing containers",
+        "Runtime: tmux in "
+        + ("Compose-managed containers" if plan.compose is not None else "existing containers"),
         "Instances: " + ", ".join(instance.name for instance in plan.instances),
         f"tmux session: {plan.session}",
         f"Attach after start: {plan.attach}",
         f"Replace existing: {plan.replace}",
-        f"Container restart: {plan.restart_container}",
         f"Mouse mode: {'on' if plan.mouse else 'off'}",
         f"Keep pane alive: {plan.keep_alive}",
     ]
+    if plan.compose is None:
+        lines.append(f"Container restart: {plan.restart_container}")
+    else:
+        lines.extend(
+            (
+                f"Compose file: {plan.compose.file}",
+                f"Compose project: {plan.compose.project_name}",
+                f"Compose wait timeout: {plan.compose.wait_timeout_seconds}s",
+            )
+        )
     lines.extend(
-        f"Window {instance.name}: {instance.container} -> "
+        f"Window {instance.name}: "
+        + ("service=" if plan.compose is not None else "container=")
+        + f"{instance.container} -> "
         + ", ".join(group.name for group in instance.groups)
         for instance in plan.instances
     )

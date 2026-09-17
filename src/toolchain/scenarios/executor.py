@@ -1,4 +1,4 @@
-"""Execute development scenarios with tmux and existing Docker containers."""
+"""Execute development scenarios with tmux in existing or Compose containers."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import os
 import sys
 import time
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 
 from ..errors import BackendUnavailableError, ScenarioExecutionError, ScenarioPlanError
 from ..execution import CommandResult, CommandRunner, SubprocessRunner
@@ -38,23 +39,27 @@ class ScenarioExecutor:
     def start(self, plan: ScenarioPlan) -> ScenarioResult:
         self._require_tmux()
         self._require_docker()
+        if plan.compose is not None:
+            self._preflight_compose(plan)
         if self._session_exists(plan.session):
             self.stop(plan)
-        self._restart_containers(plan)
-        self._check_containers(plan)
+        runtime_plan = self._prepare_compose(plan) if plan.compose is not None else plan
+        if plan.compose is None:
+            self._restart_containers(runtime_plan)
+        self._check_containers(runtime_plan)
 
         created = False
         created_session = False
         try:
-            for index, instance in enumerate(plan.instances):
+            for index, instance in enumerate(runtime_plan.instances):
                 # A partial start joins the session another instance already owns.
-                if self._session_exists(plan.session):
+                if self._session_exists(runtime_plan.session):
                     create = (
                         "tmux",
                         "new-window",
                         "-d",
                         "-t",
-                        plan.session,
+                        runtime_plan.session,
                         "-n",
                         instance.name,
                     )
@@ -64,7 +69,7 @@ class ScenarioExecutor:
                         "new-session",
                         "-d",
                         "-s",
-                        plan.session,
+                        runtime_plan.session,
                         "-n",
                         instance.name,
                     )
@@ -76,9 +81,9 @@ class ScenarioExecutor:
                 )
                 created = True
                 if index == 0:
-                    self._sync_environment(plan)
-                    self._configure_session(plan)
-                window = self._window_target(plan, instance)
+                    self._sync_environment(runtime_plan)
+                    self._configure_session(runtime_plan)
+                window = self._window_target(runtime_plan, instance)
                 self._configure_window(window)
                 for _ in instance.groups[1:]:
                     self._checked(
@@ -109,7 +114,7 @@ class ScenarioExecutor:
                             "-k",
                             "-t",
                             target,
-                            *self._pane_command(plan, instance, group),
+                            *self._pane_command(runtime_plan, instance, group),
                         ),
                         f"cannot start tmux pane {group.name!r}",
                     )
@@ -135,14 +140,26 @@ class ScenarioExecutor:
                 )
         except Exception:
             if created:
-                self._clean_up(plan, created_session)
+                self._clean_up(runtime_plan, created_session)
             raise
 
-        self._check_started_panes(plan)
+        self._check_started_panes(runtime_plan)
         result = ScenarioResult(plan.scene_name, plan.profile_name, f"tmux:{plan.session}")
         if plan.attach:
-            self.attach(plan)
+            self.attach(runtime_plan)
         return result
+
+    def down(self, plan: ScenarioPlan) -> ScenarioResult:
+        if plan.compose is None:
+            raise ScenarioPlanError("scene down is only available for Compose-managed scenarios")
+        if plan.partial:
+            raise ScenarioPlanError("scene down does not support partial instance selection")
+        self._require_tmux()
+        self._require_docker()
+        self._require_compose()
+        self.stop(plan)
+        self._checked((*self._compose_base(plan), "down"), "Docker Compose down failed")
+        return ScenarioResult(plan.scene_name, plan.profile_name, "down")
 
     def stop(self, plan: ScenarioPlan) -> ScenarioResult:
         self._require_tmux()
@@ -267,6 +284,9 @@ class ScenarioExecutor:
     def _require_docker(self) -> None:
         self._require(("docker", "version"), "Docker")
 
+    def _require_compose(self) -> None:
+        self._require(("docker", "compose", "version"), "Docker Compose")
+
     def _require(self, command: tuple[str, ...], label: str) -> None:
         try:
             result = self.runner.run(command, capture=True)
@@ -274,6 +294,69 @@ class ScenarioExecutor:
             raise BackendUnavailableError(f"cannot execute {label}: {exc}") from exc
         if result.returncode:
             raise BackendUnavailableError(f"{label} is unavailable")
+
+    def _compose_base(self, plan: ScenarioPlan) -> tuple[str, ...]:
+        if plan.compose is None:
+            raise ScenarioPlanError("scenario is not managed by Docker Compose")
+        return (
+            "docker",
+            "compose",
+            "-f",
+            str(plan.compose.file),
+            "--project-name",
+            plan.compose.project_name,
+        )
+
+    def _compose_services(self, plan: ScenarioPlan) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(instance.container for instance in plan.instances))
+
+    def _preflight_compose(self, plan: ScenarioPlan) -> None:
+        self._require_compose()
+        result = self._checked(
+            (*self._compose_base(plan), "config", "--services"),
+            "cannot validate Compose services",
+        )
+        available = set(result.stdout.splitlines())
+        missing = set(self._compose_services(plan)) - available
+        if missing:
+            raise ScenarioPlanError("unknown Compose service(s): " + ", ".join(sorted(missing)))
+
+    def _prepare_compose(self, plan: ScenarioPlan) -> ScenarioPlan:
+        if plan.compose is None:
+            return plan
+        base = self._compose_base(plan)
+        services = self._compose_services(plan)
+        self._checked(
+            (
+                *base,
+                "up",
+                "-d",
+                "--wait",
+                "--wait-timeout",
+                str(plan.compose.wait_timeout_seconds),
+                *services,
+            ),
+            "Docker Compose up failed",
+        )
+        containers: dict[str, str] = {}
+        for service in services:
+            result = self._checked(
+                (*base, "ps", "-q", service),
+                f"cannot locate Compose service {service!r}",
+            )
+            ids = result.stdout.split()
+            if len(ids) != 1:
+                raise ScenarioExecutionError(
+                    f"Compose service {service!r} must produce exactly one container"
+                )
+            containers[service] = ids[0]
+        return replace(
+            plan,
+            instances=tuple(
+                replace(instance, container=containers[instance.container])
+                for instance in plan.instances
+            ),
+        )
 
     def _restart_containers(self, plan: ScenarioPlan) -> None:
         for instance in plan.instances:
@@ -431,7 +514,7 @@ class ScenarioExecutor:
         if group.workdir is not None:
             docker.append(f"--workdir={group.workdir}")
         docker.extend(f"--env={key}={value}" for key, value in group.environment)
-        docker.append(instance.container or "")
+        docker.append(instance.container)
         if interactive_shell:
             docker.extend((group.interpreter[0], "-i"))
         else:

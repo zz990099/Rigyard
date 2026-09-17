@@ -13,6 +13,7 @@ from toolchain.errors import ScenarioExecutionError, ScenarioPlanError, SchemaVa
 from toolchain.execution import CommandResult
 from toolchain.scenarios.executor import PANE_GROUP_OPTION, ScenarioExecutor
 from toolchain.scenarios.models import (
+    ScenarioComposePlan,
     ScenarioGroupPlan,
     ScenarioInstancePlan,
     ScenarioPlan,
@@ -136,6 +137,75 @@ def test_two_instances_plan_onto_two_containers(tmp_path: Path):
     )
     assert isinstance(plan, ScenarioPlan)
     assert [instance.container for instance in plan.instances] == ["container-a", "container-b"]
+
+
+def test_compose_plan_keeps_container_as_service_reference(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """robot:
+  compose:
+    file: deploy/compose.yaml
+    project_name: robot-debug
+    wait_timeout_seconds: 30
+  instances:
+    robot1: {container: robot, groups: {drivers: {script: /a.sh}}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+    compose_file = write(tmp_path / "deploy/compose.yaml", "services: {robot: {image: robot}}\n")
+
+    plan = PlanScenarioUseCase().plan(
+        "robot", "development", ResolutionRequest(config, interactive=False)
+    )
+
+    assert isinstance(plan, ScenarioPlan)
+    assert plan.compose == ScenarioComposePlan(compose_file.resolve(), "robot-debug", 30)
+    assert plan.instances[0].container == "robot"
+
+
+def test_compose_plan_generates_a_stable_project_name(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """robot:
+  compose: {file: compose.yaml}
+  instances:
+    robot1: {container: robot, groups: {drivers: {script: /a.sh}}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+    write(tmp_path / "compose.yaml", "services: {robot: {image: robot}}\n")
+
+    first = PlanScenarioUseCase().plan(
+        "robot", "development", ResolutionRequest(config, interactive=False)
+    )
+    second = PlanScenarioUseCase().plan(
+        "robot", "development", ResolutionRequest(config, interactive=False)
+    )
+
+    assert isinstance(first, ScenarioPlan)
+    assert isinstance(second, ScenarioPlan)
+    assert first.compose is not None
+    assert first.compose.project_name == second.compose.project_name
+    assert first.compose.project_name.startswith("tc-scenario-test-robot-development-")
+
+
+def test_compose_plan_rejects_a_missing_file(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """robot:
+  compose: {file: missing.yaml}
+  instances:
+    robot1: {container: robot, groups: {drivers: {script: /a.sh}}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+    with pytest.raises(ScenarioPlanError, match="Compose file is not a file"):
+        PlanScenarioUseCase().plan(
+            "robot", "development", ResolutionRequest(config, interactive=False)
+        )
 
 
 def test_unknown_instance_is_rejected(tmp_path: Path):
@@ -360,6 +430,7 @@ def scenario_plan(
     mouse: bool = True,
     partial: bool = False,
     keep_alive: bool = True,
+    compose: ScenarioComposePlan | None = None,
 ) -> ScenarioPlan:
     return ScenarioPlan(
         scene_name="robot",
@@ -369,6 +440,7 @@ def scenario_plan(
         replace=False,
         stop_grace_seconds=0,
         instances=instances or (instance(),),
+        compose=compose,
         restart_container=restart_container,
         mouse=mouse,
         partial=partial,
@@ -400,12 +472,18 @@ class FakeTmux:
         windows: tuple[str, ...] = (),
         containers_running: bool = True,
         missing_containers: tuple[str, ...] = (),
+        compose_services: tuple[str, ...] = ("robot",),
+        compose_containers: dict[str, tuple[str, ...]] | None = None,
     ) -> None:
         self.session = session
         self.windows = list(windows)
         self.panes: dict[str, list[str]] = {name: [name] for name in windows}
         self.containers_running = containers_running
         self.missing = set(missing_containers)
+        self.compose_services = compose_services
+        self.compose_containers = compose_containers or {
+            service: (f"{service}-container",) for service in compose_services
+        }
         self.dead: dict[str, int] = {}
         self.pane_logs: dict[str, str] = {}
         self.calls: list[tuple[tuple[str, ...], dict]] = []
@@ -517,6 +595,16 @@ class FakeTmux:
             return CommandResult(0, "true\n" if self.containers_running else "false\n")
         if verb in {"restart", "start"}:
             self.containers_running = True
+            return CommandResult(0)
+        if verb == "compose":
+            if command[2] == "version":
+                return CommandResult(0, "Docker Compose version v2.30.0\n")
+            if command[-2:] == ("config", "--services"):
+                return CommandResult(0, "".join(f"{name}\n" for name in self.compose_services))
+            if "ps" in command and "-q" in command:
+                service = command[-1]
+                ids = self.compose_containers.get(service, ())
+                return CommandResult(0, "".join(f"{item}\n" for item in ids))
             return CommandResult(0)
         return CommandResult(0)
 
@@ -643,6 +731,104 @@ def test_tmux_start_restarts_every_instance_container():
     executor(fake).start(plan)
     assert ("docker", "restart", "container-a") in fake.commands
     assert ("docker", "restart", "container-b") in fake.commands
+
+
+def test_compose_start_resolves_services_before_creating_tmux_windows(tmp_path: Path):
+    fake = FakeTmux(compose_services=("robot", "simulator"))
+    plan = scenario_plan(
+        instance("robot1", container="robot"),
+        instance("sim", container="simulator"),
+        compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 45),
+    )
+
+    executor(fake).start(plan)
+
+    base = (
+        "docker",
+        "compose",
+        "-f",
+        str(tmp_path / "compose.yaml"),
+        "--project-name",
+        "robot-debug",
+    )
+    up = (*base, "up", "-d", "--wait", "--wait-timeout", "45", "robot", "simulator")
+    assert up in fake.commands
+    assert fake.commands.index(up) < next(
+        index
+        for index, command in enumerate(fake.commands)
+        if command[:2] == ("tmux", "new-session")
+    )
+    pane_commands = [
+        command for command in fake.commands if command[:2] == ("tmux", "respawn-pane")
+    ]
+    assert any("robot-container" in " ".join(command) for command in pane_commands)
+    assert any("simulator-container" in " ".join(command) for command in pane_commands)
+    assert not any(command[:2] == ("docker", "restart") for command in fake.commands)
+
+
+def test_compose_start_rejects_unknown_services_before_up(tmp_path: Path):
+    fake = FakeTmux(compose_services=("other",))
+    plan = scenario_plan(
+        instance(container="robot"),
+        compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60),
+    )
+
+    with pytest.raises(ScenarioPlanError, match="unknown Compose service.*robot"):
+        executor(fake).start(plan)
+
+    assert not any("up" in command for command in fake.commands)
+    assert not any(command[:2] == ("tmux", "new-session") for command in fake.commands)
+
+
+def test_compose_start_requires_one_container_per_service(tmp_path: Path):
+    fake = FakeTmux(compose_containers={"robot": ("one", "two")})
+    plan = scenario_plan(
+        instance(container="robot"),
+        compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60),
+    )
+
+    with pytest.raises(ScenarioExecutionError, match="exactly one container"):
+        executor(fake).start(plan)
+
+    assert not any(command[:2] == ("tmux", "new-session") for command in fake.commands)
+
+
+def test_compose_down_stops_tmux_then_removes_environment(tmp_path: Path):
+    fake = FakeTmux(session=True, windows=("robot1",))
+    plan = scenario_plan(
+        instance(container="robot"),
+        compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60),
+    )
+
+    result = executor(fake).down(plan)
+
+    down = (
+        "docker",
+        "compose",
+        "-f",
+        str(tmp_path / "compose.yaml"),
+        "--project-name",
+        "robot-debug",
+        "down",
+    )
+    kill = ("tmux", "kill-session", "-t", "robot-session")
+    assert result.detail == "down"
+    assert fake.commands.index(kill) < fake.commands.index(down)
+
+
+def test_compose_down_rejects_existing_container_scenarios():
+    with pytest.raises(ScenarioPlanError, match="only available for Compose-managed"):
+        executor(FakeTmux()).down(scenario_plan(instance()))
+
+
+def test_compose_down_rejects_partial_selection(tmp_path: Path):
+    plan = scenario_plan(
+        instance(container="robot"),
+        compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60),
+        partial=True,
+    )
+    with pytest.raises(ScenarioPlanError, match="does not support partial"):
+        executor(FakeTmux()).down(plan)
 
 
 def test_tmux_replaces_the_session_before_restarting_containers():
@@ -917,7 +1103,7 @@ def test_cli_dry_run_describes_existing_container_runtime(tmp_path: Path, capsys
     output = capsys.readouterr().out
     assert "Runtime: tmux in existing containers" in output
     assert "Instances: robot1" in output
-    assert "Window robot1: robot-dev -> drivers" in output
+    assert "Window robot1: container=robot-dev -> drivers" in output
     assert "Mouse mode: on" in output
     assert "Container restart: always" in output
 
@@ -952,7 +1138,45 @@ def test_cli_dry_run_selects_one_instance(tmp_path: Path, capsys):
     )
     output = capsys.readouterr().out
     assert "Instances: robot2" in output
-    assert "Window robot2: container-b -> drivers" in output
+    assert "Window robot2: container=container-b -> drivers" in output
+
+
+def test_cli_dry_run_describes_compose_runtime(tmp_path: Path, capsys):
+    config = project(
+        tmp_path,
+        """robot:
+  compose: {file: compose.yaml, project_name: robot-debug, wait_timeout_seconds: 20}
+  instances:
+    robot1: {container: robot, groups: {drivers: {script: /a.sh}}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+    compose_file = write(tmp_path / "compose.yaml", "services: {robot: {image: robot}}\n")
+
+    assert (
+        run(
+            [
+                "--config",
+                str(config),
+                "scene",
+                "start",
+                "robot",
+                "development",
+                "--dry-run",
+                "--non-interactive",
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    assert "Runtime: tmux in Compose-managed containers" in output
+    assert f"Compose file: {compose_file.resolve()}" in output
+    assert "Compose project: robot-debug" in output
+    assert "Compose wait timeout: 20s" in output
+    assert "Window robot1: service=robot -> drivers" in output
+    assert "Container restart:" not in output
 
 
 class FakeScenarioExecutor:

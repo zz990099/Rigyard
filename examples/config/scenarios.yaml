@@ -42,3 +42,25 @@ robot-system:
       restart_container: always
       attach: true
       stop_grace_seconds: 5
+
+# The same tmux workflow can let Docker Compose prepare the containers first.
+# Here `container` is the Compose service name rather than an existing container name.
+robot-system-compose:
+  description: Example robot system whose development container is managed by Compose
+  compose:
+    file: deploy/compose.development.yaml
+    project_name: robot-system-debug
+    wait_timeout_seconds: 60
+  instances:
+    robot:
+      container: robot
+      groups:
+        drivers:
+          script: /workspace/scripts/scenarios/drivers.sh
+          setup: [/opt/ros/humble/setup.bash, install/setup.bash]
+          interpreter: [/bin/bash, -euo, pipefail]
+          workdir: /workspace
+  profiles:
+    development:
+      attach: true
+      stop_grace_seconds: 5

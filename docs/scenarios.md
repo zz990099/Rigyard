@@ -1,7 +1,7 @@
 # 场景启动
 
-场景用于在**已有 Docker 容器**中启动开发和调试进程。工具在宿主机使用 tmux 组织进程，
-不创建、删除或部署容器，也不负责 Docker Compose 或 supervisord。
+场景用于在 Docker 容器中启动开发和调试进程。工具在宿主机使用 tmux 组织进程，容器既可以
+提前创建，也可以由场景引用的 Docker Compose 文件创建。场景不负责 supervisord 或生产部署。
 
 | 层级 | 含义 | tmux 映射 |
 | --- | --- | --- |
@@ -50,6 +50,28 @@ robot-system:
 每个 instance 必须指定一个已存在的 `container`。instance 名会成为 tmux window 名，因此必须
 匹配 `[A-Za-z0-9][A-Za-z0-9_-]*`；`.` 和 `:` 会与 tmux target 语法冲突。
 
+需要由 Compose 准备容器时，在场景级增加 `compose`：
+
+```yaml
+robot-system:
+  compose:
+    file: deploy/compose.development.yaml
+    project_name: robot-system-debug  # 可省略，工具会生成稳定名称
+    wait_timeout_seconds: 60
+  instances:
+    robot1:
+      container: robot
+      groups:
+        drivers: {script: /workspace/scripts/scenarios/drivers.sh}
+  profiles:
+    development: {attach: true}
+```
+
+两种模式都保留 `container` 字段：无 `compose` 时它是已有容器的名称或 ID；有 `compose` 时它是
+Compose service 名。启动后工具通过 `docker compose ps -q` 将 service 解析为容器 ID。每个
+service 必须恰好产生一个容器，因此当前不支持将同一个 instance 映射到多副本 service。
+`file` 相对于根 `toolchain.yaml` 解析，而不是相对于场景 source 文件。
+
 每个 group 用 `script` 或 `command` 描述容器内要运行的进程，二者只能选一个：
 
 - `script`：容器内脚本路径，配合 `interpreter`（默认 `[/bin/sh, -eu]`）执行。
@@ -59,8 +81,8 @@ robot-system:
 
 ## 容器要求
 
-场景启动前必须通过 `toolchain container create` 或其他方式准备目标容器。目标不存在时，启动
-会失败并给出创建提示；场景功能不会自动创建容器或退回到 Compose。
+未配置 `compose` 时，场景启动前必须通过 `toolchain container create` 或其他方式准备目标
+容器。目标不存在时，启动会失败并给出创建提示，且不会自动退回到 Compose。
 
 `restart_container` 控制启动场景前如何处理已有容器：
 
@@ -72,6 +94,11 @@ robot-system:
 
 `scene stop` 只停止 tmux 中的调试进程并关闭 window/session，不停止或删除容器，便于继续进入
 容器检查现场。
+
+配置 `compose` 时，`scene start` 会运行 `docker compose up -d --wait`。`restart_container`
+只适用于已有容器模式，在 Compose 模式下忽略。`scene stop` 仍然只停止 tmux，保留容器和现场；
+显式执行 `scene down` 才会先停止 tmux，再运行 `docker compose down`。`down` 以完整 Compose
+project 为生命周期边界，不接受 `--instance`。
 
 ## tmux 行为
 
@@ -86,9 +113,13 @@ robot-system:
 pane 交给容器内的交互式 shell，方便查看现场或手动重跑。设为 false 时，进程退出后 pane
 变为 dead，只保留输出。
 
-启动顺序固定为：校验 tmux 与 Docker → 关闭本场景已有 window/session → 按
+已有容器模式的启动顺序固定为：校验 tmux 与 Docker → 关闭本场景已有 window/session → 按
 `restart_container` 处理容器 → 确认容器正在运行 → 创建 window 和 pane → 必要时 attach。
 必须先关闭旧 window，因为重启容器会终止其中已有的 `docker exec` 进程。
+
+Compose 模式则先校验 service，再关闭旧 tmux 对象，随后执行 `compose up`、解析容器 ID、确认
+容器运行并创建 window/pane。若 `compose up` 后的解析或 tmux 创建失败，容器会保留以便诊断；
+需要移除时执行 `scene down`。
 
 ## 选择 instance
 
@@ -111,6 +142,7 @@ toolchain scene attach robot-system development --instance robot1 --group naviga
 toolchain scene logs robot-system development --instance robot1 --group navigation
 toolchain scene status robot-system development
 toolchain scene stop robot-system development
+toolchain scene down robot-system development
 ```
 
 `attach` / `logs` 的 `--group` 需要能够唯一定位 instance。存在多个 instance 时应同时提供

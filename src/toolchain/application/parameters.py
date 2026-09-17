@@ -27,6 +27,7 @@ from ..parameters.templates import (
     validate_template_syntax,
 )
 from ..scenarios.models import (
+    ScenarioComposeSpec,
     ScenarioInstanceSpec,
     ScenarioProfileSpec,
 )
@@ -70,6 +71,14 @@ class ResolveParametersUseCase:
             for name, template in config.builds.items():
                 materialize_as(template, f"builds.{name}", context, BuildSpec, renderer)
             for scene_name, scenario in config.scenarios.items():
+                if scenario.compose is not None:
+                    materialize_as(
+                        scenario.compose,
+                        f"scenarios.{scene_name}.compose",
+                        context,
+                        ScenarioComposeSpec,
+                        renderer,
+                    )
                 for instance_name, instance in scenario.instances.items():
                     materialize_as(
                         instance,

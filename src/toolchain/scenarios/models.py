@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
@@ -17,6 +18,7 @@ RuntimeText = PromptValue | str
 RuntimeBool = PromptValue | StrictBool
 RuntimeList = PromptValue | tuple[str, ...]
 RuntimeInteger = PromptValue | int
+RuntimePath = PromptValue | Path
 RestartPolicy = Literal["always", "if_not_running", "never"]
 
 
@@ -111,10 +113,19 @@ class ScenarioProfileTemplate(BaseModel):
     keep_alive: bool = True
 
 
+class ScenarioComposeTemplate(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    file: RuntimePath
+    project_name: RuntimeText | None = None
+    wait_timeout_seconds: RuntimeInteger = 60
+
+
 class ScenarioTemplate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     description: str | None = None
+    compose: ScenarioComposeTemplate | None = None
     instances: dict[str, ScenarioInstanceTemplate] = Field(min_length=1)
     profiles: dict[str, ScenarioProfileTemplate] = Field(min_length=1)
 
@@ -197,6 +208,14 @@ class ScenarioProfileSpec(BaseModel):
     keep_alive: bool = True
 
 
+class ScenarioComposeSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    file: Path
+    project_name: str | None = None
+    wait_timeout_seconds: int = Field(default=60, ge=1, le=3600)
+
+
 @dataclass(frozen=True)
 class ScenarioGroupPlan:
     name: str
@@ -217,6 +236,13 @@ class ScenarioInstancePlan:
 
 
 @dataclass(frozen=True)
+class ScenarioComposePlan:
+    file: Path
+    project_name: str
+    wait_timeout_seconds: int
+
+
+@dataclass(frozen=True)
 class ScenarioPlan:
     scene_name: str
     profile_name: str
@@ -225,6 +251,7 @@ class ScenarioPlan:
     replace: bool
     stop_grace_seconds: int
     instances: tuple[ScenarioInstancePlan, ...]
+    compose: ScenarioComposePlan | None = None
     restart_container: RestartPolicy = "always"
     mouse: bool = True
     keep_alive: bool = True
