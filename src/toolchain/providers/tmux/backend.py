@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-import shlex
+import sys
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import replace
@@ -44,12 +44,16 @@ class TmuxScenarioBackend:
                     if index == 0
                     else ("tmux", "new-window", "-d", "-t", plan.session, "-n", group.name)
                 )
+                # Start a known live process instead of tmux's configurable default shell.
+                create = (*create, sys.executable, "-c", "import time; time.sleep(86400)")
                 self._checked(
                     create,
                     f"cannot create tmux {'session' if index == 0 else 'window'} "
                     f"{plan.session if index == 0 else group.name!r}",
                 )
                 created = True
+                if index == 0:
+                    self._sync_environment(plan)
                 self._checked(
                     ("tmux", "set-option", "-w", "-t", target, "remain-on-exit", "on"),
                     f"cannot configure tmux window {group.name!r}",
@@ -63,6 +67,7 @@ class TmuxScenarioBackend:
                 self.runner.run(("tmux", "kill-session", "-t", plan.session), capture=True)
             raise
 
+        self._check_started_panes(plan)
         result = ScenarioResult(plan.scene_name, plan.profile_name, f"tmux:{plan.session}")
         if plan.attach:
             self.attach(plan)
@@ -241,8 +246,42 @@ class TmuxScenarioBackend:
         docker.extend(group.interpreter)
         docker.append(group.script)
         tmux = ["tmux", "respawn-pane", "-k", "-t", f"{plan.session}:{group.name}"]
-        tmux.append(shlex.join(docker))
+        tmux.extend(docker)
         return tuple(tmux)
+
+    def _sync_environment(self, plan: TmuxScenarioPlan) -> None:
+        # A persistent tmux server may have stale PATH or Docker connection settings.
+        for key in (
+            "PATH", "HOME", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG",
+            "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
+        ):
+            command = ("tmux", "set-environment", "-t", plan.session)
+            if key in self.environment:
+                command = (*command, key, self.environment[key])
+            else:
+                command = (*command, "-r", key)
+            self._checked(command, f"cannot configure tmux environment {key!r}")
+
+    def _check_started_panes(self, plan: TmuxScenarioPlan) -> None:
+        for group in plan.groups:
+            result = self._checked(
+                ("tmux", "display-message", "-p", "-t", f"{plan.session}:{group.name}",
+                 "#{pane_dead} #{pane_exit_status}"),
+                f"cannot inspect startup of group {group.name!r}",
+            )
+            state = result.stdout.split()
+            if state and state[0] == "1":
+                logs = self._checked(
+                    ("tmux", "capture-pane", "-p", "-t", f"{plan.session}:{group.name}",
+                     "-S", "-"),
+                    f"cannot capture startup failure for group {group.name!r}",
+                )
+                code = state[1] if len(state) > 1 else "unknown"
+                raise ScenarioExecutionError(
+                    f"group {group.name!r} exited during startup (exit {code}); "
+                    f"tmux session {plan.session!r} was kept for diagnosis: "
+                    + logs.stdout.strip()
+                )
 
     def _checked(
         self,

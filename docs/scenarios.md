@@ -130,3 +130,7 @@ toolchain scene stop robot-system deployment
 场景选择分两步解析：先解析被选 profile 和各 group 的 `enabled`，再只解析启用 group 的其他字段。因此 development 不会要求 deployment 参数，被禁用 group 也不会产生无关问题。`stop/status/attach/logs` 不解析脚本和进程环境等仅启动时使用的 group 字段。
 
 启动前的预检或窗口创建失败会清理本次新建的 tmux session；节点启动后自行退出则保留窗口。Compose 启动失败会保留已生成配置用于诊断。所有子进程都通过 argv runner 启动；tmux 要求单个 shell-command 时，由 provider 使用严格 shell quoting 生成。
+
+窗口启动使用独立 argv 执行 `docker exec`，不依赖 tmux 的默认 shell 或 default-command。
+每次启动同步当前进程的 PATH、HOME 和 Docker 连接环境，清除 tmux server 中残留的旧配置。
+启动后检查 pane 状态；已退出时报告 group、退出码和窗口日志，保留 session 用于诊断。

@@ -212,14 +212,14 @@ def test_tmux_start_preflights_container_and_creates_windows():
         "robot-session",
         "-n",
         "drivers",
-    ) in commands
+    ) in [command[:7] for command in commands]
     remain_commands = [command for command in commands if command[1] == "set-option"]
     assert len(remain_commands) == 2
     assert all(command[-2:] == ("remain-on-exit", "on") for command in remain_commands)
     process_commands = [command for command in commands if command[1] == "respawn-pane"]
     assert len(process_commands) == 2
-    assert "docker exec -it" in process_commands[0][-1]
-    assert "--env=ROS_DOMAIN_ID=7" in process_commands[0][-1]
+    assert process_commands[0][5:8] == ("docker", "exec", "-it")
+    assert "--env=ROS_DOMAIN_ID=7" in process_commands[0]
     inspect_calls = [call for call in runner.calls if call[0][:2] == ("docker", "inspect")]
     assert len(inspect_calls) == 1
 
@@ -466,7 +466,7 @@ def test_compose_tmux_restarts_once_then_resolves_container_and_creates_windows(
     assert stop < up < ps < window
     assert commands[up][-6:] == ('up', '-d', '--wait', '--wait-timeout', '30', 'robot')
     assert sum(cmd[-2:] == ('stop', 'robot') for cmd in commands) == 1
-    processes = [cmd[-1] for cmd in commands if cmd[:2] == ('tmux', 'respawn-pane')]
+    processes = [cmd for cmd in commands if cmd[:2] == ('tmux', 'respawn-pane')]
     assert len(processes) == 2
     assert all('container-id' in cmd and 'robot-dev' not in cmd for cmd in processes)
 
@@ -531,3 +531,35 @@ def test_compose_tmux_management_resolves_service_but_not_script(tmp_path):
     runner = DispatchRunner(compose_tmux_handler)
     TmuxScenarioBackend(runner).stop(plan)
     assert all(cmd[0] == 'tmux' for cmd, _ in runner.calls)
+
+
+def test_tmux_uses_direct_arguments_and_refreshes_stale_docker_environment():
+    from dataclasses import replace
+
+    item = replace(group('drivers'), script='/workspace/a script.sh')
+    runner = DispatchRunner(compose_tmux_handler)
+    TmuxScenarioBackend(runner, environment={'PATH': '/usr/bin', 'DOCKER_HOST': 'tcp://host:2375'}).start(
+        tmux_plan(item)
+    )
+    commands = [cmd for cmd, _ in runner.calls]
+    process = next(cmd for cmd in commands if cmd[:2] == ('tmux', 'respawn-pane'))
+    assert process[5:8] == ('docker', 'exec', '-it')
+    assert process[-1] == '/workspace/a script.sh'
+    assert (
+        'tmux', 'set-environment', '-t', 'robot-session', 'DOCKER_HOST', 'tcp://host:2375'
+    ) in commands
+    assert ('tmux', 'set-environment', '-t', 'robot-session', '-r', 'DOCKER_CONTEXT') in commands
+
+
+def test_tmux_reports_dead_pane_and_keeps_failure_logs():
+    def handler(command, kwargs):
+        if command[:2] == ('tmux', 'display-message'):
+            return CommandResult(0, '1 127\n')
+        if command[:2] == ('tmux', 'capture-pane'):
+            return CommandResult(0, 'docker: command not found\n')
+        return compose_tmux_handler(command, kwargs)
+
+    runner = DispatchRunner(handler)
+    with pytest.raises(ScenarioExecutionError, match='exit 127.*docker: command not found'):
+        TmuxScenarioBackend(runner).start(tmux_plan(group('drivers')))
+    assert not any(cmd[:2] == ('tmux', 'kill-session') for cmd, _ in runner.calls)
