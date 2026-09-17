@@ -2,7 +2,7 @@
 
 ## 配置组合
 
-Schema v2 将磁盘配置和应用内配置分开：
+Schema v3 将磁盘配置和应用内配置分开：
 
 ```mermaid
 flowchart TD
@@ -54,9 +54,9 @@ build、镜像和容器都先生成完整计划。菜单展示计划并确认后
 
 ## 场景
 
-Scenario 将公共 group 定义与运行 profile 分开。Application 先解析所选 profile 及 group enablement，再组合启用 groups 的 prompts；这使 profile 和 group 两级都保持惰性。
+Scenario 分三层：场景选择托管 profile，instance 代表一套软件系统（一个容器 = tmux window = Compose service），group 代表容器内的一个进程（一个 pane = 一个 supervisord program）。Application 先解析 profile、instance 与 group 的 enablement，再只组合被选中 instance 中启用 group 的 prompts，三级都保持惰性。
 
-tmux provider 在宿主机为每个 group 创建窗口并运行 `docker exec -it`，适合交互式调试。Compose-supervisor provider 按 service 生成 supervisord program 文件，Docker Compose 负责容器生命周期，supervisord 负责容器内进程重启、信号和日志。二者消费同一组容器内脚本，但不把 tmux 与 supervisord 误认为同层级进程管理器。
+tmux provider 在宿主机为每个 instance 创建 window、为每个 group 创建 pane，并运行 `docker exec -it`，适合交互式调试；启动前先关闭同名 session 中本场景的窗口，再按 profile 策略逐个处理 instance 的目标容器。Compose-supervisor provider 按 instance 生成 supervisord program 文件，Docker Compose 负责容器生命周期，supervisord 负责容器内进程重启、信号和日志。二者通过同一个进程渲染器把 `script`/`command`/`setup` 转成 argv，因此 group 定义与由谁托管无关，也不把 tmux 与 supervisord 误认为同层级进程管理器。
 
 ## 工程编译
 

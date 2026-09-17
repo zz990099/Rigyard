@@ -53,10 +53,10 @@ toolchain build native
 
 ## 工程配置
 
-Schema v2 将根文件作为 manifest。它只保存工具链版本、工程元信息和各领域配置文件的位置：
+Schema v3 将根文件作为 manifest。它只保存工具链版本、工程元信息和各领域配置文件的位置：
 
 ```yaml
-version: 2
+version: 3
 
 metadata:
   name: robot-development
@@ -131,22 +131,24 @@ Dockerfile、构建 context 和相对 bind mount 均以根 `toolchain.yaml` 所�
 
 ## 场景启动
 
-一个场景声明公共节点组和多个运行 profile。开发 profile 在宿主机创建 tmux session，每个 group 使用 `docker exec -it` 进入容器；部署 profile 生成 supervisord program 配置，再由 Docker Compose 管理容器：
+一个场景由若干 instance 组成，每个 instance 是一套跑在一个容器里的软件系统，instance 下的 group 是容器内的进程。开发 profile 在宿主机创建 tmux session（instance 一个 window、group 一个 pane，通过 `docker exec -it` 进入容器）；部署 profile 为每个 instance 生成 supervisord program 配置，再由 Docker Compose 管理容器：
 
 ```yaml
 robot-system:
-  groups:
-    drivers:
+  instances:
+    robot:
       container: robot-development
       service: robot
-      script: /workspace/scripts/scenarios/drivers.sh
-    navigation:
-      container: robot-development
-      service: robot
-      script: /workspace/scripts/scenarios/navigation.sh
+      groups:
+        drivers:
+          setup: [/opt/ros/humble/setup.bash, install/setup.bash]
+          command: [ros2, launch, nhybot_bringup, drivers.launch.py]
+        navigation:
+          script: /workspace/scripts/scenarios/navigation.sh
   profiles:
     development:
       backend: tmux
+      restart_container: always
       attach: true
     deployment:
       backend: compose-supervisor
@@ -154,7 +156,13 @@ robot-system:
       supervisor_config_dir: deploy/generated/supervisor
 ```
 
-`container` 供 tmux profile 使用，`service` 供 Compose profile 使用。脚本路径是容器内路径，同一组脚本可以被两种模式复用。只解析公共 groups 和被选中的 profile；被禁用 group 的其他参数不会被询问。
+`container`（tmux）和 `service`（compose）都属于 instance，目标容器需提前创建；
+`restart_container` 决定启动前如何重启它，默认开启 mouse 与 pane 边框组名；进程退出（包括
+`Ctrl+C`）后 pane 默认会落回容器内的交互式 shell 继续操作（`keep_alive: false` 可关闭）。
+每个 group 用
+容器内 `script`，或 `command` 加可选 `setup`（先 source 再 `exec`）描述进程，两种模式复用
+同一份定义。默认启动全部 `enabled` 的 instance，可用 `--instance NAME` 只启动其中几个；只解析
+被选中 instance 中启用 group 的字段，被禁用 instance / group 的其他参数不会被询问。
 
 ## 运行时值
 
@@ -268,11 +276,13 @@ toolchain container create NAME --dry-run
 toolchain build NAME
 toolchain build NAME --dry-run
 toolchain scene start SCENE PROFILE
-toolchain scene attach SCENE PROFILE [--group GROUP]
+toolchain scene attach SCENE PROFILE --instance NAME --group GROUP
 toolchain scene status SCENE PROFILE
-toolchain scene logs SCENE PROFILE [--group GROUP] [--follow]
+toolchain scene logs SCENE PROFILE [--instance NAME] [--group GROUP] [--follow]
 toolchain scene stop SCENE PROFILE
 ```
+
+`scene start/stop/status` 都接受可重复的 `--instance NAME`，用于只操作其中几个 instance。
 
 `mounts` 使用 `SOURCE:TARGET[:ro|rw]` 字符串。source 以 `/`、`.` 或 `~` 开头时是 bind mount，否则是 named volume。
 
