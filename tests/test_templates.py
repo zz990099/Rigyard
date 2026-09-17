@@ -96,7 +96,7 @@ def test_materialization_renders_prompt_results_lists_and_paths():
 def test_validate_checks_syntax_without_requiring_environment(tmp_path: Path):
     config = write(
         tmp_path / "toolchain.yaml",
-        """version: 2
+        """version: 3
 metadata: {name: templates}
 sources: {containers: containers.yaml}
 """,
@@ -118,7 +118,7 @@ bad: {image: ubuntu, name: "${unknown:value}"}
 def test_selected_operation_does_not_expand_other_templates(tmp_path: Path):
     config = write(
         tmp_path / "toolchain.yaml",
-        """version: 2
+        """version: 3
 metadata: {name: templates}
 sources: {containers: containers.yaml}
 """,
@@ -181,7 +181,7 @@ def test_container_roots_follow_workspace_binding(tmp_path: Path, monkeypatch, i
     config_dir = tmp_path / 'src' / 'robot' / '.toolchain'
     config = write(
         config_dir / 'toolchain.yaml',
-        'version: 2\nmetadata: {name: roots}\nsources: {containers: containers.yaml}\n',
+        'version: 3\nmetadata: {name: roots}\nsources: {containers: containers.yaml}\n',
     )
     write(
         config_dir / 'containers.yaml',
@@ -220,7 +220,7 @@ def test_image_alias_supports_templates_and_prompt_defaults(tmp_path):
     from toolchain.application.requests import BuildImageRequest
 
     config = write(tmp_path / 'toolchain.yaml',
-                   'version: 2\nmetadata: {name: alias}\nsources: {images: images.yaml}\n')
+                   'version: 3\nmetadata: {name: alias}\nsources: {images: images.yaml}\n')
     write(tmp_path / 'layer.Dockerfile', 'RUN true\n')
     write(tmp_path / 'images.yaml', '''development:
   base: ubuntu

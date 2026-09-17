@@ -9,7 +9,7 @@ from toolchain.images.planner import ImageBuildPlanner
 
 def make_project(tmp_path: Path) -> Path:
     config = tmp_path / "toolchain.yaml"
-    config.write_text("version: 2\n")
+    config.write_text("version: 3\n")
     (tmp_path / "system.Dockerfile").write_text("RUN echo system\n")
     (tmp_path / "app.Dockerfile").write_text("ARG MODE\nRUN echo ok\n")
     return config

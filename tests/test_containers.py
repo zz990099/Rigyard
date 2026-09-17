@@ -148,7 +148,7 @@ def test_backend_missing_and_empty_id(tmp_path):
 
 def write_config(tmp_path):
     path = tmp_path / "toolchain.yaml"
-    path.write_text("""version: 2
+    path.write_text("""version: 3
 metadata: {name: container-test}
 sources: {containers: config/containers.yaml}
 """)

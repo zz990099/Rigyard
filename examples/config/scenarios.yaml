@@ -1,48 +1,63 @@
 robot-system:
   description: Example multi-process robot system
-  groups:
-    drivers:
+  instances:
+    robot:
+      description: Robot software stack running in the development container
       container: robot-development
       service: robot
-      script: /workspace/scripts/scenarios/drivers.sh
-      interpreter: [/bin/bash, -euo, pipefail]
-      workdir: /workspace
-      environment:
-        ROS_DOMAIN_ID:
-          default: "7"
-          prompt:
-            mode: input
-            message: Enter the ROS domain ID
-      supervisor:
-        priority: 10
+      groups:
+        drivers:
+          script: /workspace/scripts/scenarios/drivers.sh
+          setup: [/opt/ros/humble/setup.bash, install/setup.bash]
+          interpreter: [/bin/bash, -euo, pipefail]
+          workdir: /workspace
+          environment:
+            ROS_DOMAIN_ID:
+              default: "7"
+              prompt:
+                mode: input
+                message: Enter the ROS domain ID
+          supervisor:
+            priority: 10
 
-    navigation:
-      container: robot-development
-      service: robot
-      script: /workspace/scripts/scenarios/navigation.sh
-      interpreter: [/bin/bash, -euo, pipefail]
-      workdir: /workspace
-      supervisor:
-        priority: 20
+        navigation:
+          script: /workspace/scripts/scenarios/navigation.sh
+          interpreter: [/bin/bash, -euo, pipefail]
+          workdir: /workspace
+          supervisor:
+            priority: 20
 
-    application:
-      container: robot-development
-      service: robot
-      script: /workspace/scripts/scenarios/application.sh
-      interpreter: [/bin/bash, -euo, pipefail]
-      workdir: /workspace
-      supervisor:
-        priority: 30
+        application:
+          script: /workspace/scripts/scenarios/application.sh
+          interpreter: [/bin/bash, -euo, pipefail]
+          workdir: /workspace
+          supervisor:
+            priority: 30
+
+    # A second instance runs a second software stack in another container:
+    # one more tmux window in development, one more Compose service in deployment.
+    # simulator:
+    #   container: robot-simulator
+    #   service: simulator
+    #   groups:
+    #     sim:
+    #       setup: [install/setup.bash]
+    #       command: [ros2, launch, nhybot_bringup, sim.launch.py]
+    #       workdir: /workspace
 
   profiles:
     development:
+      backend: tmux
+      restart_container: always
+      attach: true
+      stop_grace_seconds: 5
+
+    development-compose:
       backend: tmux
       compose_file: deploy/compose.development.yaml
       project_name: robot-system-development
       wait_timeout_seconds: 60
       attach: true
-      replace: true
-      stop_grace_seconds: 5
 
     deployment:
       backend: compose-supervisor

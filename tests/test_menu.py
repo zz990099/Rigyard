@@ -39,7 +39,7 @@ def project(
         write(tmp_path / "config/containers.yaml", containers)
     return write(
         tmp_path / "toolchain.yaml",
-        "version: 2\nmetadata: {name: menu-test}\nsources:\n" + "\n".join(sources) + "\n",
+        "version: 3\nmetadata: {name: menu-test}\nsources:\n" + "\n".join(sources) + "\n",
     )
 
 

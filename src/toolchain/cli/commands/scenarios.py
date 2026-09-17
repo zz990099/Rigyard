@@ -36,7 +36,7 @@ def register_scenario_commands(commands: Any) -> None:
     status.set_defaults(handler=_status)
 
     attach = _operation(actions, "attach", "attach to a running tmux scenario")
-    attach.add_argument("--group", help="select the initial tmux group window")
+    attach.add_argument("--group", help="select the initial tmux pane (group)")
     attach.set_defaults(handler=_attach)
 
     logs = _operation(actions, "logs", "show scenario logs")
@@ -49,6 +49,13 @@ def _operation(actions: Any, name: str, help_text: str) -> argparse.ArgumentPars
     command = actions.add_parser(name, help=help_text)
     command.add_argument("scene_name", help="scenario configuration name under scenarios")
     command.add_argument("profile_name", help="profile name under the selected scenario")
+    command.add_argument(
+        "--instance",
+        dest="instances",
+        action="append",
+        metavar="NAME",
+        help="run one scenario instance; repeat to select several (default: all enabled)",
+    )
     add_resolution_arguments(command)
     return command
 
@@ -71,6 +78,7 @@ def _plan(
             interactive=not args.non_interactive,
         ),
         resolve_group_runtime=args.scene_command == "start",
+        instances=args.instances,
     )
 
 
@@ -114,7 +122,7 @@ def _attach(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
     if not isinstance(plan, TmuxScenarioPlan):
         parser.error("attach is only available for tmux profiles")
-    result = _service(plan).attach(plan, args.group)
+    result = _service(plan).attach(plan, args.instance, args.group)
     if result.detail:
         print(result.detail)
     return 0
@@ -122,7 +130,7 @@ def _attach(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
 def _logs(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
-    result = _service(plan).logs(plan, args.group, follow=args.follow)
+    result = _service(plan).logs(plan, args.instance, args.group, follow=args.follow)
     if result.detail:
         print(result.detail)
     return 0

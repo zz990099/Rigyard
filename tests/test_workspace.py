@@ -15,7 +15,7 @@ def write(path: Path, text: str) -> Path:
 def project(root: Path, name: str = "workspace-test") -> Path:
     manifest = write(
         root / "toolchain.yaml",
-        f"""version: 2
+        f"""version: 3
 metadata: {{name: {name}}}
 sources: {{images: images.yaml}}
 """,

@@ -30,7 +30,7 @@ def write(path: Path, text: str) -> Path:
 def project(tmp_path: Path, builds: str) -> Path:
     config = write(
         tmp_path / "toolchain.yaml",
-        """version: 2
+        """version: 3
 metadata: {name: build-test}
 sources: {builds: config/builds.yaml}
 """,

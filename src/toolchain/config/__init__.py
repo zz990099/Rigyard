@@ -2,6 +2,7 @@
 
 from .loader import load_config, load_values
 from .models import (
+    SCHEMA_VERSION,
     BuildDefinitions,
     ScenarioDefinitions,
     ToolchainConfig,
@@ -11,6 +12,7 @@ from .models import (
 )
 
 __all__ = [
+    "SCHEMA_VERSION",
     "BuildDefinitions",
     "ScenarioDefinitions",
     "ToolchainConfig",

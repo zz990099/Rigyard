@@ -13,7 +13,7 @@ def write(path: Path, text: str) -> Path:
 def config_file(tmp_path: Path) -> Path:
     config = write(
         tmp_path / "toolchain.yaml",
-        """version: 2
+        """version: 3
 metadata: {name: test-project}
 sources:
   images: config/images.yaml
@@ -92,7 +92,7 @@ containers:
 def test_noninteractive_missing_runtime_value(tmp_path: Path, capsys):
     config = write(
         tmp_path / "toolchain.yaml",
-        """version: 2
+        """version: 3
 metadata: {name: test-project}
 sources: {containers: config/containers.yaml}
 """,

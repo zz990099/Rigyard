@@ -19,14 +19,20 @@ class ScenarioService:
     def status(self, plan: ScenarioPlan) -> ScenarioResult:
         return self.backend.status(plan)
 
-    def attach(self, plan: ScenarioPlan, group_name: str | None = None) -> ScenarioResult:
-        return self.backend.attach(plan, group_name)
+    def attach(
+        self,
+        plan: ScenarioPlan,
+        instance_name: str | None = None,
+        group_name: str | None = None,
+    ) -> ScenarioResult:
+        return self.backend.attach(plan, instance_name, group_name)
 
     def logs(
         self,
         plan: ScenarioPlan,
+        instance_name: str | None = None,
         group_name: str | None = None,
         *,
         follow: bool = False,
     ) -> ScenarioResult:
-        return self.backend.logs(plan, group_name, follow=follow)
+        return self.backend.logs(plan, instance_name, group_name, follow=follow)

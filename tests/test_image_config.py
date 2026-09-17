@@ -11,7 +11,7 @@ from toolchain.parameters.models import PromptValue
 def test_external_image_source_contains_inline_prompts(tmp_path: Path):
     manifest = tmp_path / "toolchain.yaml"
     manifest.write_text(
-        """version: 2
+        """version: 3
 metadata: {name: test-project}
 sources: {images: config/images.yaml}
 """

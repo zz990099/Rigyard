@@ -3,18 +3,20 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 
 from ..config.loader import load_config
 from ..errors import SchemaValidationError
 from ..parameters.models import PromptValue
-from ..parameters.resolver import collect_prompts, materialize_as
+from ..parameters.resolver import collect_prompts, materialize, materialize_as
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from ..scenarios.models import (
     ComposeSupervisorProfileSpec,
     ComposeSupervisorProfileTemplate,
     ScenarioGroupSpec,
+    ScenarioInstanceSpec,
+    ScenarioInstanceTemplate,
     ScenarioPlan,
     TmuxProfileSpec,
 )
@@ -31,6 +33,7 @@ class PlanScenarioUseCase:
         request: ResolutionRequest,
         *,
         resolve_group_runtime: bool = True,
+        instances: Sequence[str] | None = None,
         environment: Mapping[str, str] | None = None,
         now: datetime | None = None,
     ) -> ScenarioPlan:
@@ -55,45 +58,66 @@ class PlanScenarioUseCase:
                 f"configured profiles: {available}"
             )
 
-        group_prefix = f"scenarios.{scene_name}.groups"
+        instances_prefix = f"scenarios.{scene_name}.instances"
         profile_prefix = f"scenarios.{scene_name}.profiles.{profile_name}"
         profile_template = scenario.profiles[profile_name]
-        compose_profile = (
-            isinstance(profile_template, ComposeSupervisorProfileTemplate)
-            or profile_template.compose_file is not None
-        )
         profile_prompts = collect_prompts(profile_template, profile_prefix)
-        enabled_prompts = {
+        instance_prompts = {
             path: value
-            for name, group in scenario.groups.items()
+            for name, instance in scenario.instances.items()
             for path, value in collect_prompts(
-                group.enabled,
-                f"{group_prefix}.{name}.enabled",
+                instance.enabled, f"{instances_prefix}.{name}.enabled"
+            ).items()
+        }
+        group_prompts = {
+            path: value
+            for name, instance in scenario.instances.items()
+            for group_name, group in instance.groups.items()
+            for path, value in collect_prompts(
+                group.enabled, f"{instances_prefix}.{name}.groups.{group_name}.enabled"
             ).items()
         }
         selection_context = resolve_selected_prompts(
             config,
-            {**profile_prompts, **enabled_prompts},
+            {**profile_prompts, **instance_prompts, **group_prompts},
             request,
         )
-        enabled_names = {
-            name
-            for name, group in scenario.groups.items()
-            if (
-                selection_context[f"{group_prefix}.{name}.enabled"]
-                if isinstance(group.enabled, PromptValue)
-                else group.enabled
-            )
+        selected_names = _select_instances(
+            scene_name,
+            scenario.instances,
+            instances,
+            selection_context,
+            instances_prefix,
+        )
+        enabled_groups = {
+            name: {
+                group_name
+                for group_name, group in scenario.instances[name].groups.items()
+                if _enabled(
+                    group.enabled,
+                    selection_context,
+                    f"{instances_prefix}.{name}.groups.{group_name}.enabled",
+                )
+            }
+            for name in scenario.instances
         }
-        selected = dict(profile_prompts)
-        for name, group in scenario.groups.items():
-            prefix = f"{group_prefix}.{name}"
-            if name in enabled_names and resolve_group_runtime:
-                selected.update(collect_prompts(group, prefix))
-            elif name in enabled_names and compose_profile:
-                selected.update(collect_prompts(group.service, f"{prefix}.service"))
+
+        selected = {**profile_prompts, **instance_prompts, **group_prompts}
+        for name in selected_names:
+            instance = scenario.instances[name]
+            prefix = f"{instances_prefix}.{name}"
+            if resolve_group_runtime:
+                selected.update(collect_prompts(instance.enabled, f"{prefix}.enabled"))
+                selected.update(collect_prompts(instance.container, f"{prefix}.container"))
+                selected.update(collect_prompts(instance.service, f"{prefix}.service"))
+                for group_name in enabled_groups[name]:
+                    selected.update(
+                        collect_prompts(
+                            instance.groups[group_name], f"{prefix}.groups.{group_name}"
+                        )
+                    )
             else:
-                selected.update(collect_prompts(group.enabled, f"{prefix}.enabled"))
+                selected.update(collect_prompts(instance.service, f"{prefix}.service"))
         context = resolve_selected_prompts(
             config,
             selected,
@@ -106,35 +130,35 @@ class PlanScenarioUseCase:
             ),
         )
 
-        if resolve_group_runtime:
-            groups = {
-                name: materialize_as(
-                    group,
-                    f"{group_prefix}.{name}",
-                    context,
-                    ScenarioGroupSpec,
-                    renderer,
+        planned: dict[str, ScenarioInstanceSpec] = {}
+        for name in selected_names:
+            template = scenario.instances[name]
+            prefix = f"{instances_prefix}.{name}"
+            groups: dict[str, ScenarioGroupSpec] = {}
+            for group_name, group in template.groups.items():
+                if group_name not in enabled_groups[name]:
+                    continue
+                group_prefix = f"{prefix}.groups.{group_name}"
+                if resolve_group_runtime:
+                    groups[group_name] = materialize_as(
+                        group, group_prefix, context, ScenarioGroupSpec, renderer
+                    )
+                else:
+                    groups[group_name] = ScenarioGroupSpec(script=":")
+            if not groups:
+                raise SchemaValidationError(
+                    f"scenario instance {name!r} has no enabled groups"
                 )
-                for name, group in scenario.groups.items()
-                if name in enabled_names
-            }
-        else:
-            groups = {
-                name: ScenarioGroupSpec(
-                    container="management" if not compose_profile else None,
-                    service=renderer.render_value(
-                        (
-                            context[f"{group_prefix}.{name}.service"]
-                            if isinstance(group.service, PromptValue)
-                            else group.service
-                        ),
-                        f"{group_prefix}.{name}.service",
-                    ),
-                    script=":",
-                )
-                for name, group in scenario.groups.items()
-                if name in enabled_names
-            }
+            planned[name] = ScenarioInstanceSpec(
+                container=_optional_text(
+                    template.container, "container", prefix, context, renderer
+                ),
+                service=_optional_text(
+                    template.service, "service", prefix, context, renderer
+                ),
+                groups=groups,
+            )
+
         profile_type = (
             ComposeSupervisorProfileSpec
             if isinstance(profile_template, ComposeSupervisorProfileTemplate)
@@ -150,8 +174,64 @@ class PlanScenarioUseCase:
         return ScenarioPlanner().create_plan(
             scene_name,
             profile_name,
-            groups,
+            planned,
             profile,
             request.config_path,
             config.metadata.name,
+            require_target=resolve_group_runtime,
+            partial=bool(instances),
         )
+
+
+def _select_instances(
+    scene_name: str,
+    templates: Mapping[str, ScenarioInstanceTemplate],
+    requested: Sequence[str] | None,
+    selection_context: Mapping[str, object],
+    instances_prefix: str,
+) -> list[str]:
+    names = list(templates)
+    if requested:
+        unknown = [name for name in requested if name not in templates]
+        if unknown:
+            available = ", ".join(sorted(templates)) or "none"
+            raise SchemaValidationError(
+                f"unknown instance(s) for scenario {scene_name!r}: {', '.join(unknown)}; "
+                f"configured instances: {available}"
+            )
+    enabled = {
+        name: _enabled(
+            templates[name].enabled,
+            selection_context,
+            f"{instances_prefix}.{name}.enabled",
+        )
+        for name in names
+    }
+    if requested:
+        disabled = [name for name in requested if not enabled[name]]
+        if disabled:
+            raise SchemaValidationError(
+                f"scenario instance(s) are disabled: {', '.join(disabled)}"
+            )
+        wanted = set(requested)
+        return [name for name in names if name in wanted]
+    return [name for name in names if enabled[name]]
+
+
+def _enabled(value: object, context: Mapping[str, object], path: str) -> bool:
+    resolved = context[path] if isinstance(value, PromptValue) else value
+    return bool(resolved)
+
+
+def _optional_text(
+    value: object,
+    field: str,
+    prefix: str,
+    context: Mapping[str, object],
+    renderer: StringTemplateRenderer,
+) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, PromptValue) and f"{prefix}.{field}" not in context:
+        return None
+    return materialize(value, f"{prefix}.{field}", context, renderer)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
@@ -11,6 +10,8 @@ from ..builds.models import BuildTemplate
 from ..containers.models import ContainerTemplate
 from ..images.models import IMAGE_NAME, ImageTemplate
 from ..scenarios.models import ScenarioTemplate
+
+SCHEMA_VERSION = 3
 
 
 def _invalid_names(values: dict[str, object]) -> list[str]:
@@ -51,9 +52,21 @@ class ToolchainSources(BaseModel):
 class ToolchainManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    version: Literal[2]
+    version: int
     metadata: ToolchainMetadata
     sources: ToolchainSources
+
+    @field_validator("version")
+    @classmethod
+    def supported_version(cls, value: int) -> int:
+        if value == SCHEMA_VERSION:
+            return value
+        if value == 2:
+            raise ValueError(
+                "schema version 2 is not supported: move scenario `groups` under "
+                "`instances.<name>` and set `version: 3`"
+            )
+        raise ValueError(f"unsupported schema version {value}; expected {SCHEMA_VERSION}")
 
 
 class ImageDefinitions(RootModel[dict[str, ImageTemplate]]):
@@ -109,7 +122,7 @@ class ToolchainConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    version: Literal[2]
+    version: int
     metadata: ToolchainMetadata
     sources: ToolchainSources
     images: dict[str, ImageTemplate] = Field(default_factory=dict)

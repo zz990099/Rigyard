@@ -15,7 +15,7 @@ def write(path: Path, text: str) -> Path:
 def manifest(tmp_path: Path, sources: str) -> Path:
     return write(
         tmp_path / "toolchain.yaml",
-        f"""version: 2
+        f"""version: 3
 metadata:
   name: test-project
 sources:
@@ -73,12 +73,12 @@ def test_v1_inline_configuration_is_rejected(tmp_path: Path):
 
 def test_manifest_requires_metadata_and_at_least_one_source(tmp_path: Path):
     with pytest.raises(SchemaValidationError, match="metadata"):
-        load_config(write(tmp_path / "missing-meta.yaml", "version: 2\nsources: {images: x}\n"))
+        load_config(write(tmp_path / "missing-meta.yaml", "version: 3\nsources: {images: x}\n"))
     with pytest.raises(SchemaValidationError, match="configuration source"):
         load_config(
             write(
                 tmp_path / "missing-source.yaml",
-                "version: 2\nmetadata: {name: test}\nsources: {}\n",
+                "version: 3\nmetadata: {name: test}\nsources: {}\n",
             )
         )
 

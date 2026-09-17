@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 
 from ..parameters.models import PromptValue
 
@@ -20,6 +20,20 @@ RuntimeList = PromptValue | tuple[str, ...]
 RuntimeInteger = PromptValue | int
 RuntimePath = PromptValue | Path
 RuntimeRestart = PromptValue | Literal["false", "unexpected", "true"]
+RestartPolicy = Literal["always", "if_not_running", "never"]
+
+
+def _validate_process_source(
+    script: object,
+    command: object,
+    setup: object,
+    label: str,
+) -> None:
+    if (script is None) == (command is None):
+        raise ValueError(f"{label} requires exactly one of script or command")
+    for name, values in (("command", command), ("setup", setup)):
+        if isinstance(values, tuple) and any(not item for item in values):
+            raise ValueError(f"{label} {name} entries must not be empty")
 
 
 def _validate_named_mapping(values: dict[str, object], label: str) -> None:
@@ -46,9 +60,9 @@ class ScenarioGroupTemplate(BaseModel):
 
     description: str | None = None
     enabled: RuntimeBool = True
-    container: RuntimeText | None = None
-    service: RuntimeText | None = None
-    script: RuntimeText
+    script: RuntimeText | None = None
+    command: RuntimeList | None = None
+    setup: RuntimeList = ()
     interpreter: RuntimeList = ("/bin/sh", "-eu")
     user: RuntimeText | None = None
     workdir: RuntimeText | None = None
@@ -62,12 +76,44 @@ class ScenarioGroupTemplate(BaseModel):
             raise ValueError("scenario group interpreter must not be empty")
         return value
 
+    @field_validator("command")
+    @classmethod
+    def fixed_command_is_not_empty(cls, value: RuntimeList | None) -> RuntimeList | None:
+        if isinstance(value, tuple) and not value:
+            raise ValueError("scenario group command must not be empty")
+        return value
+
     @field_validator("environment")
     @classmethod
     def valid_environment(cls, values: dict[str, RuntimeText]) -> dict[str, RuntimeText]:
         invalid = sorted(name for name in values if not ENVIRONMENT_NAME.fullmatch(name))
         if invalid:
             raise ValueError(f"invalid scenario environment variable name(s): {', '.join(invalid)}")
+        return values
+
+    @model_validator(mode="after")
+    def exactly_one_process_source(self) -> ScenarioGroupTemplate:
+        _validate_process_source(self.script, self.command, self.setup, "scenario group")
+        return self
+
+
+class ScenarioInstanceTemplate(BaseModel):
+    """One software system: one container, one tmux window, several group panes."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    description: str | None = None
+    enabled: RuntimeBool = True
+    container: RuntimeText | None = None
+    service: RuntimeText | None = None
+    groups: dict[str, ScenarioGroupTemplate] = Field(min_length=1)
+
+    @field_validator("groups")
+    @classmethod
+    def valid_group_names(
+        cls, values: dict[str, ScenarioGroupTemplate]
+    ) -> dict[str, ScenarioGroupTemplate]:
+        _validate_named_mapping(values, "scenario group")
         return values
 
 
@@ -82,6 +128,9 @@ class TmuxProfileTemplate(BaseModel):
     attach: RuntimeBool = True
     replace: RuntimeBool = True
     stop_grace_seconds: RuntimeInteger = 5
+    restart_container: RestartPolicy = "always"
+    mouse: bool = True
+    keep_alive: bool = True
 
 
 class ComposeSupervisorProfileTemplate(BaseModel):
@@ -103,15 +152,15 @@ class ScenarioTemplate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     description: str | None = None
-    groups: dict[str, ScenarioGroupTemplate] = Field(min_length=1)
+    instances: dict[str, ScenarioInstanceTemplate] = Field(min_length=1)
     profiles: dict[str, ScenarioProfileTemplate] = Field(min_length=1)
 
-    @field_validator("groups")
+    @field_validator("instances")
     @classmethod
-    def valid_group_names(
-        cls, values: dict[str, ScenarioGroupTemplate]
-    ) -> dict[str, ScenarioGroupTemplate]:
-        _validate_named_mapping(values, "scenario group")
+    def valid_instance_names(
+        cls, values: dict[str, ScenarioInstanceTemplate]
+    ) -> dict[str, ScenarioInstanceTemplate]:
+        _validate_named_mapping(values, "scenario instance")
         return values
 
     @field_validator("profiles")
@@ -141,9 +190,9 @@ class ScenarioGroupSpec(BaseModel):
 
     description: str | None = None
     enabled: bool = True
-    container: str | None = None
-    service: str | None = None
-    script: str
+    script: str | None = None
+    command: tuple[str, ...] | None = None
+    setup: tuple[str, ...] = ()
     interpreter: tuple[str, ...] = Field(default=("/bin/sh", "-eu"), min_length=1)
     user: str | None = None
     workdir: str | None = None
@@ -152,9 +201,16 @@ class ScenarioGroupSpec(BaseModel):
 
     @field_validator("script")
     @classmethod
-    def script_is_not_empty(cls, value: str) -> str:
-        if not value.strip():
+    def script_is_not_empty(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
             raise ValueError("scenario group script must not be empty")
+        return value
+
+    @field_validator("command")
+    @classmethod
+    def command_is_not_empty(cls, value: tuple[str, ...] | None) -> tuple[str, ...] | None:
+        if value is not None and not value:
+            raise ValueError("scenario group command must not be empty")
         return value
 
     @field_validator("environment")
@@ -164,6 +220,21 @@ class ScenarioGroupSpec(BaseModel):
         if invalid:
             raise ValueError(f"invalid scenario environment variable name(s): {', '.join(invalid)}")
         return values
+
+    @model_validator(mode="after")
+    def exactly_one_process_source(self) -> ScenarioGroupSpec:
+        _validate_process_source(self.script, self.command, self.setup, "scenario group")
+        return self
+
+
+class ScenarioInstanceSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    description: str | None = None
+    enabled: bool = True
+    container: str | None = None
+    service: str | None = None
+    groups: dict[str, ScenarioGroupSpec] = Field(min_length=1)
 
 
 class TmuxProfileSpec(BaseModel):
@@ -177,6 +248,9 @@ class TmuxProfileSpec(BaseModel):
     attach: bool = True
     replace: bool = True
     stop_grace_seconds: int = Field(default=5, ge=0, le=30)
+    restart_container: RestartPolicy = "always"
+    mouse: bool = True
+    keep_alive: bool = True
 
 
 class ComposeSupervisorProfileSpec(BaseModel):
@@ -191,14 +265,22 @@ class ComposeSupervisorProfileSpec(BaseModel):
 @dataclass(frozen=True)
 class ScenarioGroupPlan:
     name: str
-    container: str | None
-    service: str | None
-    script: str
+    script: str | None
     interpreter: tuple[str, ...]
     user: str | None
     workdir: str | None
     environment: tuple[tuple[str, str], ...]
     supervisor: SupervisorOptionsSpec
+    command: tuple[str, ...] | None = None
+    setup: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ScenarioInstancePlan:
+    name: str
+    container: str | None
+    service: str | None
+    groups: tuple[ScenarioGroupPlan, ...]
 
 
 @dataclass(frozen=True)
@@ -209,10 +291,14 @@ class TmuxScenarioPlan:
     attach: bool
     replace: bool
     stop_grace_seconds: int
-    groups: tuple[ScenarioGroupPlan, ...]
+    instances: tuple[ScenarioInstancePlan, ...]
     compose_file: Path | None = None
     project_name: str | None = None
     wait_timeout_seconds: int = 60
+    restart_container: RestartPolicy = "always"
+    mouse: bool = True
+    keep_alive: bool = True
+    partial: bool = False
 
 
 @dataclass(frozen=True)
@@ -222,7 +308,7 @@ class ComposeSupervisorPlan:
     compose_file: Path
     project_name: str
     supervisor_config_dir: Path
-    groups: tuple[ScenarioGroupPlan, ...]
+    instances: tuple[ScenarioInstancePlan, ...]
 
 
 ScenarioPlan = TmuxScenarioPlan | ComposeSupervisorPlan

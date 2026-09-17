@@ -14,8 +14,18 @@ class ScenarioBackend(Protocol):
 
     def status(self, plan: ScenarioPlan) -> ScenarioResult: ...
 
-    def attach(self, plan: ScenarioPlan, group_name: str | None = None) -> ScenarioResult: ...
+    def attach(
+        self,
+        plan: ScenarioPlan,
+        instance_name: str | None = None,
+        group_name: str | None = None,
+    ) -> ScenarioResult: ...
 
     def logs(
-        self, plan: ScenarioPlan, group_name: str | None = None, *, follow: bool = False
+        self,
+        plan: ScenarioPlan,
+        instance_name: str | None = None,
+        group_name: str | None = None,
+        *,
+        follow: bool = False,
     ) -> ScenarioResult: ...

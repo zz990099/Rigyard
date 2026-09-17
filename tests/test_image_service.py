@@ -26,7 +26,7 @@ class RecordingBackend:
 
 def setup_spec(tmp_path: Path) -> tuple[Path, ImageSpec]:
     config = tmp_path / "toolchain.yaml"
-    config.write_text("version: 2\n", encoding="utf-8")
+    config.write_text("version: 3\n", encoding="utf-8")
     for name in ("one", "two", "three"):
         (tmp_path / f"{name}.Dockerfile").write_text(f"RUN echo {name}\n", encoding="utf-8")
     spec = ImageSpec.model_validate(

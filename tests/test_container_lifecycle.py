@@ -181,7 +181,7 @@ def test_hook_timeout_reports_retained_container(tmp_path: Path):
 def test_values_file_can_target_prompt_inside_hook_array(tmp_path: Path):
     manifest = tmp_path / "toolchain.yaml"
     manifest.write_text(
-        """version: 2
+        """version: 3
 metadata: {name: lifecycle-test}
 sources: {containers: config/containers.yaml}
 """
