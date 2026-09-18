@@ -336,6 +336,10 @@ mapping 键或配置定义名称。执行所选操作不会读取其他未选配
 计划预览后的确认默认是 `[Y/n]`（直接回车即执行），只有创建容器时"同名容器是否删除重建"仍默认
 `[y/N]`。
 
+菜单与 CLI 共用一套语义配色（标题、字段名、字段值、成功/警告/错误），并且只在输出流是终端时
+生效：默认 `--color=auto`（管道、重定向、CI 日志保持纯文本），可用 `--color=always|never` 强制，
+环境变量 `NO_COLOR=1` 或 `TERM=dumb` 同样关闭着色。
+
 ```bash
 toolchain validate
 toolchain inspect

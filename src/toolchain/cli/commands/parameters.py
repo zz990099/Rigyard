@@ -13,7 +13,7 @@ from ...application.parameters import (
 )
 from ...application.requests import ResolutionRequest
 from ...providers.docker import docker_container_sources
-from ..common import emit, parse_overrides
+from ..common import emit, parse_overrides, say
 
 
 def register_parameter_commands(commands: Any) -> None:
@@ -61,7 +61,7 @@ def resolution_request(
 
 def _validate(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
     ValidateConfigUseCase().execute(args.config_path)
-    print(f"OK: {args.config_path}")
+    say(args.style, f"OK: {args.config_path}")
     return 0
 
 

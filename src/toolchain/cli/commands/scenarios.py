@@ -12,7 +12,7 @@ from ...application.scenarios import PlanScenarioUseCase
 from ...providers.docker import docker_container_sources
 from ...scenarios.models import ScenarioPlan
 from ...scenarios.service import ScenarioService
-from ..common import parse_overrides
+from ..common import parse_overrides, print_fields, say
 from ..scenario_output import describe_scenario
 from .parameters import add_resolution_arguments
 
@@ -105,17 +105,21 @@ def _start(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             attach=plan.attach and not args.no_attach,
         )
     if args.dry_run:
-        print("\n".join(describe_scenario(plan)))
+        print_fields(args.style, describe_scenario(plan))
         return 0
     result = _service().start(plan)
-    print(f"Started scenario {result.scene_name!r} profile {result.profile_name!r}")
+    say(args.style, f"Started scenario {result.scene_name!r} profile {result.profile_name!r}")
     return 0
 
 
 def _stop(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
     result = _service().stop(plan)
-    print(result.detail or f"Stopped scenario {result.scene_name!r}")
+    say(
+        args.style,
+        result.detail or f"Stopped scenario {result.scene_name!r}",
+        "muted" if result.detail == "not running" else "success",
+    )
     return 0
 
 
@@ -124,7 +128,7 @@ def _down(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         parser.error("scene down does not support --instance")
     plan = _plan(args, parser)
     result = _service().down(plan)
-    print(result.detail or f"Removed scenario {result.scene_name!r} environment")
+    say(args.style, result.detail or f"Removed scenario {result.scene_name!r} environment")
     return 0
 
 

@@ -4,10 +4,25 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from .style import Style
+
+
+def say(style: Style, message: str, role: str = "success") -> None:
+    """Print one styled status line."""
+
+    print(style.render(role, message))
+
+
+def print_fields(style: Style, lines: Iterable[str]) -> None:
+    """Print rendered plan lines with dimmed field names."""
+
+    print("\n".join(style.line(line) for line in lines))
 
 
 def parse_overrides(items: list[str]) -> dict[str, Any]:

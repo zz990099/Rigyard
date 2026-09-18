@@ -10,7 +10,7 @@ from ...application.containers import CreateContainerUseCase
 from ...application.requests import ResolutionRequest
 from ...providers.docker import docker_container_sources
 from ...providers.docker.container_backend import DockerContainerBackend
-from ..common import parse_overrides
+from ..common import parse_overrides, print_fields, say
 from ..container_output import describe_container
 from .parameters import add_resolution_arguments
 
@@ -58,11 +58,12 @@ def _create(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         ),
     )
     if args.dry_run:
-        print("\n".join(describe_container(plan)))
+        print_fields(args.style, describe_container(plan))
         return 0
     result = use_case.execute(plan)
-    print(
+    say(
+        args.style,
         f"Created and started {result.container_name} ({result.container_id}); "
-        f"completed {len(result.hooks)} lifecycle hook(s)"
+        f"completed {len(result.hooks)} lifecycle hook(s)",
     )
     return 0

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from ...workspace import initialize_workspace
+from ..common import print_fields
 
 
 def register_workspace_commands(commands: Any) -> None:
@@ -33,6 +34,11 @@ def register_workspace_commands(commands: Any) -> None:
 def _initialize(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
     result = initialize_workspace(args.init_config_path, force=args.force)
     state = "Initialized" if result.changed else "Already initialized"
-    print(f"{state} toolchain workspace: {result.root}")
-    print(f"Configuration: {result.stored_path}")
+    print_fields(
+        args.style,
+        (
+            f"{state} toolchain workspace: {result.root}",
+            f"Configuration: {result.stored_path}",
+        ),
+    )
     return 0

@@ -79,6 +79,16 @@ toolchain inspect --format json
 toolchain resolve --non-interactive
 ```
 
+## 输出样式
+
+菜单与 CLI 共用 `src/toolchain/cli/style.py` 里按"角色"定义的配色（`DEFAULT_THEME`）：标题加粗
+青、字段名暗、字段值加粗、选项序号青、次要信息（路径 / 默认值 / `Back`）暗、成功绿、警告黄、
+错误加粗红。计划预览（`--dry-run`）与菜单里的计划行都用"字段名暗 + 值加粗"渲染。
+
+着色只在输出流是终端时生效，可用全局 `--color=auto|always|never`（默认 `auto`）覆盖；`NO_COLOR=1`
+或 `TERM=dumb` 同样关闭。因此管道、重定向与 CI 日志保持纯文本，`toolchain validate | cat` 之类的
+用法不会被 ANSI 转义污染。
+
 ## 自动化
 
 CI 中必须明确禁止交互，并通过可选 values 文件、环境变量或完整路径覆盖提供值：

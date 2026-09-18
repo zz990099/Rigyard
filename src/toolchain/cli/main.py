@@ -18,6 +18,7 @@ from .commands.parameters import register_parameter_commands
 from .commands.scenarios import register_scenario_commands
 from .commands.workspace import register_workspace_commands
 from .menu import MenuApp, MenuIO
+from .style import ColorMode, Style
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,6 +40,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="optional values file used by the interactive menu",
+    )
+    parser.add_argument(
+        "--color",
+        choices=[mode.value for mode in ColorMode],
+        default=ColorMode.AUTO.value,
+        help="colour the terminal output (auto: only when the stream is a terminal)",
     )
     commands = parser.add_subparsers(dest="command")
     register_workspace_commands(commands)
@@ -62,9 +69,12 @@ def run(
     input_stream = stdin or sys.stdin
     output_stream = stdout or sys.stdout
     error_stream = stderr or sys.stderr
+    style = Style.for_stream(output_stream, mode=args.color)
+    error_style = Style.for_stream(error_stream, mode=args.color)
+    args.style = style
     try:
         if args.command is None:
-            io = MenuIO(input_stream, output_stream)
+            io = MenuIO(input_stream, output_stream, style=style)
             if not io.is_interactive:
                 parser.print_help(file=output_stream)
                 return 2
@@ -74,7 +84,7 @@ def run(
             args.config_path = resolve_config_path(args.config_path)
         return args.handler(args, parser)
     except ToolchainError as exc:
-        print(f"Error: {exc}", file=error_stream)
+        print(error_style.render("error", f"Error: {exc}"), file=error_stream)
         return exc.exit_code
 
 

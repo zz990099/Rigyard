@@ -6,15 +6,19 @@ import sys
 from collections.abc import Sequence
 from typing import TextIO
 
+from ..style import Style
+
 
 class MenuIO:
     def __init__(
         self,
         input_stream: TextIO | None = None,
         output_stream: TextIO | None = None,
+        style: Style | None = None,
     ) -> None:
         self.input = input_stream or sys.stdin
         self.output = output_stream or sys.stdout
+        self.style = style or Style.for_stream(self.output)
 
     @property
     def is_interactive(self) -> bool:
@@ -22,6 +26,14 @@ class MenuIO:
 
     def write(self, message: str = "") -> None:
         print(message, file=self.output)
+
+    def write_field(self, message: str) -> None:
+        """Print one ``Key: value`` plan line with the field name dimmed."""
+
+        self.write(self.style.line(message))
+
+    def write_note(self, message: str, role: str = "warning") -> None:
+        self.write(self.style.render(role, message))
 
     def ask(self, prompt: str) -> str:
         self.output.write(prompt)
@@ -33,19 +45,20 @@ class MenuIO:
 
     def select(
         self,
-        title: str,
+        title: str | None,
         options: Sequence[str],
         *,
         back_label: str,
     ) -> int | None:
         while True:
             self.write()
-            self.write(title)
-            self.write()
+            if title:
+                self.write(self.style.render("title", title))
+                self.write()
             for index, label in enumerate(options, start=1):
-                self.write(f"{index}) {label}")
-            self.write(f"0) {back_label}")
-            raw = self.ask(f"Select [0-{len(options)}]: ").strip()
+                self.write(f"{self.style.render('number', f'{index})')} {label}")
+            self.write(self.style.render("muted", f"0) {back_label}"))
+            raw = self.ask(self.style.render("muted", f"Select [0-{len(options)}]: ")).strip()
             if raw.isdigit():
                 choice = int(raw)
                 if choice == 0:
@@ -56,8 +69,9 @@ class MenuIO:
 
     def confirm(self, prompt: str, *, default: bool = False) -> bool:
         hint = "Y/n" if default else "y/N"
+        question = f"{self.style.render('heading', prompt)} [{self.style.render('muted', hint)}]: "
         while True:
-            value = self.ask(f"{prompt} [{hint}]: ").strip().lower()
+            value = self.ask(question).strip().lower()
             if not value:
                 return default
             if value in {"y", "yes"}:

@@ -10,7 +10,7 @@ from ...application.builds import BuildProjectUseCase
 from ...application.requests import ResolutionRequest
 from ...providers.docker import DockerExecBuildBackend, docker_container_sources
 from ..build_output import describe_build
-from ..common import parse_overrides
+from ..common import parse_overrides, print_fields, say
 from .parameters import add_resolution_arguments
 
 
@@ -42,8 +42,8 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         ),
     )
     if args.dry_run:
-        print("\n".join(describe_build(plan)))
+        print_fields(args.style, describe_build(plan))
         return 0
     result = use_case.execute(plan)
-    print(f"Build {result.build_name!r} completed")
+    say(args.style, f"Build {result.build_name!r} completed")
     return 0

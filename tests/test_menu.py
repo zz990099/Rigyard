@@ -4,6 +4,7 @@ from pathlib import Path
 from toolchain.cli.main import run
 from toolchain.cli.menu.app import MenuApp
 from toolchain.cli.menu.prompt import MenuIO
+from toolchain.cli.style import Style
 from toolchain.errors import ImageBuildError
 from toolchain.images.models import BuildStepResult
 
@@ -262,3 +263,36 @@ def test_menu_container_replace_confirmation_stays_no_by_default():
 
     assert backend.confirm_replace("Container 'dev' already exists. Remove it?") is False
     assert "Remove it? [y/N]: " in output.getvalue()
+
+
+def test_menu_colours_titles_options_and_plan_fields(tmp_path: Path):
+    config = project(
+        tmp_path,
+        images="""development:
+  base: ubuntu:22.04
+  tag: example/development:latest
+  layers: [{name: system, dockerfile: system.Dockerfile}]
+""",
+    )
+    write(tmp_path / "system.Dockerfile", "RUN echo system\n")
+
+    class FakeBackend:
+        def check_available(self):
+            pass
+
+        def build_step(self, step):
+            return BuildStepResult(step.index, step.layer_name, step.output_tag, ("fake",))
+
+    output = TTYBuffer()
+    app = MenuApp(
+        MenuIO(TTYBuffer("1\n1\nn\n"), output, style=Style(enabled=True)),
+        backend_factory=FakeBackend,
+    )
+
+    assert app.run(config) == 0
+
+    rendered = output.getvalue()
+    # 标题、选项序号、字段名/值分别用不同角色包裹
+    assert "\x1b[1;36mToolchain" in rendered
+    assert "\x1b[36m1)\x1b[0m Build image" in rendered
+    assert "\x1b[2mImage\x1b[0m: \x1b[1mexample/development:latest; layers: 1\x1b[0m" in rendered

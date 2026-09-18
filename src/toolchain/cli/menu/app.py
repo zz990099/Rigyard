@@ -98,10 +98,12 @@ class MenuApp:
         session = MenuSession(config_file, config, values_file)
 
         try:
+            self.io.write(self.io.style.render("title", "Toolchain"))
+            self.io.write_field(f"Project: {session.config.metadata.name}")
+            self.io.write_field(f"Configuration: {session.config_path}")
             labels = [self._action_label(action, session) for action in self.registry.actions]
             selected = self.io.select(
-                f"Toolchain\nProject: {session.config.metadata.name}\n"
-                f"Configuration: {session.config_path}",
+                None,
                 labels,
                 back_label="Exit",
             )
@@ -109,7 +111,7 @@ class MenuApp:
                 return 0
             action = self.registry.actions[selected]
             if not action.enabled(session):
-                self.io.write(f"Unavailable: {action.disabled_reason}")
+                self.io.write_note(f"Unavailable: {action.disabled_reason}", "warning")
                 return 2
             result = action.handler(session)
             return 0 if result is None else result
@@ -213,14 +215,15 @@ class MenuApp:
         )
         plan = use_case.plan(names[selected], self._request(session, group.path))
         for line in describe_container(plan):
-            self.io.write(line)
+            self.io.write_field(line)
         if not self.io.confirm("Create and start this container now?", default=True):
-            self.io.write("Container creation cancelled.")
+            self.io.write_note("Container creation cancelled.", "muted")
             return
         result = use_case.execute(plan)
-        self.io.write(
+        self.io.write_note(
             f"Created and started {result.container_name} ({result.container_id}); "
-            f"completed {len(result.hooks)} lifecycle hook(s)"
+            f"completed {len(result.hooks)} lifecycle hook(s)",
+            "success",
         )
 
     def _build_image(self, session: MenuSession) -> None:
@@ -244,14 +247,16 @@ class MenuApp:
                 source_path=group.path,
             )
         )
-        self.io.write(f"Image: {plan.final_tag}; layers: {len(plan.steps)}")
+        self.io.write_field(f"Image: {plan.final_tag}; layers: {len(plan.steps)}")
         if plan.tag_alias is not None:
-            self.io.write(f"Alias: {plan.tag_alias}")
+            self.io.write_field(f"Alias: {plan.tag_alias}")
         if not self.io.confirm(f"Build {image_name} now?", default=True):
-            self.io.write("Build cancelled.")
+            self.io.write_note("Build cancelled.", "muted")
             return
         result = use_case.execute(plan)
-        self.io.write(f"Built {result.final_tag} ({len(result.steps)} layer(s))")
+        self.io.write_note(
+            f"Built {result.final_tag} ({len(result.steps)} layer(s))", "success"
+        )
 
     def _build_project(self, session: MenuSession) -> None:
         group = self._select_source_group(session, "builds", "Build project")
@@ -265,12 +270,12 @@ class MenuApp:
         use_case = BuildProjectUseCase(self.build_backend_factory(), sources=self.sources)
         plan = use_case.plan(names[selected], self._request(session, group.path))
         for line in describe_build(plan):
-            self.io.write(line)
+            self.io.write_field(line)
         if not self.io.confirm("Run this build now?", default=True):
-            self.io.write("Build cancelled.")
+            self.io.write_note("Build cancelled.", "muted")
             return
         result = use_case.execute(plan)
-        self.io.write(f"Build {result.build_name!r} completed")
+        self.io.write_note(f"Build {result.build_name!r} completed", "success")
 
     def _scene_menu(self, session: MenuSession) -> int | None:
         actions: tuple[tuple[str, Callable[[MenuSession], int | None]], ...] = (
@@ -335,12 +340,15 @@ class MenuApp:
             self._request(session, group.path),
         )
         for line in describe_scenario(plan):
-            self.io.write(line)
+            self.io.write_field(line)
         if not self.io.confirm("Start this scenario now?", default=True):
-            self.io.write("Scenario start cancelled.")
+            self.io.write_note("Scenario start cancelled.", "muted")
             return
         result = ScenarioService(self.scenario_executor_factory()).start(plan)
-        self.io.write(f"Started scenario {result.scene_name!r} profile {result.profile_name!r}")
+        self.io.write_note(
+            f"Started scenario {result.scene_name!r} profile {result.profile_name!r}",
+            "success",
+        )
 
     def _stop_scene(self, session: MenuSession) -> None:
         selection = self._select_scenario(session, "Stop scene")
@@ -354,18 +362,22 @@ class MenuApp:
             resolve_group_runtime=False,
         )
         for line in describe_scenario_target(plan):
-            self.io.write(line)
+            self.io.write_field(line)
         if not self.io.confirm("Stop this scenario now?", default=True):
-            self.io.write("Scenario stop cancelled.")
+            self.io.write_note("Scenario stop cancelled.", "muted")
             return
         result = ScenarioService(self.scenario_executor_factory()).stop(plan)
-        self.io.write(f"Scenario {result.scene_name!r}: {result.detail or 'stopped'}")
+        role = "muted" if result.detail == "not running" else "success"
+        self.io.write_note(
+            f"Scenario {result.scene_name!r}: {result.detail or 'stopped'}", role
+        )
 
     def _down_scene(self, session: MenuSession) -> int | None:
         selection = self._select_scenario(session, "Down scene", compose_only=True)
         if selection is None:
-            self.io.write(
-                "Unavailable: no Compose-managed scenes configured; use Stop scene instead."
+            self.io.write_note(
+                "Unavailable: no Compose-managed scenes configured; use Stop scene instead.",
+                "warning",
             )
             return 2
         group, scene_name, profile_name = selection
@@ -376,12 +388,14 @@ class MenuApp:
             resolve_group_runtime=False,
         )
         for line in describe_scenario_target(plan):
-            self.io.write(line)
+            self.io.write_field(line)
         if not self.io.confirm(
             "Down this scenario and remove its Compose environment now?", default=True
         ):
-            self.io.write("Scenario down cancelled.")
+            self.io.write_note("Scenario down cancelled.", "muted")
             return None
         result = ScenarioService(self.scenario_executor_factory()).down(plan)
-        self.io.write(f"Scenario {result.scene_name!r}: {result.detail or 'removed'}")
+        self.io.write_note(
+            f"Scenario {result.scene_name!r}: {result.detail or 'removed'}", "success"
+        )
         return None

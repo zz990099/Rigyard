@@ -9,7 +9,7 @@ from typing import Any
 from ...application.images import BuildImageUseCase
 from ...application.requests import BuildImageRequest
 from ...providers.docker import DockerImageBackend, docker_container_sources
-from ..common import parse_overrides
+from ..common import parse_overrides, print_fields, say
 from .parameters import add_resolution_arguments
 
 
@@ -41,7 +41,7 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         )
     )
     result = use_case.execute(plan)
-    print(f"Built {result.final_tag} ({len(result.steps)} layer(s))")
+    say(args.style, f"Built {result.final_tag} ({len(result.steps)} layer(s))")
     if result.tag_alias is not None:
-        print(f"Alias: {result.tag_alias}")
+        print_fields(args.style, (f"Alias: {result.tag_alias}",))
     return 0
