@@ -40,7 +40,7 @@ robot-system:
             ROS_DOMAIN_ID: "7"
         navigation:
           script: /workspace/scripts/scenarios/navigation.sh
-          interpreter: [/bin/bash, -euo, pipefail]
+          interpreter: [/bin/bash, -eo, pipefail]
           workdir: /workspace
   profiles:
     development:
@@ -55,6 +55,9 @@ robot-system:
 `compose` 时用 `service` 指向 Compose service 名。两者互斥，写错模式会直接报 schema 错误。
 instance 名会成为 tmux window 名，因此必须匹配 `[A-Za-z0-9][A-Za-z0-9_-]*`；`.` 和 `:`
 会与 tmux target 语法冲突。
+
+scene、profile、group 名必须匹配 `[A-Za-z][A-Za-z0-9_.-]*`（不含下划线），scene 名会参与
+tmux session 名生成。
 
 需要由 Compose 准备容器时，在场景级增加 `compose`：
 
@@ -99,7 +102,9 @@ services:
 - `script`：容器内脚本路径，配合 `interpreter`（默认 `[/bin/sh, -eu]`）执行。
 - `command`：直接给定的 argv，不经过 shell。
 - `setup`：可选的容器内 setup 脚本列表，按顺序 source 后再 `exec` 进程，适合 ROS 的
-  `source install/setup.bash`。
+  `source install/setup.bash`。setup 由 `interpreter` 执行，而 `/opt/ros/humble/setup.bash`
+  需要 bash 且不能用 `set -u`（会因 `AMENT_TRACE_SETUP_FILES` 未定义失败），因此 ROS group
+  应显式写 `interpreter: [/bin/bash, -eo, pipefail]`，不要依赖默认的 `[/bin/sh, -eu]`。
 
 ## 容器要求
 
