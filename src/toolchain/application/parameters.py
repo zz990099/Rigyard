@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -59,13 +60,15 @@ class ResolveParametersUseCase:
         self, request: ResolutionRequest, *, allow_missing: bool = False
     ) -> ResolvedContext:
         config = load_config(request.config_path)
-        context = resolve_prompts(config, request, allow_missing=allow_missing)
         renderer = StringTemplateRenderer(
             TemplateContext.capture(
                 os.environ,
                 config_path=request.config_path,
                 variables=config.variables,
             )
+        )
+        context = resolve_prompts(
+            config, request, allow_missing=allow_missing, renderer=renderer
         )
         if not allow_missing:
             for name, template in config.images.items():
@@ -120,10 +123,11 @@ def resolve_prompts(
     *,
     prefix: str = "",
     allow_missing: bool = False,
+    renderer: StringTemplateRenderer | None = None,
 ) -> ResolvedContext:
     prompts = collect_prompts(template, prefix)
     values = load_values(request.values_path) if request.values_path else {}
-    return RuntimeValueResolver(prompts).resolve(
+    return RuntimeValueResolver(prompts, render_default=default_display_renderer(renderer)).resolve(
         values=values,
         overrides=request.overrides,
         interactive=request.interactive,
@@ -149,7 +153,9 @@ def resolve_template(
     if unknown_values or unknown_overrides:
         unknown = sorted(unknown_values | unknown_overrides)
         raise ResolutionError(f"unknown runtime value(s): {', '.join(unknown)}")
-    context = RuntimeValueResolver(selected).resolve(
+    context = RuntimeValueResolver(
+        selected, render_default=default_display_renderer(renderer)
+    ).resolve(
         values={key: value for key, value in flat_values.items() if key in selected},
         overrides={key: value for key, value in request.overrides.items() if key in selected},
         interactive=request.interactive,
@@ -162,6 +168,8 @@ def resolve_selected_prompts(
     root: BaseModel,
     selected: dict[str, Any],
     request: ResolutionRequest,
+    *,
+    renderer: StringTemplateRenderer | None = None,
 ) -> ResolvedContext:
     """Resolve an explicitly composed set of prompt paths from one config root."""
 
@@ -171,9 +179,24 @@ def resolve_selected_prompts(
     unknown = (set(flat_values) | set(request.overrides)) - set(available)
     if unknown:
         raise ResolutionError(f"unknown runtime value(s): {', '.join(sorted(unknown))}")
-    return RuntimeValueResolver(selected).resolve(
+    return RuntimeValueResolver(
+        selected, render_default=default_display_renderer(renderer)
+    ).resolve(
         values={key: value for key, value in flat_values.items() if key in selected},
         overrides={key: value for key, value in request.overrides.items() if key in selected},
         interactive=request.interactive,
         input_fn=request.input_fn,
     )
+
+
+def default_display_renderer(
+    renderer: StringTemplateRenderer | None,
+) -> Callable[[str, Any], str] | None:
+    """Adapt a template renderer for rendering prompt defaults in hints."""
+    if renderer is None:
+        return None
+
+    def render(path: str, value: Any) -> str:
+        return str(renderer.render_value(value, path))
+
+    return render

@@ -117,6 +117,32 @@ cross:
     assert plan.environment_overrides == ("BUILD_TYPE",)
 
 
+def test_interactive_prompt_shows_rendered_default(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """native:
+  container:
+    default: dev_${env:USER}
+    prompt: {mode: input, message: Choose the container}
+  script: /workspace/build.sh
+""",
+    )
+    seen: list[str] = []
+
+    plan = BuildProjectUseCase(RecordingBackend()).plan(
+        "native",
+        ResolutionRequest(
+            config,
+            interactive=True,
+            input_fn=lambda text: seen.append(text) or "",
+        ),
+        environment={"USER": "root"},
+    )
+
+    assert seen == ["Choose the container [dev_root]: "]
+    assert plan.container == "dev_root"
+
+
 def test_values_for_other_builds_are_allowed_and_filtered(tmp_path: Path):
     config = project(
         tmp_path,

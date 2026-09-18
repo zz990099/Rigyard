@@ -204,7 +204,9 @@ robot-system:
 3. `TOOL_PARAM_<配置路径>` 环境变量
 4. `--set PATH=VALUE`
 
-没有显式来源且启用交互时才询问。即使有默认值也会显示提示，直接回车采用默认值。CI 应使用 `--non-interactive`。
+没有显式来源且启用交互时才询问。即使有默认值也会显示提示，直接回车采用默认值；提示里的默认值
+按当前模板上下文渲染后显示（`dev_${env:USER}` 显示为 `dev_root`），回车采用的仍是原默认值，
+随后与其它字段一起完成渲染。CI 应使用 `--non-interactive`。
 
 ```bash
 toolchain container create development \

@@ -135,6 +135,37 @@ def test_input_select_confirm_and_repeated_input():
         context.resolved("input").value = "changed"
 
 
+def test_prompt_default_hint_is_rendered_for_display():
+    seen: list[str] = []
+    resolver = RuntimeValueResolver(
+        {"dev": prompt(default="dev_${env:USER}")},
+        render_default=lambda path, value: value.replace("${env:USER}", "root"),
+    )
+
+    context = resolver.resolve(input_fn=lambda text: seen.append(text) or "")
+
+    assert seen == ["Choose [dev_root]: "]
+    # The hint is rendered, the accepted default stays raw and is rendered once more
+    # together with the rest of the selected definition.
+    assert context["dev"] == "dev_${env:USER}"
+
+
+def test_prompt_default_hint_falls_back_when_rendering_fails():
+    def broken(path: str, value: str) -> str:
+        raise ResolutionError("missing environment variable 'USER'")
+
+    seen: list[str] = []
+    resolver = RuntimeValueResolver(
+        {"dev": prompt(default="dev_${env:USER}")},
+        render_default=broken,
+    )
+
+    context = resolver.resolve(input_fn=lambda text: seen.append(text) or "")
+
+    assert seen == ["Choose [dev_${env:USER}]: "]
+    assert context["dev"] == "dev_${env:USER}"
+
+
 def test_target_model_performs_type_validation_after_interaction():
     template = ToolchainConfig.model_validate(
         {

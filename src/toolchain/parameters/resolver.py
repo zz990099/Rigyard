@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from ..errors import MissingValueError, ResolutionError
+from ..errors import MissingValueError, ResolutionError, ToolchainError
 from .context import ResolvedContext, ResolvedValue, ValueSource
 from .models import PromptMode, PromptValue
 from .prompt import InputFunction, prompt_for_value
@@ -18,6 +18,7 @@ from .templates import StringTemplateRenderer, TemplateContext
 
 ENV_PREFIX = "TOOL_PARAM_"
 ModelT = TypeVar("ModelT", bound=BaseModel)
+DefaultRenderer = Callable[[str, Any], str]
 
 
 def environment_name(path: str) -> str:
@@ -64,9 +65,26 @@ def flatten_values(values: Any, prefix: str = "") -> dict[str, Any]:
 
 
 class RuntimeValueResolver:
-    def __init__(self, prompts: Mapping[str, PromptValue]) -> None:
+    def __init__(
+        self,
+        prompts: Mapping[str, PromptValue],
+        *,
+        render_default: DefaultRenderer | None = None,
+    ) -> None:
         self.prompts = dict(prompts)
+        self.render_default = render_default
         self._check_environment_collisions()
+
+    def _default_display(self, path: str, value: PromptValue) -> str | None:
+        """Render one prompt default for display; a broken template falls back to raw."""
+        if not value.has_default:
+            return None
+        if self.render_default is None:
+            return str(value.default)
+        try:
+            return self.render_default(path, value.default)
+        except ToolchainError:
+            return str(value.default)
 
     def _check_environment_collisions(self) -> None:
         names: dict[str, str] = {}
@@ -123,7 +141,12 @@ class RuntimeValueResolver:
                 resolved[path] = ResolvedValue(self._normalize(path, prompt, raw), source)
             elif interactive:
                 resolved[path] = ResolvedValue(
-                    prompt_for_value(prompt, input_fn), ValueSource.INTERACTIVE
+                    prompt_for_value(
+                        prompt,
+                        input_fn,
+                        default_display=self._default_display(path, prompt),
+                    ),
+                    ValueSource.INTERACTIVE,
                 )
             elif prompt.has_default:
                 resolved[path] = ResolvedValue(prompt.default, ValueSource.DEFAULT)

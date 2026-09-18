@@ -100,6 +100,7 @@ class PlanScenarioUseCase:
             config,
             {**profile_prompts, **compose_prompts, **instance_prompts, **group_prompts},
             request,
+            renderer=renderer,
         )
         selected_names = _select_instances(
             scene_name,
@@ -152,6 +153,7 @@ class PlanScenarioUseCase:
                 request.interactive,
                 request.input_fn,
             ),
+            renderer=renderer,
         )
 
         planned: dict[str, ScenarioInstanceSpec] = {}

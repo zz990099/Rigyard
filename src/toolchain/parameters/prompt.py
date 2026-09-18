@@ -10,8 +10,24 @@ from .models import PromptMode, PromptValue
 InputFunction = Callable[[str], str]
 
 
-def prompt_for_value(value: PromptValue, input_fn: InputFunction = input) -> Any:
+def prompt_for_value(
+    value: PromptValue,
+    input_fn: InputFunction = input,
+    *,
+    default_display: str | None = None,
+) -> Any:
+    """Acquire one prompt value from the terminal.
+
+    ``default_display`` is the default as it should be shown to the user, i.e. already
+    expanded through the string templates (``${env:USER}`` → ``root``). When it is
+    omitted the raw default is displayed; prompts without a default show no hint.
+    The value returned for an accepted default stays the raw one: it is rendered once
+    more together with the rest of the selected definition.
+    """
     prompt = value.prompt
+    if default_display is None and value.has_default:
+        default_display = str(value.default)
+    default_hint = f" [{default_display}]" if default_display is not None else ""
     if prompt.mode == PromptMode.CONFIRM:
         default_hint = "Y/n" if value.has_default and value.default else "y/N"
         while True:
@@ -26,7 +42,6 @@ def prompt_for_value(value: PromptValue, input_fn: InputFunction = input) -> Any
     if prompt.mode == PromptMode.SELECT:
         options = prompt.options or ()
         choices = ", ".join(f"{index}={item}" for index, item in enumerate(options, 1))
-        default_hint = f" [{value.default}]" if value.has_default else ""
         while True:
             raw = input_fn(f"{prompt.message} ({choices}){default_hint}: ").strip()
             if not raw and value.has_default:
@@ -48,7 +63,6 @@ def prompt_for_value(value: PromptValue, input_fn: InputFunction = input) -> Any
                 return items
             items.append(raw)
 
-    default_hint = f" [{value.default}]" if value.has_default else ""
     while True:
         raw = input_fn(f"{prompt.message}{default_hint}: ")
         if raw or not value.has_default:
