@@ -9,7 +9,7 @@ robot-system:
           script: /workspace/scripts/scenarios/drivers.sh
           setup: [/opt/ros/humble/setup.bash, install/setup.bash]
           interpreter: [/bin/bash, -euo, pipefail]
-          workdir: /workspace
+          workdir: ${CONTAINER_WORKSPACE_ROOT}
           environment:
             ROS_DOMAIN_ID:
               default: "7"

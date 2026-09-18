@@ -48,6 +48,42 @@ def test_manifest_loads_relative_sources(tmp_path: Path, monkeypatch):
     assert list(loaded.containers) == ["development"]
 
 
+def test_manifest_loads_global_variables(tmp_path: Path):
+    config = write(
+        tmp_path / "toolchain.yaml",
+        """version: 3
+metadata: {name: test-project}
+variables:
+  WORKSPACE_ROOT: /workspace
+  CONTAINER_PROJECT_ROOT: /workspace/project
+sources: {containers: containers.yaml}
+""",
+    )
+    write(tmp_path / "containers.yaml", "development: {image: ubuntu}\n")
+
+    loaded = load_config(config)
+
+    assert loaded.variables == {
+        "WORKSPACE_ROOT": "/workspace",
+        "CONTAINER_PROJECT_ROOT": "/workspace/project",
+    }
+
+
+def test_manifest_rejects_invalid_global_variable_names(tmp_path: Path):
+    config = write(
+        tmp_path / "toolchain.yaml",
+        """version: 3
+metadata: {name: test-project}
+variables: {bad-name: /workspace}
+sources: {containers: containers.yaml}
+""",
+    )
+    write(tmp_path / "containers.yaml", "development: {image: ubuntu}\n")
+
+    with pytest.raises(SchemaValidationError, match="invalid global variable name"):
+        load_config(config)
+
+
 def test_invalid_external_prompt_reports_source_location(tmp_path: Path):
     config = manifest(tmp_path, "  containers: config/containers.yaml")
     source = write(

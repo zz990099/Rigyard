@@ -116,6 +116,7 @@ def load_config(path: str | Path) -> ToolchainConfig:
         version=manifest.version,
         metadata=manifest.metadata,
         sources=manifest.sources,
+        variables=manifest.variables,
         images=images,
         containers=containers,
         builds=builds,

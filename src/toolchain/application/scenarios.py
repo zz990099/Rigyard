@@ -42,6 +42,7 @@ class PlanScenarioUseCase:
                 dict(os.environ if environment is None else environment),
                 now=now,
                 config_path=request.config_path,
+                variables=config.variables,
             )
         )
         if scene_name not in config.scenarios:

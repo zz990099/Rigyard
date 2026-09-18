@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
@@ -12,6 +13,7 @@ from ..images.models import IMAGE_NAME, ImageTemplate
 from ..scenarios.models import ScenarioTemplate
 
 SCHEMA_VERSION = 3
+VARIABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def _invalid_names(values: dict[str, object]) -> list[str]:
@@ -55,6 +57,7 @@ class ToolchainManifest(BaseModel):
     version: int
     metadata: ToolchainMetadata
     sources: ToolchainSources
+    variables: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("version")
     @classmethod
@@ -67,6 +70,14 @@ class ToolchainManifest(BaseModel):
                 "`instances.<name>` and set `version: 3`"
             )
         raise ValueError(f"unsupported schema version {value}; expected {SCHEMA_VERSION}")
+
+    @field_validator("variables")
+    @classmethod
+    def valid_variable_names(cls, values: dict[str, str]) -> dict[str, str]:
+        invalid = sorted(name for name in values if not VARIABLE_NAME.fullmatch(name))
+        if invalid:
+            raise ValueError(f"invalid global variable name(s): {', '.join(invalid)}")
+        return values
 
 
 class ImageDefinitions(RootModel[dict[str, ImageTemplate]]):
@@ -125,10 +136,19 @@ class ToolchainConfig(BaseModel):
     version: int
     metadata: ToolchainMetadata
     sources: ToolchainSources
+    variables: dict[str, str] = Field(default_factory=dict)
     images: dict[str, ImageTemplate] = Field(default_factory=dict)
     containers: dict[str, ContainerTemplate] = Field(default_factory=dict)
     builds: dict[str, BuildTemplate] = Field(default_factory=dict)
     scenarios: dict[str, ScenarioTemplate] = Field(default_factory=dict)
+
+    @field_validator("variables")
+    @classmethod
+    def valid_variable_names(cls, values: dict[str, str]) -> dict[str, str]:
+        invalid = sorted(name for name in values if not VARIABLE_NAME.fullmatch(name))
+        if invalid:
+            raise ValueError(f"invalid global variable name(s): {', '.join(invalid)}")
+        return values
 
     @field_validator("images")
     @classmethod

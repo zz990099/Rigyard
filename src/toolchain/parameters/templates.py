@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,6 +35,7 @@ class TemplateContext:
         now: datetime | None = None,
         config_path: str | Path | None = None,
         workspace_root: str | Path | None = None,
+        variables: Mapping[str, str] | None = None,
     ) -> TemplateContext:
         captured = datetime.now().astimezone() if now is None else now
         if captured.tzinfo is None or captured.utcoffset() is None:
@@ -54,19 +55,37 @@ class TemplateContext:
                 "PROJECT_ROOT": str(project_root),
                 "TOOLCHAIN_ROOT": str(toolchain_root),
             }
-        return cls(
+        base = cls(
             MappingProxyType(dict(environment)),
             captured,
             captured.astimezone(timezone.utc),
             MappingProxyType(roots),
+        )
+        if not variables:
+            return base
+        renderer = StringTemplateRenderer(base)
+        configured = {
+            name: renderer.render(value, f"variables.{name}") for name, value in variables.items()
+        }
+        return cls(
+            base.environment,
+            base.local_now,
+            base.utc_now,
+            MappingProxyType({**roots, **configured}),
         )
 
 
 class StringTemplateRenderer:
     """Render supported expressions once without evaluating replacement text again."""
 
-    def __init__(self, context: TemplateContext) -> None:
+    def __init__(
+        self,
+        context: TemplateContext,
+        *,
+        variable_names: Collection[str] = (),
+    ) -> None:
         self.context = context
+        self.variable_names = frozenset(variable_names)
 
     def render(self, value: str, path: str) -> str:
         parts: list[str] = []
@@ -150,7 +169,7 @@ class StringTemplateRenderer:
         return instant.strftime(argument)
 
     def _validate_expression(self, source: str, path: str) -> tuple[str, str]:
-        if source in ROOT_NAMES:
+        if source in ROOT_NAMES or source in self.context.roots or source in self.variable_names:
             return "root", source
         if ":" not in source:
             raise self._error(path, f"invalid template {source!r}; expected KIND:ARGUMENT")
@@ -191,11 +210,14 @@ def validate_template_syntax(
     node: Any,
     prefix: str = "",
     renderer: StringTemplateRenderer | None = None,
+    *,
+    variable_names: Collection[str] = (),
 ) -> None:
     """Validate expressions everywhere without reading environment variables."""
 
     active = renderer or StringTemplateRenderer(
-        TemplateContext.capture({}, now=datetime(2000, 1, 1, tzinfo=timezone.utc))
+        TemplateContext.capture({}, now=datetime(2000, 1, 1, tzinfo=timezone.utc)),
+        variable_names=variable_names,
     )
     if isinstance(node, PromptValue):
         if node.has_default:

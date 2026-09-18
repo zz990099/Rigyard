@@ -36,7 +36,12 @@ class BuildImageUseCase:
             )
         host_environment = dict(os.environ if environment is None else environment)
         renderer = StringTemplateRenderer(
-            TemplateContext.capture(host_environment, now=now, config_path=request.config_path)
+            TemplateContext.capture(
+                host_environment,
+                now=now,
+                config_path=request.config_path,
+                variables=config.variables,
+            )
         )
         spec, _ = resolve_template(
             config,

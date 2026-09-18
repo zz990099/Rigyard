@@ -62,6 +62,10 @@ metadata:
   name: robot-development
   description: Robot software development toolchain
 
+variables:
+  CONTAINER_WORKSPACE_ROOT: /workspace
+  CONTAINER_PROJECT_ROOT: /workspace/project
+
 sources:
   images: config/images.yaml
   containers: config/containers.yaml
@@ -70,6 +74,7 @@ sources:
 ```
 
 source 路径相对于根 `toolchain.yaml`。当前每个领域最多引用一个 YAML 文件，至少需要配置一个 source。
+`variables` 是可选的全局字符串变量，所有领域 source 都可以引用。
 
 编译文件是名称到编译定义的 mapping。工具链不理解 colcon、catkin、CMake 等具体构建系统，只通过明确的解释器 argv 执行工程脚本：
 
@@ -224,6 +229,7 @@ development:
 | `${WORKSPACE_ROOT}` | 当前工作区绝对路径，即运行 `toolchain init` 的目录 |
 | `${PROJECT_ROOT}` | 工程绝对路径：配置目录名为 `.toolchain` 时取父目录，否则取配置目录 |
 | `${TOOLCHAIN_ROOT}` | 实际 `toolchain.yaml` 所在配置目录的绝对路径 |
+| `${NAME}` | 读取根 manifest 的 `variables.NAME` |
 | `$${...}` | 输出字面量 `${...}`，不执行模板 |
 
 日期格式采用 `strftime` 指令，例如 `%Y` 年、`%m` 月、`%d` 日、`%H` 时、`%M` 分、
@@ -234,6 +240,21 @@ development:
 `/ros2_ws`、`/ros2_ws/src/xbot`、`/ros2_ws/src/xbot/.toolchain`。工作区仍按既有规则仅绑定
 当前目录，不查找父目录；直接使用 `--config` 或未初始化时，`WORKSPACE_ROOT` 取当前目录。
 路径参数是工具链内置值，不读取同名环境变量，也不要求工程是 Git 仓库。
+
+内置根变量描述的是工具链进程看到的宿主文件系统，不能推断 Docker 中的挂载位置。需要容器侧
+语义时，应在根 manifest 明确定义，例如：
+
+```yaml
+variables:
+  CONTAINER_WORKSPACE_ROOT: /workspace
+  CONTAINER_PROJECT_ROOT: /workspace/src/robot
+  # 用户值优先，因此也可以覆盖内置推断：
+  PROJECT_ROOT: /workspace/src/robot
+```
+
+用户变量名匹配 `[A-Za-z_][A-Za-z0-9_]*`。同名用户值覆盖
+`${WORKSPACE_ROOT}`、`${PROJECT_ROOT}` 或 `${TOOLCHAIN_ROOT}` 的内置值。变量值本身可以引用
+内置根变量、`${env:...}` 和日期模板；用户变量之间不能互相引用，以避免声明顺序和循环依赖。
 
 ```yaml
 mounts:

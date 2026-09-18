@@ -4,6 +4,9 @@ metadata:
   name: robot-development
   description: Example robot development toolchain
 
+variables:
+  CONTAINER_WORKSPACE_ROOT: /workspace
+
 sources:
   images: config/images.yaml
   containers: config/containers.yaml

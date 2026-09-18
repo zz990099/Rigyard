@@ -39,14 +39,14 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 class ValidateConfigUseCase:
     def execute(self, config_path: str | Path) -> ToolchainConfig:
         config = load_config(config_path)
-        validate_template_syntax(config)
+        _validate_config_templates(config, config_path)
         return config
 
 
 class InspectParametersUseCase:
     def execute(self, config_path: str | Path) -> dict[str, Any]:
         config = load_config(config_path)
-        validate_template_syntax(config)
+        _validate_config_templates(config, config_path)
         prompts = collect_prompts(config)
         return {
             "version": config.version,
@@ -61,7 +61,11 @@ class ResolveParametersUseCase:
         config = load_config(request.config_path)
         context = resolve_prompts(config, request, allow_missing=allow_missing)
         renderer = StringTemplateRenderer(
-            TemplateContext.capture(os.environ, config_path=request.config_path)
+            TemplateContext.capture(
+                os.environ,
+                config_path=request.config_path,
+                variables=config.variables,
+            )
         )
         if not allow_missing:
             for name, template in config.images.items():
@@ -96,6 +100,17 @@ class ResolveParametersUseCase:
                         renderer,
                     )
         return context
+
+
+def _validate_config_templates(config: ToolchainConfig, config_path: str | Path) -> None:
+    base = TemplateContext.capture({}, config_path=config_path)
+    base_renderer = StringTemplateRenderer(base)
+    for name, value in config.variables.items():
+        base_renderer.validate(value, f"variables.{name}")
+    validate_template_syntax(
+        config,
+        renderer=StringTemplateRenderer(base, variable_names=config.variables),
+    )
 
 
 def resolve_prompts(

@@ -174,6 +174,98 @@ def test_root_templates_are_explicit_immutable_and_escaped(tmp_path: Path):
         renderer().render('${PROJECT_ROOT}', 'mounts')
 
 
+def test_global_variables_override_builtins_and_define_custom_names(tmp_path: Path):
+    config = tmp_path / "src" / "robot" / ".toolchain" / "toolchain.yaml"
+    active = StringTemplateRenderer(
+        TemplateContext.capture(
+            {"CONTAINER_BASE": "/runtime"},
+            config_path=config,
+            workspace_root=tmp_path,
+            now=NOW,
+            variables={
+                "WORKSPACE_ROOT": "/container-workspace",
+                "CONTAINER_PROJECT_ROOT": "${PROJECT_ROOT}/container",
+                "CONTAINER_CACHE_ROOT": "${env:CONTAINER_BASE}/cache",
+            },
+        )
+    )
+
+    assert active.render("${WORKSPACE_ROOT}", "value") == "/container-workspace"
+    assert active.render("${PROJECT_ROOT}", "value") == str(config.parent.parent)
+    assert active.render("${CONTAINER_PROJECT_ROOT}", "value") == (
+        f"{config.parent.parent}/container"
+    )
+    assert active.render("${CONTAINER_CACHE_ROOT}", "value") == "/runtime/cache"
+
+
+def test_container_plan_uses_manifest_global_variables(tmp_path: Path):
+    config = write(
+        tmp_path / "toolchain.yaml",
+        """version: 3
+metadata: {name: variables}
+variables:
+  WORKSPACE_ROOT: /container-workspace
+  CONTAINER_PROJECT_ROOT: /container-workspace/project
+sources: {containers: containers.yaml}
+""",
+    )
+    write(
+        tmp_path / "containers.yaml",
+        """development:
+  image: ubuntu
+  mounts: ["${WORKSPACE_ROOT}:/host-workspace"]
+  environment:
+    PROJECT_ROOT: "${CONTAINER_PROJECT_ROOT}"
+""",
+    )
+
+    plan = CreateContainerUseCase(backend=None).plan(
+        "development", ResolutionRequest(config, interactive=False), environment={}, now=NOW
+    )
+
+    assert {(mount.source, mount.target) for mount in plan.mounts} == {
+        ("/container-workspace", "/host-workspace")
+    }
+    assert dict(plan.environment)["PROJECT_ROOT"] == "/container-workspace/project"
+
+
+def test_validate_rejects_global_variable_references_between_user_variables(tmp_path: Path):
+    config = write(
+        tmp_path / "toolchain.yaml",
+        """version: 3
+metadata: {name: variables}
+variables:
+  CONTAINER_ROOT: /workspace
+  CONTAINER_PROJECT_ROOT: ${CONTAINER_ROOT}/project
+sources: {containers: containers.yaml}
+""",
+    )
+    write(tmp_path / "containers.yaml", "development: {image: ubuntu}\n")
+
+    with pytest.raises(ResolutionError, match="variables.CONTAINER_PROJECT_ROOT"):
+        ValidateConfigUseCase().execute(config)
+
+
+def test_validate_accepts_custom_global_variables_in_source_templates(tmp_path: Path):
+    config = write(
+        tmp_path / "toolchain.yaml",
+        """version: 3
+metadata: {name: variables}
+variables: {CONTAINER_WORKSPACE_ROOT: /workspace}
+sources: {containers: containers.yaml}
+""",
+    )
+    write(
+        tmp_path / "containers.yaml",
+        """development:
+  image: ubuntu
+  workdir: ${CONTAINER_WORKSPACE_ROOT}
+""",
+    )
+
+    ValidateConfigUseCase().execute(config)
+
+
 @pytest.mark.parametrize('initialized', [False, True])
 def test_container_roots_follow_workspace_binding(tmp_path: Path, monkeypatch, initialized):
     from toolchain.workspace import initialize_workspace, resolve_config_path
