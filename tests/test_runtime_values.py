@@ -13,6 +13,7 @@ from toolchain.parameters.resolver import (
     environment_name,
     materialize_as,
 )
+from toolchain.parameters.sources import DynamicOption, PromptSource
 
 
 def prompt(mode="input", default="value", **prompt_options):
@@ -164,6 +165,143 @@ def test_prompt_default_hint_falls_back_when_rendering_fails():
 
     assert seen == ["Choose [dev_${env:USER}]: "]
     assert context["dev"] == "dev_${env:USER}"
+
+
+def dynamic_prompt(**source_options) -> PromptValue:
+    return PromptValue.model_validate(
+        {
+            "default": "dev",
+            "prompt": {
+                "mode": "select",
+                "message": "Container",
+                "source": {"provider": "containers", **source_options},
+            },
+        }
+    )
+
+
+def recording_provider(options):
+    calls = []
+
+    def provide(source):
+        calls.append(source)
+        return options
+
+    return provide, calls
+
+
+def test_select_prompt_with_source_uses_dynamic_candidates():
+    provider, calls = recording_provider(
+        (DynamicOption("dev", "running"), DynamicOption("dev-2", "exited"))
+    )
+    resolver = RuntimeValueResolver(
+        {"containers.dev.name": dynamic_prompt(filter="^dev")},
+        sources={"containers": provider},
+    )
+    seen: list[str] = []
+
+    context = resolver.resolve(input_fn=lambda text: seen.append(text) or "2")
+
+    assert seen == ["  1) dev    running\n  2) dev-2  exited\nContainer [dev]: "]
+    assert context["containers.dev.name"] == "dev-2"
+    assert len(calls) == 1
+    assert calls[0] == PromptSource(provider="containers", filter="^dev")
+
+
+def test_dynamic_source_accepts_a_name_outside_the_candidate_list():
+    provider, _ = recording_provider((DynamicOption("dev"),))
+    resolver = RuntimeValueResolver(
+        {"containers.dev.name": dynamic_prompt()}, sources={"containers": provider}
+    )
+
+    context = resolver.resolve(input_fn=lambda _: "some-other-container")
+
+    assert context["containers.dev.name"] == "some-other-container"
+
+
+def test_dynamic_source_returns_the_default_on_an_empty_answer():
+    provider, _ = recording_provider(())
+    resolver = RuntimeValueResolver(
+        {"containers.dev.name": dynamic_prompt()}, sources={"containers": provider}
+    )
+    seen: list[str] = []
+
+    context = resolver.resolve(input_fn=lambda text: seen.append(text) or "")
+
+    assert seen == ["Container [dev]: "]           # 没有候选就不列空括号
+    assert context["containers.dev.name"] == "dev"
+
+
+def test_dynamic_source_is_not_queried_without_interaction():
+    provider, calls = recording_provider((DynamicOption("dev"),))
+    resolver = RuntimeValueResolver(
+        {"containers.dev.name": dynamic_prompt()}, sources={"containers": provider}
+    )
+
+    assert resolver.resolve(interactive=False)["containers.dev.name"] == "dev"
+    assert resolver.resolve(values={"containers": {"dev": {"name": "from-values"}}},
+                            interactive=False)["containers.dev.name"] == "from-values"
+    assert resolver.resolve(overrides={"containers.dev.name": "from-cli"},
+                            interactive=False)["containers.dev.name"] == "from-cli"
+    assert calls == []
+
+
+def test_dynamic_source_is_looked_up_once_per_source_specification():
+    provider, calls = recording_provider((DynamicOption("dev"),))
+    resolver = RuntimeValueResolver(
+        {
+            "containers.a.name": dynamic_prompt(filter="^dev"),
+            "containers.b.name": dynamic_prompt(filter="^dev"),
+        },
+        sources={"containers": provider},
+    )
+
+    resolver.resolve(input_fn=lambda _: "dev")
+
+    assert len(calls) == 1
+
+
+def test_unknown_dynamic_provider_is_reported():
+    resolver = RuntimeValueResolver({"containers.dev.name": dynamic_prompt()}, sources={})
+
+    with pytest.raises(ResolutionError, match="unknown dynamic options provider 'containers'"):
+        resolver.resolve(input_fn=lambda _: "")
+
+
+def test_inspect_reports_the_dynamic_source():
+    resolver = RuntimeValueResolver(
+        {"containers.dev.name": dynamic_prompt(filter="^dev", running_only=True)}
+    )
+
+    assert resolver.inspect()["containers.dev.name"]["source"] == {
+        "provider": "containers",
+        "filter": "^dev",
+        "running_only": True,
+    }
+
+
+def test_prompt_source_schema_rules():
+    assert dynamic_prompt(filter="^dev").prompt.source == PromptSource(
+        provider="containers", filter="^dev"
+    )
+    for data in (
+        {
+            "prompt": {
+                "mode": "select",
+                "message": "x",
+                "options": ["a"],
+                "source": {"provider": "containers"},
+            }
+        },
+        {"prompt": {"mode": "input", "message": "x", "source": {"provider": "containers"}}},
+        {"prompt": {"mode": "select", "message": "x", "source": {"provider": "containers",
+                                                                 "filter": "("}}},
+        {"prompt": {"mode": "select", "message": "x", "source": {"provider": "containers",
+                                                                 "filtre": "^dev"}}},
+        {"prompt": {"mode": "select", "message": "x", "source": {"provider": "Containers"}}},
+    ):
+        with pytest.raises(ValidationError):
+            PromptValue.model_validate(data)
 
 
 def test_target_model_performs_type_validation_after_interaction():

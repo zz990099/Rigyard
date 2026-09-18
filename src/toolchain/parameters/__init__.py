@@ -3,10 +3,15 @@
 from .context import ResolvedContext, ResolvedValue, ValueSource
 from .models import PromptMode, PromptSpec, PromptValue
 from .resolver import RuntimeValueResolver, collect_prompts
+from .sources import DynamicOption, DynamicOptionsProvider, DynamicSources, PromptSource
 from .templates import StringTemplateRenderer, TemplateContext, validate_template_syntax
 
 __all__ = [
+    "DynamicOption",
+    "DynamicOptionsProvider",
+    "DynamicSources",
     "PromptMode",
+    "PromptSource",
     "PromptSpec",
     "PromptValue",
     "ResolvedContext",

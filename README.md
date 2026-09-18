@@ -193,9 +193,33 @@ robot-system:
 | --- | --- | --- |
 | `input` | 单项输入 | `repeat: true` 时重复输入并返回列表 |
 | `confirm` | 是/否确认 | 值为布尔值 |
-| `select` | 候选项选择 | 必须设置非空 `options` |
+| `select` | 候选项选择 | 必须设置非空 `options`，或运行时 `source` |
 
 交互模式只负责取值方式，最终数据类型由所在的业务字段校验。
+
+`select` 的候选项可以来自运行时：把 `options` 换成 `source`，工具链只在**真正要询问**时才向
+provider 取候选（`--non-interactive`、values 文件、`TOOL_PARAM_*`、`--set` 都不会触发）。内置
+provider `docker-containers` 支持用正则 `filter` 过滤名字、`running_only: true` 只看运行中的容器：
+
+```yaml
+  container:
+    default: nhybot_dev_${env:USER}
+    prompt:
+      mode: select
+      message: Select the build container
+      source: {provider: docker-containers, filter: "^nhybot_dev_", running_only: true}
+```
+
+候选按行列出（名字列对齐，后面是状态与镜像），最后一行才是问题：
+
+```text
+  1) nhybot_dev_binfeng      running, nhybot_base_dev:dev_x86_64_base
+  2) nhybot_dev_binfeng_sim  exited, nhybot_base_dev:dev_x86_64_base
+Select the build container [nhybot_dev_binfeng]:
+```
+
+输入序号选择，也可以直接键入名字（动态候选是开放集合，显式值不做 `options` 白名单校验）。取不到
+候选时（docker 不可用、daemon 未启动或过滤后为空）静默回退为普通输入，仍可手输或回车取默认。
 
 显式值优先级从低到高为：
 

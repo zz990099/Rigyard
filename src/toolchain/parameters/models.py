@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from .sources import PromptSource
+
 
 class PromptMode(str, Enum):
     INPUT = "input"
@@ -20,6 +22,7 @@ class PromptSpec(BaseModel):
     mode: PromptMode
     message: str
     options: tuple[Any, ...] | None = None
+    source: PromptSource | None = None
     repeat: bool = False
     item_hint: str | None = None
 
@@ -28,12 +31,14 @@ class PromptSpec(BaseModel):
         if not self.message.strip():
             raise ValueError("prompt message must not be empty")
         if self.mode == PromptMode.SELECT:
-            if not self.options:
-                raise ValueError("select prompts require non-empty options")
+            if self.source is None and not self.options:
+                raise ValueError("select prompts require non-empty options or a source")
+            if self.source is not None and self.options is not None:
+                raise ValueError("select prompts accept options or a source, not both")
             if self.repeat:
                 raise ValueError("select prompts do not support repeat")
-        elif self.options is not None:
-            raise ValueError("options is only valid for select prompts")
+        elif self.options is not None or self.source is not None:
+            raise ValueError("options and source are only valid for select prompts")
         if self.repeat and self.mode != PromptMode.INPUT:
             raise ValueError("repeat is only valid for input prompts")
         return self
@@ -53,8 +58,10 @@ class PromptValue(BaseModel):
             return self
         if self.prompt.mode == PromptMode.CONFIRM and not isinstance(self.default, bool):
             raise ValueError("confirm prompt default must be a boolean")
-        if self.prompt.mode == PromptMode.SELECT and self.default not in (
-            self.prompt.options or ()
+        if (
+            self.prompt.mode == PromptMode.SELECT
+            and self.prompt.source is None
+            and self.default not in (self.prompt.options or ())
         ):
             raise ValueError("select prompt default must be one of its options")
         if self.prompt.repeat and not isinstance(self.default, (list, tuple)):

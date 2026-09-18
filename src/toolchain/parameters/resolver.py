@@ -14,6 +14,7 @@ from ..errors import MissingValueError, ResolutionError, ToolchainError
 from .context import ResolvedContext, ResolvedValue, ValueSource
 from .models import PromptMode, PromptValue
 from .prompt import InputFunction, prompt_for_value
+from .sources import DynamicOption, DynamicSources
 from .templates import StringTemplateRenderer, TemplateContext
 
 ENV_PREFIX = "TOOL_PARAM_"
@@ -70,10 +71,31 @@ class RuntimeValueResolver:
         prompts: Mapping[str, PromptValue],
         *,
         render_default: DefaultRenderer | None = None,
+        sources: DynamicSources | None = None,
     ) -> None:
         self.prompts = dict(prompts)
         self.render_default = render_default
+        self.sources = dict(sources or {})
+        self._dynamic_options: dict[tuple[str, str | None, bool], tuple[DynamicOption, ...]] = {}
         self._check_environment_collisions()
+
+    def _options_for(self, path: str, value: PromptValue) -> tuple[DynamicOption, ...] | None:
+        """Look up the dynamic candidates of one prompt, once per source."""
+
+        source = value.prompt.source
+        if source is None:
+            return None
+        provider = self.sources.get(source.provider)
+        if provider is None:
+            available = ", ".join(sorted(self.sources)) or "none"
+            raise ResolutionError(
+                f"unknown dynamic options provider {source.provider!r} for {path}; "
+                f"configured providers: {available}"
+            )
+        key = (source.provider, source.filter, source.running_only)
+        if key not in self._dynamic_options:
+            self._dynamic_options[key] = tuple(provider(source))
+        return self._dynamic_options[key]
 
     def _default_display(self, path: str, value: PromptValue) -> str | None:
         """Render one prompt default for display; a broken template falls back to raw."""
@@ -103,6 +125,7 @@ class RuntimeValueResolver:
                 "message": value.prompt.message,
                 "repeat": value.prompt.repeat,
                 "options": list(value.prompt.options) if value.prompt.options else None,
+                "source": value.prompt.source.model_dump() if value.prompt.source else None,
                 "has_default": value.has_default,
                 "environment": environment_name(path),
             }
@@ -145,6 +168,7 @@ class RuntimeValueResolver:
                         prompt,
                         input_fn,
                         default_display=self._default_display(path, prompt),
+                        dynamic_options=self._options_for(path, prompt),
                     ),
                     ValueSource.INTERACTIVE,
                 )
@@ -170,6 +194,9 @@ class RuntimeValueResolver:
                     return False
             raise ResolutionError(f"invalid confirm value for {path}: {raw!r}")
         if prompt.mode == PromptMode.SELECT:
+            if prompt.source is not None:
+                # A dynamic source is an open set: explicit values are taken as they are.
+                return raw
             options = prompt.options or ()
             if raw in options:
                 return raw
