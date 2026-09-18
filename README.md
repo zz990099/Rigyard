@@ -171,8 +171,9 @@ robot-system:
 ```
 
 非 Compose 场景中 `container` 属于 instance 且为必填字段，目标容器需提前创建；
-`restart_container` 决定启动前如何重启它，默认开启 mouse 与 pane 边框组名；进程退出（包括
-`Ctrl+C`）后 pane 默认会落回容器内的交互式 shell 继续操作（`keep_alive: false` 可关闭）。
+`restart_container` 决定启动前如何重启它，默认开启 mouse 与 pane 边框组名。pane 默认像一个
+终端：group 进程退出（包括 `Ctrl+C`）后落到已按 `setup` source 过的容器内 shell，`exit` 后再
+落到宿主的交互式 shell，pane 不会变成 dead（`keep_alive: false` 可关闭这层包装）。
 每个 group 用
 容器内 `script`，或 `command` 加可选 `setup`（先 source 再 `exec`）描述进程，两种模式复用
 同一套 tmux 启动流程。默认启动全部 `enabled` 的 instance，可用 `--instance NAME` 只启动其中几个；只解析

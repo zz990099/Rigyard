@@ -16,7 +16,13 @@ from .models import (
     ScenarioPlan,
     ScenarioResult,
 )
-from .process import keep_alive_argv, process_argv, startup_exit_code
+from .process import (
+    container_session_argv,
+    host_shell_argv,
+    keep_alive_argv,
+    process_argv,
+    startup_exit_code,
+)
 
 PLACEHOLDER = "import time; time.sleep(86400)"
 PANE_GROUP_OPTION = "@tc_group"
@@ -98,6 +104,15 @@ class ScenarioExecutor:
                             PLACEHOLDER,
                         ),
                         f"cannot split tmux window {instance.name!r}",
+                    )
+                    # split-window always splits the window's current pane, so without
+                    # re-tiling the same pane is halved again and again until tmux
+                    # answers "no space for new pane" (a window with 11 groups dies on a
+                    # default 80x24 session). Tiling keeps every pane big enough for the
+                    # next split, which is what the legacy startup scripts did.
+                    self._checked(
+                        ("tmux", "select-layout", "-t", window, "tiled"),
+                        f"cannot lay out tmux window {instance.name!r}",
                     )
                 panes = self._panes(window)
                 if len(panes) != len(instance.groups):
@@ -540,7 +555,7 @@ class ScenarioExecutor:
         instance: ScenarioInstancePlan,
         group: ScenarioGroupPlan,
         *,
-        interactive_shell: bool = False,
+        argv: tuple[str, ...] | None = None,
     ) -> tuple[str, ...]:
         docker = ["docker", "exec", "-it"]
         if group.user is not None:
@@ -549,10 +564,7 @@ class ScenarioExecutor:
             docker.append(f"--workdir={group.workdir}")
         docker.extend(f"--env={key}={value}" for key, value in group.environment)
         docker.append(self._instance_container(instance))
-        if interactive_shell:
-            docker.extend((group.interpreter[0], "-i"))
-        else:
-            docker.extend(process_argv(group))
+        docker.extend(process_argv(group) if argv is None else argv)
         return tuple(docker)
 
     def _pane_command(
@@ -561,11 +573,12 @@ class ScenarioExecutor:
         instance: ScenarioInstancePlan,
         group: ScenarioGroupPlan,
     ) -> tuple[str, ...]:
-        primary = self._docker_exec(plan, instance, group)
         if not plan.keep_alive:
-            return primary
-        fallback = self._docker_exec(plan, instance, group, interactive_shell=True)
-        return keep_alive_argv(primary, fallback, group.name)
+            return self._docker_exec(plan, instance, group)
+        primary = self._docker_exec(
+            plan, instance, group, argv=container_session_argv(group)
+        )
+        return keep_alive_argv(primary, group.name, host_shell_argv(self.environment))
 
     def _configure_session(self, plan: ScenarioPlan) -> None:
         self._checked(

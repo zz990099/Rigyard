@@ -19,7 +19,14 @@ from toolchain.scenarios.models import (
     ScenarioPlan,
     ScenarioResult,
 )
-from toolchain.scenarios.process import keep_alive_argv, process_argv, startup_exit_code
+from toolchain.scenarios.process import (
+    command_line,
+    container_session_argv,
+    host_shell_argv,
+    keep_alive_argv,
+    process_argv,
+    startup_exit_code,
+)
 
 
 class TTYBuffer(io.StringIO):
@@ -749,19 +756,85 @@ def test_group_script_form_still_renders_interpreter_and_script():
     )
 
 
-def test_keep_alive_wrapper_survives_interrupts_and_hands_over_a_shell():
+def test_keep_alive_wrapper_survives_interrupts_and_hands_over_a_host_shell():
     primary = ("docker", "exec", "-it", "robot-dev", "bash", "-c", "sleep 1")
-    fallback = ("docker", "exec", "-it", "robot-dev", "bash", "-i")
-    argv = keep_alive_argv(primary, fallback, "drivers")
+    argv = keep_alive_argv(primary, "drivers", ("/bin/bash", "-i"))
     assert argv[:2] == ("/bin/sh", "-c")
     program = argv[2]
     assert program.splitlines() == [
         'trap "" INT',
         "docker exec -it robot-dev bash -c 'sleep 1'",
         "__toolchain_status=$?",
-        'echo "[toolchain] drivers exited with code $__toolchain_status"',
-        "docker exec -it robot-dev bash -i",
+        'echo "[toolchain] drivers container shell exited with code $__toolchain_status"',
+        "trap - INT",
+        "exec /bin/bash -i",
     ]
+
+
+def test_container_session_runs_the_group_as_a_child_and_keeps_a_ready_shell():
+    item = group(
+        "drivers",
+        command=("ros2", "launch", "a.launch.py"),
+        setup=("install/setup.bash",),
+    )
+
+    argv = container_session_argv(item)
+
+    assert argv[:4] == ("/bin/bash", "-euo", "pipefail", "-c")
+    assert argv[-1].splitlines() == [
+        ". install/setup.bash",
+        "set +e",
+        "ros2 launch a.launch.py",
+        "__toolchain_status=$?",
+        'echo "[toolchain] drivers exited with code $__toolchain_status"',
+        '__toolchain_history="${HISTFILE-$HOME/.bash_history}"',
+        'if [ -n "$__toolchain_history" ]; then',
+        "  printf '%s\\n' '. install/setup.bash; ros2 launch a.launch.py'"
+        ' >> "$__toolchain_history" 2>/dev/null',
+        "fi",
+        "exec /bin/bash -i",
+    ]
+
+
+def test_container_session_works_without_setup_and_for_scripts():
+    assert container_session_argv(group("drivers", command=("true",)))[-1].splitlines() == [
+        "set +e",
+        "true",
+        "__toolchain_status=$?",
+        'echo "[toolchain] drivers exited with code $__toolchain_status"',
+        '__toolchain_history="${HISTFILE-$HOME/.bash_history}"',
+        'if [ -n "$__toolchain_history" ]; then',
+        "  printf '%s\\n' true >> \"$__toolchain_history\" 2>/dev/null",
+        "fi",
+        "exec /bin/bash -i",
+    ]
+    assert container_session_argv(group("nav"))[-1].splitlines()[1:4] == [
+        "/bin/bash -euo pipefail /workspace/nav.sh",
+        "__toolchain_status=$?",
+        'echo "[toolchain] nav exited with code $__toolchain_status"',
+    ]
+
+
+def test_command_line_matches_what_legacy_typed_into_the_pane():
+    item = group(
+        "drivers",
+        command=("ros2", "launch", "a.launch.py", "use_sim_time:=True"),
+        setup=("install/setup.bash",),
+    )
+    assert command_line(item) == (
+        ". install/setup.bash; ros2 launch a.launch.py use_sim_time:=True"
+    )
+    assert command_line(group("nav")) == "/bin/bash -euo pipefail /workspace/nav.sh"
+
+
+def test_host_shell_prefers_the_login_shell_and_falls_back_to_bash(tmp_path: Path):
+    custom = tmp_path / "custom-shell"
+    custom.write_text("#!/bin/sh\n")
+    custom.chmod(0o755)
+
+    assert host_shell_argv({"SHELL": str(custom)}) == (str(custom), "-i")
+    assert host_shell_argv({"SHELL": "/does/not/exist"}) == ("/bin/bash", "-i")
+    assert host_shell_argv({}) == ("/bin/bash", "-i")
 
 
 def test_startup_exit_code_reads_the_keep_alive_marker():
@@ -803,6 +876,20 @@ def test_tmux_start_creates_one_window_per_instance_and_one_pane_per_group():
         for command in fake.commands
         if command[:2] == ("tmux", "select-layout")
     )
+
+
+def test_tmux_retiles_after_every_split_so_many_groups_fit():
+    fake = FakeTmux()
+    groups = tuple(group(f"group{index}", command=("true",)) for index in range(11))
+
+    executor(fake).start(scenario_plan(instance(groups=groups), keep_alive=False))
+
+    verbs = [command[1] for command in fake.commands if command[0] == "tmux"]
+    assert verbs.count("split-window") == len(groups) - 1
+    for index, verb in enumerate(verbs):
+        if verb == "split-window":
+            assert verbs[index + 1] == "select-layout"
+    assert len(fake.panes["robot1"]) == len(groups)
 
 
 def test_tmux_start_enables_mouse_and_pane_borders_by_default():
@@ -1107,15 +1194,38 @@ def test_tmux_window_runs_group_command_with_setup():
     assert process[-len(expected) :] == expected
 
 
-def test_tmux_keep_alive_pane_falls_back_to_a_shell_instead_of_dying():
+def test_tmux_keep_alive_pane_keeps_a_ready_container_shell_and_a_host_terminal():
     fake = FakeTmux()
-    executor(fake).start(scenario_plan(instance()))
+    executor(fake, environment={"SHELL": "/bin/bash"}).start(scenario_plan(instance()))
     process = next(command for command in fake.commands if command[:2] == ("tmux", "respawn-pane"))
     assert process[5:7] == ("/bin/sh", "-c")
     program = process[-1]
     assert program.startswith('trap "" INT\ndocker exec -it')
-    assert program.endswith("docker exec -it --workdir=/ros2_ws robot-dev /bin/bash -i")
+    # 组命令作为子进程运行，退出后留在容器内、已 source setup 的交互 shell
+    assert "set +e\n/bin/bash -euo pipefail /workspace/drivers.sh" in program
     assert "[toolchain] drivers exited with code $__toolchain_status" in program
+    assert "exec /bin/bash -i" in program
+    # 容器 shell exit 之后：清理 SIGINT 处置并落到宿主 shell，pane 保持可用
+    assert "[toolchain] drivers container shell exited with code $__toolchain_status" in program
+    assert program.endswith("trap - INT\nexec /bin/bash -i")
+
+
+def test_tmux_keep_alive_pane_sources_group_setup_before_the_ready_shell():
+    item = instance(
+        groups=(
+            group(
+                "drivers",
+                command=("ros2", "launch", "a.launch.py"),
+                setup=("install/setup.bash",),
+            ),
+        )
+    )
+    fake = FakeTmux()
+    executor(fake).start(scenario_plan(item))
+    program = next(
+        command for command in fake.commands if command[:2] == ("tmux", "respawn-pane")
+    )[-1]
+    assert ". install/setup.bash\nset +e\nros2 launch a.launch.py" in program
 
 
 def test_tmux_reports_a_group_that_exited_before_keep_alive_shell_started():

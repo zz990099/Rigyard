@@ -131,9 +131,18 @@ project 为生命周期边界，不接受 `--instance`。
 - 跨 window：`Ctrl+b` + 数字、`Ctrl+b n` / `p`、`Ctrl+b w`。
 - `mouse: true` 时可以直接点击 pane 或 status bar。
 
-每个 pane 开启 `remain-on-exit`。keep_alive 默认为 true：group 进程退出后打印退出码，并把
-pane 交给容器内的交互式 shell，方便查看现场或手动重跑。设为 false 时，进程退出后 pane
-变为 dead，只保留输出。
+每个 pane 开启 `remain-on-exit`。keep_alive 默认为 true，pane 表现得像一个终端：
+
+1. group 的 `command` / `script` 作为子进程运行；退出（包括 `Ctrl+C`）后先打印
+   `[toolchain] <group> exited with code <rc>`，然后留在容器内的交互式 shell。这个 shell 已
+   按 group 的 `setup` 完成 source，可以直接再次执行 `ros2 launch …`，不需要重新 source；
+   刚执行的命令行也已写入 shell 历史（`$HISTFILE`），按 `↑` 即可找回，与手工输入等效。
+2. 在这个容器 shell 里 `exit` 后，pane 不会变成 dead：先打印
+   `[toolchain] <group> container shell exited with code <rc>`，再落到宿主的交互式 shell
+   （`$SHELL`，缺省 `/bin/bash`），可以再次 `docker exec -it … bash` 进入容器。
+
+设为 `keep_alive: false` 时不做这层包装：进程退出后 pane 变为 dead，只保留输出。group 进程在
+启动宽限期内就退出时仍然按启动失败处理，tmux session 会保留用于诊断。
 
 已有容器模式的启动顺序固定为：校验 tmux 与 Docker → 关闭本场景已有 window/session → 按
 `restart_container` 处理容器 → 确认容器正在运行 → 创建 window 和 pane → 必要时 attach。
