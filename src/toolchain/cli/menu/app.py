@@ -12,6 +12,7 @@ from ...application.images import BuildImageUseCase
 from ...application.parameters import ValidateConfigUseCase
 from ...application.requests import BuildImageRequest, ResolutionRequest
 from ...application.scenarios import PlanScenarioUseCase
+from ...config.models import SourceFileInfo
 from ...providers.docker import DockerImageBackend
 from ...providers.docker.container_backend import DockerContainerBackend
 from ...providers.host import HostBuildBackend
@@ -115,27 +116,75 @@ class MenuApp:
             return action.label
         return f"{action.label} [{action.disabled_reason}]"
 
-    def _request(self, session: MenuSession) -> ResolutionRequest:
+    def _source_groups(self, session: MenuSession, kind: str) -> tuple[SourceFileInfo, ...]:
+        return tuple(
+            group
+            for group in session.config.source_files.get(kind, ())
+            if group.names
+        )
+
+    def _source_relative_path(self, session: MenuSession, path: Path) -> Path:
+        try:
+            return path.relative_to(session.config_path.resolve().parent)
+        except ValueError:
+            return path
+
+    def _source_labels(
+        self, session: MenuSession, groups: tuple[SourceFileInfo, ...]
+    ) -> list[str]:
+        labels = []
+        for group in groups:
+            path = str(self._source_relative_path(session, group.path))
+            if group.description:
+                label = f"{group.description} ({path})"
+            else:
+                label = path
+            labels.append(label)
+        return labels
+
+    def _select_source_group(
+        self, session: MenuSession, kind: str, title: str
+    ) -> SourceFileInfo | None:
+        groups = self._source_groups(session, kind)
+        if not groups:
+            return None
+        if len(groups) == 1:
+            return groups[0]
+        selected = self.io.select(
+            title,
+            self._source_labels(session, groups),
+            back_label="Back",
+        )
+        if selected is None:
+            return None
+        return groups[selected]
+
+    def _definition_label(self, group: SourceFileInfo, name: str) -> str:
+        description = getattr(group.definitions[name], "description", None)
+        return f"{name} — {description}" if description else name
+
+    def _request(
+        self, session: MenuSession, source_path: Path | None = None
+    ) -> ResolutionRequest:
         return ResolutionRequest(
             config_path=session.config_path,
             values_path=session.values_path,
             interactive=True,
             input_fn=self.io.ask,
+            source_path=source_path,
         )
 
     def _create_container(self, session: MenuSession) -> None:
-        names = list(session.config.containers)
-        labels = [
-            f"{name} — {session.config.containers[name].description}"
-            if session.config.containers[name].description
-            else name
-            for name in names
-        ]
+        group = self._select_source_group(session, "containers", "Create container")
+        if group is None:
+            return
+        names = list(group.names)
+        labels = [self._definition_label(group, name) for name in names]
         selected = self.io.select("Create container", labels, back_label="Back")
         if selected is None:
             return
         use_case = CreateContainerUseCase(self.container_backend_factory())
-        plan = use_case.plan(names[selected], self._request(session))
+        plan = use_case.plan(names[selected], self._request(session, group.path))
         for line in describe_container(plan):
             self.io.write(line)
         if not self.io.confirm("Create and start this container now?"):
@@ -148,11 +197,11 @@ class MenuApp:
         )
 
     def _build_image(self, session: MenuSession) -> None:
-        image_names = list(session.config.images)
-        labels = []
-        for name in image_names:
-            description = session.config.images[name].description
-            labels.append(f"{name} — {description}" if description else name)
+        group = self._select_source_group(session, "images", "Build image")
+        if group is None:
+            return
+        image_names = list(group.names)
+        labels = [self._definition_label(group, name) for name in image_names]
         selected = self.io.select("Build image", labels, back_label="Back")
         if selected is None:
             return
@@ -165,6 +214,7 @@ class MenuApp:
                 values_path=session.values_path,
                 interactive=True,
                 input_fn=self.io.ask,
+                source_path=group.path,
             )
         )
         self.io.write(f"Image: {plan.final_tag}; layers: {len(plan.steps)}")
@@ -177,18 +227,16 @@ class MenuApp:
         self.io.write(f"Built {result.final_tag} ({len(result.steps)} layer(s))")
 
     def _build_project(self, session: MenuSession) -> None:
-        names = list(session.config.builds)
-        labels = [
-            f"{name} — {session.config.builds[name].description}"
-            if session.config.builds[name].description
-            else name
-            for name in names
-        ]
+        group = self._select_source_group(session, "builds", "Build project")
+        if group is None:
+            return
+        names = list(group.names)
+        labels = [self._definition_label(group, name) for name in names]
         selected = self.io.select("Build project", labels, back_label="Back")
         if selected is None:
             return
         use_case = BuildProjectUseCase(self.build_backend_factory())
-        plan = use_case.plan(names[selected], self._request(session))
+        plan = use_case.plan(names[selected], self._request(session, group.path))
         for line in describe_build(plan):
             self.io.write(line)
         if not self.io.confirm("Run this build now?"):
@@ -198,18 +246,16 @@ class MenuApp:
         self.io.write(f"Build {result.build_name!r} completed")
 
     def _start_scene(self, session: MenuSession) -> None:
-        scene_names = list(session.config.scenarios)
-        scene_labels = [
-            f"{name} — {session.config.scenarios[name].description}"
-            if session.config.scenarios[name].description
-            else name
-            for name in scene_names
-        ]
-        selected = self.io.select("Start scene", scene_labels, back_label="Back")
+        group = self._select_source_group(session, "scenarios", "Start scene")
+        if group is None:
+            return
+        scene_names = list(group.names)
+        scene_labels = [self._definition_label(group, name) for name in scene_names]
+        selected = self.io.select("Select scene", scene_labels, back_label="Back")
         if selected is None:
             return
         scene_name = scene_names[selected]
-        profile_names = list(session.config.scenarios[scene_name].profiles)
+        profile_names = list(group.definitions[scene_name].profiles)
         selected = self.io.select("Select profile", profile_names, back_label="Back")
         if selected is None:
             return
@@ -217,7 +263,7 @@ class MenuApp:
         plan = PlanScenarioUseCase().plan(
             scene_name,
             profile_name,
-            self._request(session),
+            self._request(session, group.path),
         )
         for line in describe_scenario(plan):
             self.io.write(line)

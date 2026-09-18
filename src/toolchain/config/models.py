@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
@@ -37,10 +38,19 @@ class ToolchainMetadata(BaseModel):
 class ToolchainSources(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    images: Path | None = None
-    containers: Path | None = None
-    builds: Path | None = None
-    scenarios: Path | None = None
+    images: Path | tuple[Path, ...] | None = None
+    containers: Path | tuple[Path, ...] | None = None
+    builds: Path | tuple[Path, ...] | None = None
+    scenarios: Path | tuple[Path, ...] | None = None
+
+    @field_validator("images", "containers", "builds", "scenarios")
+    @classmethod
+    def source_list_is_not_empty(
+        cls, value: Path | tuple[Path, ...] | None
+    ) -> Path | tuple[Path, ...] | None:
+        if value == ():
+            raise ValueError("source list must not be empty")
+        return value
 
     @model_validator(mode="after")
     def at_least_one_source(self) -> ToolchainSources:
@@ -49,6 +59,15 @@ class ToolchainSources(BaseModel):
         ):
             raise ValueError("at least one configuration source is required")
         return self
+
+
+class SourceFileInfo(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    path: Path
+    description: str | None = None
+    names: tuple[str, ...] = ()
+    definitions: dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolchainManifest(BaseModel):
@@ -141,6 +160,8 @@ class ToolchainConfig(BaseModel):
     containers: dict[str, ContainerTemplate] = Field(default_factory=dict)
     builds: dict[str, BuildTemplate] = Field(default_factory=dict)
     scenarios: dict[str, ScenarioTemplate] = Field(default_factory=dict)
+    source_files: dict[str, tuple[SourceFileInfo, ...]] = Field(default_factory=dict)
+    duplicate_names: dict[str, dict[str, tuple[Path, ...]]] = Field(default_factory=dict)
 
     @field_validator("variables")
     @classmethod

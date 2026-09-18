@@ -1,3 +1,5 @@
+description: Example scenarios
+
 robot-system:
   description: Example multi-process robot system
   instances:

@@ -15,8 +15,12 @@
 
 ```yaml
 sources:
-  scenarios: config/scenarios.yaml
+  scenarios:
+    - config/scenarios.yaml
 ```
+
+source 文件根层级可用保留字段 `description` 作为菜单分组名。不同 source 可以有同名场景；
+菜单先选择来源并显示 `description (路径)`，CLI 可用 `--source` 指定来源。
 
 场景结构：
 

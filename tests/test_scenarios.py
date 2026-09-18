@@ -1354,6 +1354,55 @@ def test_menu_starts_scene_once_and_exits(tmp_path: Path):
     assert "Started scenario 'robot' profile 'development'" in rendered
 
 
+def test_menu_groups_scenarios_by_source_description(tmp_path: Path):
+    config = write(
+        tmp_path / "toolchain.yaml",
+        """version: 3
+metadata: {name: menu-scenarios}
+sources:
+  scenarios:
+    - scenarios/a.yaml
+    - scenarios/b.yaml
+""",
+    )
+    write(
+        tmp_path / "scenarios/a.yaml",
+        """description: A scenarios
+scene-a:
+  description: Scene A
+  instances:
+    robot1: {container: container-a, groups: {drivers: {script: /a.sh}}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+    write(
+        tmp_path / "scenarios/b.yaml",
+        """description: B scenarios
+scene-b:
+  description: Scene B
+  instances:
+    robot1: {container: container-b, groups: {drivers: {script: /b.sh}}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+
+    executor = FakeScenarioExecutor()
+    output = TTYBuffer()
+    app = MenuApp(
+        MenuIO(TTYBuffer("4\n2\n1\n1\ny\n"), output),
+        scenario_executor_factory=lambda: executor,
+    )
+
+    assert app.run(config) == 0
+    assert len(executor.started) == 1
+    assert executor.started[0].scene_name == "scene-b"
+    rendered = output.getvalue()
+    assert "1) A scenarios (scenarios/a.yaml)" in rendered
+    assert "2) B scenarios (scenarios/b.yaml)" in rendered
+
+
 def test_tmux_runner_os_error_is_actionable():
     class Broken:
         def run(self, *_args, **_kwargs):

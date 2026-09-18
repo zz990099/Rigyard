@@ -1,3 +1,5 @@
+description: Example builds
+
 native:
   description: Example host build
   script: scripts/build-native.sh

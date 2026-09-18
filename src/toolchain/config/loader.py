@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -15,6 +16,7 @@ from .models import (
     ContainerDefinitions,
     ImageDefinitions,
     ScenarioDefinitions,
+    SourceFileInfo,
     ToolchainConfig,
     ToolchainManifest,
 )
@@ -71,10 +73,14 @@ def _nearest_location(
     return SourceLocation(path, line, column)
 
 
-def _validate_file(path: Path, model: type[ModelT], *, label: str) -> ModelT:
-    data, locations = _read_yaml(path)
-    if data is None:
-        raise SchemaValidationError(f"{label} must not be empty", SourceLocation(path))
+def _validate_data(
+    path: Path,
+    data: Any,
+    locations: dict[tuple[Any, ...], tuple[int, int]],
+    model: type[ModelT],
+    *,
+    label: str,
+) -> ModelT:
     try:
         return model.model_validate(data)
     except ValidationError as exc:
@@ -86,6 +92,13 @@ def _validate_file(path: Path, model: type[ModelT], *, label: str) -> ModelT:
         raise SchemaValidationError(f"{prefix}{first['msg']}", location) from exc
 
 
+def _validate_file(path: Path, model: type[ModelT], *, label: str) -> ModelT:
+    data, locations = _read_yaml(path)
+    if data is None:
+        raise SchemaValidationError(f"{label} must not be empty", SourceLocation(path))
+    return _validate_data(path, data, locations, model, label=label)
+
+
 def _source_path(manifest_path: Path, configured: Path) -> Path:
     source = configured.expanduser()
     if not source.is_absolute():
@@ -93,25 +106,107 @@ def _source_path(manifest_path: Path, configured: Path) -> Path:
     return source.resolve()
 
 
+def _source_paths(
+    manifest_path: Path, configured: Path | tuple[Path, ...]
+) -> tuple[Path, ...]:
+    if isinstance(configured, tuple):
+        return tuple(_source_path(manifest_path, item) for item in configured)
+    return (_source_path(manifest_path, configured),)
+
+
+def _source_description(
+    path: Path,
+    data: Any,
+    locations: dict[tuple[Any, ...], tuple[int, int]],
+) -> str | None:
+    if not isinstance(data, Mapping) or "description" not in data:
+        return None
+    value = data["description"]
+    if not isinstance(value, str) or not value.strip():
+        raise SchemaValidationError(
+            "source description must be a non-empty string",
+            _nearest_location(path, locations, ("description",)),
+        )
+    return value
+
+
+def _load_source_group(
+    manifest_path: Path,
+    configured: Path | tuple[Path, ...],
+    model: type[ModelT],
+    *,
+    label: str,
+) -> tuple[
+    dict[str, Any],
+    tuple[SourceFileInfo, ...],
+    dict[str, tuple[Path, ...]],
+]:
+    definitions: dict[str, Any] = {}
+    origins: dict[str, Path] = {}
+    duplicates: dict[str, tuple[Path, ...]] = {}
+    files: list[SourceFileInfo] = []
+    for source in _source_paths(manifest_path, configured):
+        data, locations = _read_yaml(source)
+        if data is None:
+            raise SchemaValidationError(f"{label} must not be empty", SourceLocation(source))
+        description = _source_description(source, data, locations)
+        if isinstance(data, Mapping) and "description" in data:
+            data = {key: value for key, value in data.items() if key != "description"}
+        validated = _validate_data(source, data, locations, model, label=label)
+        for name in validated.root:
+            if name in origins:
+                paths = list(duplicates.get(name, (origins[name],)))
+                if source not in paths:
+                    paths.append(source)
+                duplicates[name] = tuple(paths)
+                continue
+            origins[name] = source
+            definitions[name] = validated.root[name]
+        files.append(
+            SourceFileInfo(
+                path=source,
+                description=description,
+                names=tuple(validated.root),
+                definitions=dict(validated.root),
+            )
+        )
+    return definitions, tuple(files), duplicates
+
+
+def _load_optional_source_group(
+    manifest_path: Path,
+    configured: Path | tuple[Path, ...] | None,
+    model: type[ModelT],
+    *,
+    label: str,
+) -> tuple[
+    dict[str, Any],
+    tuple[SourceFileInfo, ...],
+    dict[str, tuple[Path, ...]],
+]:
+    if configured is None:
+        return {}, (), {}
+    return _load_source_group(manifest_path, configured, model, label=label)
+
+
 def load_config(path: str | Path) -> ToolchainConfig:
     manifest_path = Path(path).resolve()
     manifest = _validate_file(manifest_path, ToolchainManifest, label="manifest")
-    images: dict[str, Any] = {}
-    containers: dict[str, Any] = {}
-    builds: dict[str, Any] = {}
-    scenarios: dict[str, Any] = {}
-    if manifest.sources.images is not None:
-        source = _source_path(manifest_path, manifest.sources.images)
-        images = _validate_file(source, ImageDefinitions, label="image source").root
-    if manifest.sources.containers is not None:
-        source = _source_path(manifest_path, manifest.sources.containers)
-        containers = _validate_file(source, ContainerDefinitions, label="container source").root
-    if manifest.sources.builds is not None:
-        source = _source_path(manifest_path, manifest.sources.builds)
-        builds = _validate_file(source, BuildDefinitions, label="build source").root
-    if manifest.sources.scenarios is not None:
-        source = _source_path(manifest_path, manifest.sources.scenarios)
-        scenarios = _validate_file(source, ScenarioDefinitions, label="scenario source").root
+    images, image_files, image_duplicates = _load_optional_source_group(
+        manifest_path, manifest.sources.images, ImageDefinitions, label="image source"
+    )
+    containers, container_files, container_duplicates = _load_optional_source_group(
+        manifest_path,
+        manifest.sources.containers,
+        ContainerDefinitions,
+        label="container source",
+    )
+    builds, build_files, build_duplicates = _load_optional_source_group(
+        manifest_path, manifest.sources.builds, BuildDefinitions, label="build source"
+    )
+    scenarios, scenario_files, scenario_duplicates = _load_optional_source_group(
+        manifest_path, manifest.sources.scenarios, ScenarioDefinitions, label="scenario source"
+    )
     return ToolchainConfig(
         version=manifest.version,
         metadata=manifest.metadata,
@@ -121,6 +216,18 @@ def load_config(path: str | Path) -> ToolchainConfig:
         containers=containers,
         builds=builds,
         scenarios=scenarios,
+        source_files={
+            "images": image_files,
+            "containers": container_files,
+            "builds": build_files,
+            "scenarios": scenario_files,
+        },
+        duplicate_names={
+            "images": image_duplicates,
+            "containers": container_duplicates,
+            "builds": build_duplicates,
+            "scenarios": scenario_duplicates,
+        },
     )
 
 

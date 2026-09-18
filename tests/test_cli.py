@@ -143,6 +143,67 @@ def test_image_build_resolves_only_selected_image(tmp_path: Path, monkeypatch, c
     assert "Built example/development:latest" in capsys.readouterr().out
 
 
+def test_image_build_source_disambiguates_duplicate_names(tmp_path: Path, monkeypatch, capsys):
+    config = write(
+        tmp_path / "toolchain.yaml",
+        """version: 3
+metadata: {name: duplicate-images}
+sources:
+  images:
+    - config/a.yaml
+    - config/b.yaml
+""",
+    )
+    write(
+        tmp_path / "config/a.yaml",
+        """x86_64_dev:
+  base: ubuntu:22.04
+  tag: example/a:latest
+  layers: [{name: system, dockerfile: system.Dockerfile}]
+""",
+    )
+    write(
+        tmp_path / "config/b.yaml",
+        """x86_64_dev:
+  base: ubuntu:24.04
+  tag: example/b:latest
+  layers: [{name: system, dockerfile: system.Dockerfile}]
+""",
+    )
+    write(tmp_path / "system.Dockerfile", "RUN echo system\n")
+
+    class FakeBackend:
+        def __init__(self):
+            self.steps = []
+
+        def check_available(self):
+            pass
+
+        def build_step(self, step):
+            self.steps.append(step)
+            return BuildStepResult(step.index, step.layer_name, step.output_tag, ("fake",))
+
+    backend = FakeBackend()
+    monkeypatch.setattr("toolchain.cli.commands.images.DockerImageBackend", lambda: backend)
+    assert (
+        run(
+            [
+                "--config",
+                str(config),
+                "image",
+                "build",
+                "x86_64_dev",
+                "--source",
+                "config/b.yaml",
+                "--non-interactive",
+            ]
+        )
+        == 0
+    )
+    assert backend.steps[0].base_image == "ubuntu:24.04"
+    assert "Built example/b:latest" in capsys.readouterr().out
+
+
 def test_selected_operation_accepts_values_for_other_operations(tmp_path: Path, monkeypatch):
     config = config_file(tmp_path)
     write(tmp_path / "system.Dockerfile", "RUN echo system\n")

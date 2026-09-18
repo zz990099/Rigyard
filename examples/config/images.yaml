@@ -1,3 +1,5 @@
+description: Example images
+
 development:
   description: Layered robot development image
   base:
@@ -19,4 +21,3 @@ development:
       dockerfile: docker/layers/10-system.Dockerfile
     - name: application
       dockerfile: docker/layers/20-application.Dockerfile
-

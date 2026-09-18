@@ -1,3 +1,5 @@
+description: Example containers
+
 development:
   description: Interactive robot development container
   name:

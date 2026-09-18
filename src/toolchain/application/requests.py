@@ -18,11 +18,14 @@ class ResolutionRequest:
     overrides: Mapping[str, Any] = field(default_factory=dict)
     interactive: bool = True
     input_fn: InputFunction = input
+    source_path: Path | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "config_path", Path(self.config_path))
         if self.values_path is not None:
             object.__setattr__(self, "values_path", Path(self.values_path))
+        if self.source_path is not None:
+            object.__setattr__(self, "source_path", Path(self.source_path))
         object.__setattr__(self, "overrides", MappingProxyType(dict(self.overrides)))
 
 
@@ -34,18 +37,22 @@ class BuildImageRequest:
     overrides: Mapping[str, Any] = field(default_factory=dict)
     interactive: bool = True
     input_fn: InputFunction = input
+    source_path: Path | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "config_path", Path(self.config_path))
         if self.values_path is not None:
             object.__setattr__(self, "values_path", Path(self.values_path))
+        if self.source_path is not None:
+            object.__setattr__(self, "source_path", Path(self.source_path))
         object.__setattr__(self, "overrides", MappingProxyType(dict(self.overrides)))
 
     def resolution_request(self) -> ResolutionRequest:
         return ResolutionRequest(
-            self.config_path,
-            self.values_path,
-            self.overrides,
-            self.interactive,
-            self.input_fn,
+            config_path=self.config_path,
+            values_path=self.values_path,
+            overrides=self.overrides,
+            interactive=self.interactive,
+            input_fn=self.input_fn,
+            source_path=self.source_path,
         )

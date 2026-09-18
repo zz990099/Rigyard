@@ -13,6 +13,7 @@ from ..images.models import ImageBuildPlan, ImageBuildResult, ImageSpec
 from ..images.planner import ImageBuildPlanner
 from ..images.service import ImageBuildService
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
+from .definitions import find_definition
 from .parameters import resolve_template
 from .requests import BuildImageRequest
 
@@ -29,7 +30,14 @@ class BuildImageUseCase:
         now: datetime | None = None,
     ) -> ImageBuildPlan:
         config = load_config(request.config_path)
-        if request.image_name not in config.images:
+        template = find_definition(
+            config,
+            "images",
+            request.image_name,
+            request.source_path,
+            request.config_path,
+        )
+        if template is None:
             available = ", ".join(sorted(config.images)) or "none"
             raise ImageConfigError(
                 f"unknown image {request.image_name!r}; configured images: {available}"
@@ -45,7 +53,7 @@ class BuildImageUseCase:
         )
         spec, _ = resolve_template(
             config,
-            config.images[request.image_name],
+            template,
             request.resolution_request(),
             f"images.{request.image_name}",
             ImageSpec,

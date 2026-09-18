@@ -68,14 +68,21 @@ variables:
   CONTAINER_PROJECT_ROOT: /workspace/project
 
 sources:
-  images: config/images.yaml
-  containers: config/containers.yaml
-  builds: config/builds.yaml
-  scenarios: config/scenarios.yaml
+  images:
+    - config/images.yaml
+  containers:
+    - config/containers.yaml
+  builds:
+    - config/builds.yaml
+  scenarios:
+    - config/scenarios.yaml
 ```
 
-source 路径相对于根 `toolchain.yaml`。当前每个领域最多引用一个 YAML 文件，至少需要配置一个 source。
-`variables` 是可选的全局字符串变量，所有领域 source 都可以引用。
+source 路径相对于根 `toolchain.yaml`。`sources.images / containers / builds / scenarios`
+都支持数组；每个 source 文件根层级可用保留字段 `description` 作为菜单分组名。不同 source
+可以定义同名资源，菜单会先选择来源文件（显示 `description (路径)`），CLI 可用 `--source`
+指定来源。至少需要配置一个 source。`variables` 是可选的全局字符串变量，所有领域 source
+都可以引用。
 
 编译文件是名称到编译定义的 mapping。工具链不理解 colcon、catkin、CMake 等具体构建系统，只通过明确的解释器 argv 执行工程脚本：
 

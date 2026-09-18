@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 from ...application.requests import ResolutionRequest
@@ -57,6 +58,7 @@ def _operation(actions: Any, name: str, help_text: str) -> argparse.ArgumentPars
         metavar="NAME",
         help="run one scenario instance; repeat to select several (default: all enabled)",
     )
+    command.add_argument("--source", type=Path, help="source file for ambiguous scenario names")
     add_resolution_arguments(command)
     return command
 
@@ -77,6 +79,7 @@ def _plan(
             args.values,
             overrides,
             interactive=not args.non_interactive,
+            source_path=args.source,
         ),
         resolve_group_runtime=args.scene_command == "start",
         instances=args.instances,

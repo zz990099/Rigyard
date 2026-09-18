@@ -9,7 +9,11 @@ variables:
   CONTAINER_WORKSPACE_ROOT: /workspace
 
 sources:
-  images: config/images.yaml
-  containers: config/containers.yaml
-  builds: config/builds.yaml
-  scenarios: config/scenarios.yaml
+  images:
+    - config/images.yaml
+  containers:
+    - config/containers.yaml
+  builds:
+    - config/builds.yaml
+  scenarios:
+    - config/scenarios.yaml

@@ -13,6 +13,7 @@ from ..containers.planner import ContainerRunPlanner
 from ..containers.service import ContainerCreateService
 from ..errors import SchemaValidationError
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
+from .definitions import find_definition
 from .parameters import resolve_template
 from .requests import ResolutionRequest
 
@@ -30,7 +31,14 @@ class CreateContainerUseCase:
         now: datetime | None = None,
     ) -> ContainerRunPlan:
         config = load_config(request.config_path)
-        if container_name not in config.containers:
+        template = find_definition(
+            config,
+            "containers",
+            container_name,
+            request.source_path,
+            request.config_path,
+        )
+        if template is None:
             raise SchemaValidationError(f"unknown container {container_name!r}")
         host_environment = dict(os.environ if environment is None else environment)
         renderer = StringTemplateRenderer(
@@ -43,7 +51,7 @@ class CreateContainerUseCase:
         )
         spec, _ = resolve_template(
             config,
-            config.containers[container_name],
+            template,
             request,
             f"containers.{container_name}",
             ContainerSpec,

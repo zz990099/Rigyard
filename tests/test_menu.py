@@ -114,6 +114,59 @@ def test_image_menu_executes_once_and_exits(tmp_path: Path):
     assert output.getvalue().count("Configuration:") == 1
 
 
+def test_image_menu_allows_same_name_in_different_sources(tmp_path: Path):
+    config = write(
+        tmp_path / "toolchain.yaml",
+        """version: 3
+metadata: {name: menu-multi-images}
+sources:
+  images:
+    - config/a.yaml
+    - config/b.yaml
+""",
+    )
+    write(
+        tmp_path / "config/a.yaml",
+        """description: A images
+x86_64_dev:
+  base: ubuntu:22.04
+  tag: example/a:latest
+  layers: [{name: system, dockerfile: system.Dockerfile}]
+""",
+    )
+    write(
+        tmp_path / "config/b.yaml",
+        """description: B images
+x86_64_dev:
+  base: ubuntu:24.04
+  tag: example/b:latest
+  layers: [{name: system, dockerfile: system.Dockerfile}]
+""",
+    )
+    write(tmp_path / "system.Dockerfile", "RUN echo system\n")
+
+    class FakeBackend:
+        def __init__(self):
+            self.steps = []
+
+        def check_available(self):
+            pass
+
+        def build_step(self, step):
+            self.steps.append(step)
+            return BuildStepResult(step.index, step.layer_name, step.output_tag, ("fake",))
+
+    backend = FakeBackend()
+    output = TTYBuffer()
+    app = MenuApp(MenuIO(TTYBuffer("1\n2\n1\ny\n"), output), backend_factory=lambda: backend)
+
+    assert app.run(config) == 0
+    assert backend.steps[0].base_image == "ubuntu:24.04"
+    rendered = output.getvalue()
+    assert "1) A images (config/a.yaml)" in rendered
+    assert "2) B images (config/b.yaml)" in rendered
+
+
 def test_failed_menu_action_exits_with_backend_error(tmp_path: Path, monkeypatch):
     config = project(
         tmp_path,

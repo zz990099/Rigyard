@@ -13,6 +13,7 @@ from ..builds.service import BuildService
 from ..config.loader import load_config
 from ..errors import SchemaValidationError
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
+from .definitions import find_definition
 from .parameters import resolve_template
 from .requests import ResolutionRequest
 
@@ -30,7 +31,14 @@ class BuildProjectUseCase:
         now: datetime | None = None,
     ) -> BuildPlan:
         config = load_config(request.config_path)
-        if build_name not in config.builds:
+        template = find_definition(
+            config,
+            "builds",
+            build_name,
+            request.source_path,
+            request.config_path,
+        )
+        if template is None:
             available = ", ".join(sorted(config.builds)) or "none"
             raise SchemaValidationError(
                 f"unknown build {build_name!r}; configured builds: {available}"
@@ -46,7 +54,7 @@ class BuildProjectUseCase:
         )
         spec, _ = resolve_template(
             config,
-            config.builds[build_name],
+            template,
             request,
             f"builds.{build_name}",
             BuildSpec,

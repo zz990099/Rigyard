@@ -69,6 +69,62 @@ sources: {containers: containers.yaml}
     }
 
 
+def test_manifest_loads_multiple_sources_with_descriptions(tmp_path: Path):
+    config = manifest(
+        tmp_path,
+        "  containers:\n    - config/a.yaml\n    - config/b.yaml",
+    )
+    write(tmp_path / "config/a.yaml", "description: A containers\ndev-a: {image: ubuntu}\n")
+    write(tmp_path / "config/b.yaml", "description: B containers\ndev-b: {image: ubuntu}\n")
+
+    loaded = load_config(config)
+
+    assert list(loaded.containers) == ["dev-a", "dev-b"]
+    assert [source.description for source in loaded.source_files["containers"]] == [
+        "A containers",
+        "B containers",
+    ]
+    assert [source.names for source in loaded.source_files["containers"]] == [
+        ("dev-a",),
+        ("dev-b",),
+    ]
+
+
+def test_duplicate_definitions_across_sources_are_allowed(tmp_path: Path):
+    config = manifest(
+        tmp_path,
+        "  containers:\n    - config/a.yaml\n    - config/b.yaml",
+    )
+    first = write(tmp_path / "config/a.yaml", "dev: {image: ubuntu}\n")
+    second = write(tmp_path / "config/b.yaml", "dev: {image: ubuntu}\n")
+
+    loaded = load_config(config)
+
+    assert loaded.duplicate_names["containers"]["dev"] == (
+        first.resolve(),
+        second.resolve(),
+    )
+    assert [source.names for source in loaded.source_files["containers"]] == [
+        ("dev",),
+        ("dev",),
+    ]
+
+
+def test_source_description_must_be_a_non_empty_string(tmp_path: Path):
+    config = manifest(tmp_path, "  containers: config/containers.yaml")
+    write(tmp_path / "config/containers.yaml", "description: []\ndev: {image: ubuntu}\n")
+
+    with pytest.raises(SchemaValidationError, match="source description"):
+        load_config(config)
+
+
+def test_empty_source_list_is_rejected(tmp_path: Path):
+    config = manifest(tmp_path, "  containers: []")
+
+    with pytest.raises(SchemaValidationError, match="source list must not be empty"):
+        load_config(config)
+
+
 def test_manifest_rejects_invalid_global_variable_names(tmp_path: Path):
     config = write(
         tmp_path / "toolchain.yaml",

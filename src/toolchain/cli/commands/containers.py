@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 from typing import Any
 
 from ...application.containers import CreateContainerUseCase
@@ -22,6 +23,7 @@ def register_container_commands(commands: Any) -> None:
         help="container configuration name under the top-level containers mapping",
     )
     create.add_argument("--dry-run", action="store_true", help="show a plan without running Docker")
+    create.add_argument("--source", type=Path, help="source file for ambiguous container names")
     add_resolution_arguments(create)
     create.set_defaults(handler=_create)
 
@@ -48,6 +50,7 @@ def _create(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             values_path=args.values,
             overrides=overrides,
             interactive=not args.non_interactive,
+            source_path=args.source,
         ),
     )
     if args.dry_run:

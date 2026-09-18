@@ -20,6 +20,7 @@ from ..scenarios.models import (
     ScenarioProfileSpec,
 )
 from ..scenarios.planner import ScenarioPlanner
+from .definitions import find_definition
 from .parameters import resolve_selected_prompts
 from .requests import ResolutionRequest
 
@@ -50,7 +51,18 @@ class PlanScenarioUseCase:
             raise SchemaValidationError(
                 f"unknown scenario {scene_name!r}; configured scenarios: {available}"
             )
-        scenario = config.scenarios[scene_name]
+        scenario = find_definition(
+            config,
+            "scenarios",
+            scene_name,
+            request.source_path,
+            request.config_path,
+        )
+        if scenario is None:
+            available = ", ".join(sorted(config.scenarios)) or "none"
+            raise SchemaValidationError(
+                f"unknown scenario {scene_name!r}; configured scenarios: {available}"
+            )
         compose_managed = scenario.compose is not None
         if profile_name not in scenario.profiles:
             available = ", ".join(sorted(scenario.profiles)) or "none"

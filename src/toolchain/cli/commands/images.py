@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 from typing import Any
 
 from ...application.images import BuildImageUseCase
@@ -18,6 +19,7 @@ def register_image_commands(commands: Any) -> None:
 
     build = actions.add_parser("build", help="build one layered image")
     build.add_argument("image_name", help="image configuration name under images")
+    build.add_argument("--source", type=Path, help="source file for ambiguous image names")
     add_resolution_arguments(build)
     build.set_defaults(handler=_build)
 
@@ -35,6 +37,7 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             values_path=args.values,
             overrides=overrides,
             interactive=not args.non_interactive,
+            source_path=args.source,
         )
     )
     result = use_case.execute(plan)
