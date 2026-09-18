@@ -85,6 +85,12 @@ toolchain resolve --non-interactive
 青、字段名暗、字段值加粗、选项序号青、次要信息（路径 / 默认值 / `Back`）暗、成功绿、警告黄、
 错误加粗红。计划预览（`--dry-run`）与菜单里的计划行都用"字段名暗 + 值加粗"渲染。
 
+计划行本身是结构化的：每个 `Line` 由若干 `(角色, 文本)` 片段组成，因此同一个业务模块可以复用
+角色做细粒度区分——例如 `Mount: /a -> /b (bind, rw)` 的箭头与括号是"次要信息"、源/目标是"值"，
+`Window robot: container=… -> drivers, …` 里的 `container=`、`->` 是"次要信息"。运行时提示语
+（`prompt` 的消息、默认值方括号、动态候选的序号/名字/说明）走同一套角色；`str(line)` 仍是纯文本，
+所以日志与测试不依赖样式。
+
 着色只在输出流是终端时生效，可用全局 `--color=auto|always|never`（默认 `auto`）覆盖；`NO_COLOR=1`
 或 `TERM=dumb` 同样关闭。因此管道、重定向与 CI 日志保持纯文本，`toolchain validate | cat` 之类的
 用法不会被 ANSI 转义污染。

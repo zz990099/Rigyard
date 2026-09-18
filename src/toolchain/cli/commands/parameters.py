@@ -71,8 +71,8 @@ def _inspect(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
 
 
 def _resolve(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
-    context = ResolveParametersUseCase(sources=docker_container_sources()).execute(
-        resolution_request(args, parser)
-    )
+    context = ResolveParametersUseCase(
+        sources=docker_container_sources(), formatter=args.style.render
+    ).execute(resolution_request(args, parser))
     emit(context.as_dict(include_sources=args.with_sources), args.format)
     return 0

@@ -6,7 +6,7 @@ import sys
 from collections.abc import Sequence
 from typing import TextIO
 
-from ..style import Style
+from ..style import Line, Style
 
 
 class MenuIO:
@@ -27,10 +27,12 @@ class MenuIO:
     def write(self, message: str = "") -> None:
         print(message, file=self.output)
 
-    def write_field(self, message: str) -> None:
+    def write_field(self, message: Line | str) -> None:
         """Print one ``Key: value`` plan line with the field name dimmed."""
 
-        self.write(self.style.line(message))
+        self.write(
+            message.render(self.style) if isinstance(message, Line) else self.style.line(message)
+        )
 
     def write_note(self, message: str, role: str = "warning") -> None:
         self.write(self.style.render(role, message))

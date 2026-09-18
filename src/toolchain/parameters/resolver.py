@@ -13,7 +13,7 @@ from pydantic import BaseModel, ValidationError
 from ..errors import MissingValueError, ResolutionError, ToolchainError
 from .context import ResolvedContext, ResolvedValue, ValueSource
 from .models import PromptMode, PromptValue
-from .prompt import InputFunction, prompt_for_value
+from .prompt import Formatter, InputFunction, prompt_for_value
 from .sources import DynamicOption, DynamicSources
 from .templates import StringTemplateRenderer, TemplateContext
 
@@ -72,10 +72,12 @@ class RuntimeValueResolver:
         *,
         render_default: DefaultRenderer | None = None,
         sources: DynamicSources | None = None,
+        formatter: Formatter | None = None,
     ) -> None:
         self.prompts = dict(prompts)
         self.render_default = render_default
         self.sources = dict(sources or {})
+        self.formatter = formatter
         self._dynamic_options: dict[tuple[str, str | None, bool], tuple[DynamicOption, ...]] = {}
         self._check_environment_collisions()
 
@@ -169,6 +171,7 @@ class RuntimeValueResolver:
                         input_fn,
                         default_display=self._default_display(path, prompt),
                         dynamic_options=self._options_for(path, prompt),
+                        formatter=self.formatter,
                     ),
                     ValueSource.INTERACTIVE,
                 )

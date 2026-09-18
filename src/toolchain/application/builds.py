@@ -13,6 +13,7 @@ from ..builds.service import BuildService
 from ..config.loader import load_config
 from ..errors import SchemaValidationError
 from ..parameters.sources import DynamicSources
+from ..parameters.prompt import Formatter
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from .definitions import find_definition
 from .parameters import resolve_template
@@ -20,9 +21,16 @@ from .requests import ResolutionRequest
 
 
 class BuildProjectUseCase:
-    def __init__(self, backend: BuildBackend, *, sources: DynamicSources | None = None) -> None:
+    def __init__(
+        self,
+        backend: BuildBackend,
+        *,
+        sources: DynamicSources | None = None,
+        formatter: Formatter | None = None,
+    ) -> None:
         self.service = BuildService(backend)
         self.sources = dict(sources or {})
+        self.formatter = formatter
 
     def plan(
         self,
@@ -62,6 +70,7 @@ class BuildProjectUseCase:
             BuildSpec,
             renderer,
             self.sources,
+            self.formatter,
         )
         return BuildPlanner().create_plan(
             build_name,

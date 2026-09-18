@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 
-from .style import Style
+from .style import Line, Style
 
 
 def say(style: Style, message: str, role: str = "success") -> None:
@@ -19,10 +19,14 @@ def say(style: Style, message: str, role: str = "success") -> None:
     print(style.render(role, message))
 
 
-def print_fields(style: Style, lines: Iterable[str]) -> None:
+def print_fields(style: Style, lines: Iterable[Line | str]) -> None:
     """Print rendered plan lines with dimmed field names."""
 
-    print("\n".join(style.line(line) for line in lines))
+    print("\n".join(_render_field(style, item) for item in lines))
+
+
+def _render_field(style: Style, item: Line | str) -> str:
+    return item.render(style) if isinstance(item, Line) else style.line(item)
 
 
 def parse_overrides(items: list[str]) -> dict[str, Any]:

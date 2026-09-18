@@ -46,6 +46,7 @@ def _create(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     use_case = CreateContainerUseCase(
         DockerContainerBackend(confirm_replace=confirm_replace),
         sources=docker_container_sources(),
+        formatter=args.style.render,
     )
     plan = use_case.plan(
         args.container_name,

@@ -29,7 +29,9 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
     use_case = BuildProjectUseCase(
-        DockerExecBuildBackend(), sources=docker_container_sources()
+        DockerExecBuildBackend(),
+        sources=docker_container_sources(),
+        formatter=args.style.render,
     )
     plan = use_case.plan(
         args.build_name,

@@ -77,7 +77,9 @@ def _plan(
         overrides = parse_overrides(args.sets)
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
-    return PlanScenarioUseCase(sources=docker_container_sources()).plan(
+    return PlanScenarioUseCase(
+        sources=docker_container_sources(), formatter=args.style.render
+    ).plan(
         args.scene_name,
         args.profile_name,
         ResolutionRequest(

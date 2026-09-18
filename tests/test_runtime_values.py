@@ -268,6 +268,24 @@ def test_unknown_dynamic_provider_is_reported():
         resolver.resolve(input_fn=lambda _: "")
 
 
+def test_prompt_formatter_styles_the_message_default_and_candidates():
+    provider, _ = recording_provider((DynamicOption("dev", "running"),))
+    seen: list[str] = []
+    resolver = RuntimeValueResolver(
+        {"containers.dev.name": dynamic_prompt()},
+        sources={"containers": provider},
+        formatter=lambda role, text: f"<{role}>{text}</>",
+    )
+
+    context = resolver.resolve(input_fn=lambda text: seen.append(text) or "")
+
+    assert seen == [
+        "  <number>1)</> <value>dev</>  <muted>running</>"
+        "\n<heading>Container</> [<muted>dev</>]: "
+    ]
+    assert context["containers.dev.name"] == "dev"
+
+
 def test_inspect_reports_the_dynamic_source():
     resolver = RuntimeValueResolver(
         {"containers.dev.name": dynamic_prompt(filter="^dev", running_only=True)}

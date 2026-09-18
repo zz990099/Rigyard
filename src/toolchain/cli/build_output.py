@@ -5,19 +5,26 @@ from __future__ import annotations
 import shlex
 
 from ..builds.models import BuildPlan
+from .style import Line, field, line
 
 
-def describe_build(plan: BuildPlan) -> tuple[str, ...]:
+def describe_build(plan: BuildPlan) -> tuple[Line, ...]:
     lines = (
-        f"Build: {plan.build_name}",
-        f"Container: {plan.container}",
-        "Working directory: "
-        + (str(plan.workdir) if plan.workdir is not None else "(container default)"),
-        f"Command: {shlex.join(plan.command)}",
-        "Environment overrides: " + (", ".join(plan.environment_overrides) or "none"),
+        field("Build", plan.build_name),
+        field("Container", plan.container),
+        field(
+            "Working directory",
+            str(plan.workdir) if plan.workdir is not None else "(container default)",
+        ),
+        field("Command", shlex.join(plan.command)),
+        line(
+            ("label", "Environment overrides"),
+            ": ",
+            ("muted", ", ".join(plan.environment_overrides) or "none"),
+        ),
     )
     if plan.setup:
-        lines = (*lines, "Setup: " + ", ".join(plan.setup))
+        lines = (*lines, field("Setup", ", ".join(plan.setup)))
     if plan.timeout_seconds is None:
         return lines
-    return (*lines, f"Timeout: {plan.timeout_seconds} seconds")
+    return (*lines, field("Timeout", f"{plan.timeout_seconds} seconds"))

@@ -211,7 +211,9 @@ class MenuApp:
         if selected is None:
             return
         use_case = CreateContainerUseCase(
-            self.container_backend_factory(), sources=self.sources
+            self.container_backend_factory(),
+            sources=self.sources,
+            formatter=self.io.style.render,
         )
         plan = use_case.plan(names[selected], self._request(session, group.path))
         for line in describe_container(plan):
@@ -236,7 +238,11 @@ class MenuApp:
         if selected is None:
             return
         image_name = image_names[selected]
-        use_case = BuildImageUseCase(self.backend_factory(), sources=self.sources)
+        use_case = BuildImageUseCase(
+            self.backend_factory(),
+            sources=self.sources,
+            formatter=self.io.style.render,
+        )
         plan = use_case.plan(
             BuildImageRequest(
                 config_path=session.config_path,
@@ -267,7 +273,11 @@ class MenuApp:
         selected = self.io.select("Build project", labels, back_label="Back")
         if selected is None:
             return
-        use_case = BuildProjectUseCase(self.build_backend_factory(), sources=self.sources)
+        use_case = BuildProjectUseCase(
+            self.build_backend_factory(),
+            sources=self.sources,
+            formatter=self.io.style.render,
+        )
         plan = use_case.plan(names[selected], self._request(session, group.path))
         for line in describe_build(plan):
             self.io.write_field(line)
@@ -334,7 +344,9 @@ class MenuApp:
         if selection is None:
             return
         group, scene_name, profile_name = selection
-        plan = PlanScenarioUseCase(sources=self.sources).plan(
+        plan = PlanScenarioUseCase(
+            sources=self.sources, formatter=self.io.style.render
+        ).plan(
             scene_name,
             profile_name,
             self._request(session, group.path),
@@ -355,7 +367,9 @@ class MenuApp:
         if selection is None:
             return
         group, scene_name, profile_name = selection
-        plan = PlanScenarioUseCase(sources=self.sources).plan(
+        plan = PlanScenarioUseCase(
+            sources=self.sources, formatter=self.io.style.render
+        ).plan(
             scene_name,
             profile_name,
             self._request(session, group.path, interactive=False),
@@ -381,7 +395,9 @@ class MenuApp:
             )
             return 2
         group, scene_name, profile_name = selection
-        plan = PlanScenarioUseCase(sources=self.sources).plan(
+        plan = PlanScenarioUseCase(
+            sources=self.sources, formatter=self.io.style.render
+        ).plan(
             scene_name,
             profile_name,
             self._request(session, group.path, interactive=False),

@@ -340,6 +340,10 @@ mapping 键或配置定义名称。执行所选操作不会读取其他未选配
 生效：默认 `--color=auto`（管道、重定向、CI 日志保持纯文本），可用 `--color=always|never` 强制，
 环境变量 `NO_COLOR=1` 或 `TERM=dumb` 同样关闭着色。
 
+计划行是结构化的（`(角色, 文本)` 片段），所以不光是字段名/值，像 `Mount: /a -> /b (bind, rw)`
+的箭头、`Window robot: container=… -> …` 里的 `container=`/`->`、动态候选的序号与说明都能各自
+着色；运行时提示语也使用同一套角色。
+
 ```bash
 toolchain validate
 toolchain inspect

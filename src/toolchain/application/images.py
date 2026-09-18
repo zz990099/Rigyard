@@ -13,6 +13,7 @@ from ..images.models import ImageBuildPlan, ImageBuildResult, ImageSpec
 from ..images.planner import ImageBuildPlanner
 from ..images.service import ImageBuildService
 from ..parameters.sources import DynamicSources
+from ..parameters.prompt import Formatter
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from .definitions import find_definition
 from .parameters import resolve_template
@@ -20,9 +21,16 @@ from .requests import BuildImageRequest
 
 
 class BuildImageUseCase:
-    def __init__(self, backend: ImageBuildBackend, *, sources: DynamicSources | None = None) -> None:
+    def __init__(
+        self,
+        backend: ImageBuildBackend,
+        *,
+        sources: DynamicSources | None = None,
+        formatter: Formatter | None = None,
+    ) -> None:
         self.backend = backend
         self.sources = dict(sources or {})
+        self.formatter = formatter
 
     def plan(
         self,
@@ -61,6 +69,7 @@ class BuildImageUseCase:
             ImageSpec,
             renderer,
             self.sources,
+            self.formatter,
         )
         return ImageBuildPlanner().create_plan(
             request.image_name,

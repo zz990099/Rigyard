@@ -29,7 +29,11 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         overrides = parse_overrides(args.sets)
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
-    use_case = BuildImageUseCase(DockerImageBackend(), sources=docker_container_sources())
+    use_case = BuildImageUseCase(
+        DockerImageBackend(),
+        sources=docker_container_sources(),
+        formatter=args.style.render,
+    )
     plan = use_case.plan(
         BuildImageRequest(
             config_path=args.config_path,

@@ -9,6 +9,11 @@ from .models import PromptMode, PromptSpec, PromptValue
 from .sources import DynamicOption
 
 InputFunction = Callable[[str], str]
+Formatter = Callable[[str, str], str]
+
+
+def _plain_text(role: str, text: str) -> str:
+    return text
 
 
 def prompt_for_value(
@@ -17,6 +22,7 @@ def prompt_for_value(
     *,
     default_display: str | None = None,
     dynamic_options: Sequence[DynamicOption] | None = None,
+    formatter: Formatter | None = None,
 ) -> Any:
     """Acquire one prompt value from the terminal.
 
@@ -29,15 +35,26 @@ def prompt_for_value(
     ``dynamic_options`` replaces the configured ``options`` of a select prompt with
     candidates looked up at runtime (for example the existing containers). Such a
     source is an open set: an answer that is not in the list is used as the value.
+
+    ``formatter`` styles one ``(role, text)`` pair; the frontends pass their terminal
+    style and everything else keeps the plain text.
     """
+    format_text = formatter or _plain_text
     prompt = value.prompt
     if default_display is None and value.has_default:
         default_display = str(value.default)
-    default_hint = f" [{default_display}]" if default_display is not None else ""
+    default_hint = (
+        f" [{format_text('muted', str(default_display))}]"
+        if default_display is not None
+        else ""
+    )
+    message = format_text("heading", prompt.message)
     if prompt.mode == PromptMode.CONFIRM:
         default_hint = "Y/n" if value.has_default and value.default else "y/N"
         while True:
-            raw = input_fn(f"{prompt.message} [{default_hint}]: ").strip().lower()
+            raw = input_fn(
+                f"{message} [{format_text('muted', default_hint)}]: "
+            ).strip().lower()
             if not raw and value.has_default:
                 return value.default
             if raw in {"y", "yes", "true", "1", "on"}:
@@ -46,7 +63,9 @@ def prompt_for_value(
                 return False
 
     if prompt.mode == PromptMode.SELECT:
-        values, prompt_text = _select_values_and_prompt(prompt, default_hint, dynamic_options)
+        values, prompt_text = _select_values_and_prompt(
+            prompt, message, default_hint, dynamic_options, format_text
+        )
         while True:
             raw = input_fn(prompt_text).strip()
             if not raw and value.has_default:
@@ -60,10 +79,12 @@ def prompt_for_value(
                 return raw
 
     if prompt.repeat:
-        hint = f" ({prompt.item_hint})" if prompt.item_hint else ""
+        hint = (
+            f" ({format_text('muted', prompt.item_hint)})" if prompt.item_hint else ""
+        )
         items: list[str] = []
         while True:
-            raw = input_fn(f"{prompt.message}{hint} [blank to finish]: ")
+            raw = input_fn(f"{message}{hint} [blank to finish]: ")
             if not raw:
                 if not items and value.has_default:
                     return value.default
@@ -71,7 +92,7 @@ def prompt_for_value(
             items.append(raw)
 
     while True:
-        raw = input_fn(f"{prompt.message}{default_hint}: ")
+        raw = input_fn(f"{message}{default_hint}: ")
         if raw or not value.has_default:
             return raw
         return value.default
@@ -79,8 +100,10 @@ def prompt_for_value(
 
 def _select_values_and_prompt(
     prompt: PromptSpec,
+    message: str,
     default_hint: str,
     dynamic_options: Sequence[DynamicOption] | None,
+    format_text: Formatter,
 ) -> tuple[tuple[Any, ...], str]:
     """Return the selectable values and the text shown for this select prompt."""
 
@@ -88,33 +111,29 @@ def _select_values_and_prompt(
         options = tuple(prompt.options or ())
         choices = ", ".join(f"{index}={option}" for index, option in enumerate(options, 1))
         shown = f" ({choices})" if choices else ""
-        return options, f"{prompt.message}{shown}{default_hint}: "
+        return options, f"{message}{shown}{default_hint}: "
     return (
         tuple(option.value for option in dynamic_options),
-        _dynamic_select_prompt(prompt, dynamic_options, default_hint),
+        _dynamic_select_prompt(message, dynamic_options, default_hint, format_text),
     )
 
 
 def _dynamic_select_prompt(
-    prompt: PromptSpec,
+    message: str,
     dynamic_options: Sequence[DynamicOption],
     default_hint: str,
+    format_text: Formatter,
 ) -> str:
     """List runtime candidates one per line, aligned by name, then ask the question."""
 
-    question = f"{prompt.message}{default_hint}: "
+    question = f"{message}{default_hint}: "
     if not dynamic_options:
         return question
     width = max(len(option.value) for option in dynamic_options)
     entries = (
-        "  {index}) {value:<{width}}{details}".format(
-            index=index,
-            value=option.value,
-            width=width,
-            details=f"  {option.label}" if option.label else "",
-        )
+        f"  {format_text('number', f'{index})')} "
+        f"{format_text('value', f'{option.value:<{width}}')}"
+        + (f"  {format_text('muted', option.label)}" if option.label else "")
         for index, option in enumerate(dynamic_options, 1)
     )
-    return (
-        "\n".join((*entries, question))
-    )
+    return "\n".join((*entries, question))

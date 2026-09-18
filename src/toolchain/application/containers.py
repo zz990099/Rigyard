@@ -13,6 +13,7 @@ from ..containers.planner import ContainerRunPlanner
 from ..containers.service import ContainerCreateService
 from ..errors import SchemaValidationError
 from ..parameters.sources import DynamicSources
+from ..parameters.prompt import Formatter
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from .definitions import find_definition
 from .parameters import resolve_template
@@ -20,9 +21,16 @@ from .requests import ResolutionRequest
 
 
 class CreateContainerUseCase:
-    def __init__(self, backend: ContainerBackend, *, sources: DynamicSources | None = None) -> None:
+    def __init__(
+        self,
+        backend: ContainerBackend,
+        *,
+        sources: DynamicSources | None = None,
+        formatter: Formatter | None = None,
+    ) -> None:
         self.service = ContainerCreateService(backend)
         self.sources = dict(sources or {})
+        self.formatter = formatter
 
     def plan(
         self,
@@ -59,6 +67,7 @@ class CreateContainerUseCase:
             ContainerSpec,
             renderer,
             self.sources,
+            self.formatter,
         )
         return ContainerRunPlanner().plan(
             container_name,

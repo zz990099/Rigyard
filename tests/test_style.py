@@ -1,7 +1,7 @@
 import io
 
 from toolchain.cli.main import run
-from toolchain.cli.style import ColorMode, Style
+from toolchain.cli.style import ColorMode, Style, field, line
 
 
 class TTYBuffer(io.StringIO):
@@ -54,3 +54,17 @@ def test_cli_colour_option_overrides_the_stream(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("NO_COLOR", "1")
     assert run(["--config", str(config), "validate"]) == 0
     assert "\x1b[" not in capsys.readouterr().out
+
+
+def test_lines_carry_roles_and_keep_their_plain_text():
+    item = field("Build", "native")
+    style = Style(enabled=True)
+
+    assert str(item) == "Build: native"
+    assert item.text() == "Build: native"
+    assert item.render(style) == "\x1b[2mBuild\x1b[0m: \x1b[1mnative\x1b[0m"
+    assert item.render(Style.plain()) == "Build: native"
+
+    mixed = line("plain ", ("muted", "dim"), ("value", "bold"))
+    assert mixed.text() == "plain dimbold"
+    assert mixed.render(style) == "plain \x1b[2mdim\x1b[0m\x1b[1mbold\x1b[0m"

@@ -8,6 +8,8 @@ from toolchain.application.builds import BuildProjectUseCase
 from toolchain.application.requests import ResolutionRequest
 from toolchain.builds.models import BuildPlan, BuildResult
 from toolchain.cli.main import run
+from toolchain.cli.build_output import describe_build
+from toolchain.cli.style import Style
 from toolchain.cli.menu.app import MenuApp
 from toolchain.cli.menu.prompt import MenuIO
 from toolchain.config.loader import load_config
@@ -306,6 +308,26 @@ def sample_plan() -> BuildPlan:
         environment=(("BUILD_TYPE", "Release"),),
         environment_overrides=("BUILD_TYPE",),
         timeout_seconds=30,
+    )
+
+
+def test_plan_lines_keep_their_text_and_carry_roles():
+    lines = describe_build(sample_plan())
+
+    assert [str(item) for item in lines] == [
+        "Build: native",
+        "Container: dev",
+        "Working directory: /workspace",
+        "Command: docker exec --workdir=/workspace --env=BUILD_TYPE=Release dev "
+        "/bin/bash -eu /workspace/build.sh",
+        "Environment overrides: BUILD_TYPE",
+        "Timeout: 30 seconds",
+    ]
+
+    style = Style(enabled=True)
+    assert lines[0].render(style) == "\x1b[2mBuild\x1b[0m: \x1b[1mnative\x1b[0m"
+    assert lines[4].render(style) == (
+        "\x1b[2mEnvironment overrides\x1b[0m: \x1b[2mBUILD_TYPE\x1b[0m"
     )
 
 

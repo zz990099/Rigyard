@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field as dataclass_field
 from enum import Enum
 from typing import TextIO
 
@@ -26,10 +26,44 @@ class ColorMode(str, Enum):
 
 
 @dataclass(frozen=True)
+class Line:
+    """One output line split into ``(role, text)`` parts.
+
+    ``text()`` and ``str(line)`` return the plain rendering, so callers that only
+    need the text (logs, tests) keep working without knowing about the roles.
+    """
+
+    parts: tuple[tuple[str | None, str], ...]
+
+    def text(self) -> str:
+        return "".join(part for _, part in self.parts)
+
+    def render(self, style: "Style") -> str:
+        return "".join(
+            style.render(role, part) if role else part for role, part in self.parts
+        )
+
+    def __str__(self) -> str:
+        return self.text()
+
+
+def line(*parts: "tuple[str | None, str] | str") -> Line:
+    """Build a line from ``(role, text)`` pairs or plain text parts."""
+
+    return Line(tuple((None, part) if isinstance(part, str) else part for part in parts))
+
+
+def field(name: str, value: str) -> Line:
+    """Build a ``Key: value`` line with a dim name and a bold value."""
+
+    return line(("label", name), ": ", ("value", value))
+
+
+@dataclass(frozen=True)
 class Theme:
     """Role to SGR parameter mapping, e.g. ``{"title": "1;36"}``."""
 
-    roles: Mapping[str, str] = field(default_factory=dict)
+    roles: Mapping[str, str] = dataclass_field(default_factory=dict)
 
     def codes(self, role: str) -> str | None:
         return self.roles.get(role)

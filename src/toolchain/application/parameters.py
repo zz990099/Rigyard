@@ -22,6 +22,7 @@ from ..parameters.resolver import (
     flatten_values,
     materialize_as,
 )
+from ..parameters.prompt import Formatter
 from ..parameters.sources import DynamicSources
 from ..parameters.templates import (
     StringTemplateRenderer,
@@ -57,8 +58,13 @@ class InspectParametersUseCase:
 
 
 class ResolveParametersUseCase:
-    def __init__(self, sources: DynamicSources | None = None) -> None:
+    def __init__(
+        self,
+        sources: DynamicSources | None = None,
+        formatter: Formatter | None = None,
+    ) -> None:
         self.sources = dict(sources or {})
+        self.formatter = formatter
 
     def execute(
         self, request: ResolutionRequest, *, allow_missing: bool = False
@@ -77,6 +83,7 @@ class ResolveParametersUseCase:
             allow_missing=allow_missing,
             renderer=renderer,
             sources=self.sources,
+            formatter=self.formatter,
         )
         if not allow_missing:
             for name, template in config.images.items():
@@ -133,6 +140,7 @@ def resolve_prompts(
     allow_missing: bool = False,
     renderer: StringTemplateRenderer | None = None,
     sources: DynamicSources | None = None,
+    formatter: Formatter | None = None,
 ) -> ResolvedContext:
     prompts = collect_prompts(template, prefix)
     values = load_values(request.values_path) if request.values_path else {}
@@ -140,6 +148,7 @@ def resolve_prompts(
         prompts,
         render_default=default_display_renderer(renderer),
         sources=sources,
+        formatter=formatter,
     ).resolve(
         values=values,
         overrides=request.overrides,
@@ -157,6 +166,7 @@ def resolve_template(
     target: type[ModelT],
     renderer: StringTemplateRenderer | None = None,
     sources: DynamicSources | None = None,
+    formatter: Formatter | None = None,
 ) -> tuple[ModelT, ResolvedContext]:
     selected = collect_prompts(template, prefix)
     available = collect_prompts(root)
@@ -171,6 +181,7 @@ def resolve_template(
         selected,
         render_default=default_display_renderer(renderer),
         sources=sources,
+        formatter=formatter,
     ).resolve(
         values={key: value for key, value in flat_values.items() if key in selected},
         overrides={key: value for key, value in request.overrides.items() if key in selected},
@@ -187,6 +198,7 @@ def resolve_selected_prompts(
     *,
     renderer: StringTemplateRenderer | None = None,
     sources: DynamicSources | None = None,
+    formatter: Formatter | None = None,
 ) -> ResolvedContext:
     """Resolve an explicitly composed set of prompt paths from one config root."""
 
@@ -200,6 +212,7 @@ def resolve_selected_prompts(
         selected,
         render_default=default_display_renderer(renderer),
         sources=sources,
+        formatter=formatter,
     ).resolve(
         values={key: value for key, value in flat_values.items() if key in selected},
         overrides={key: value for key, value in request.overrides.items() if key in selected},
