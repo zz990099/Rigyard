@@ -182,7 +182,7 @@ toolchain scene down robot-system development
 ```
 
 `profile_name` 可以省略：场景只配置了一个 profile 时直接使用它，配置多个时必须显式指定，
-否则报 `needs a profile`。
+否则报 `needs a profile`。菜单里的 `Scene…` 提供等价的 Start / Stop / Down 入口。
 
 `attach` / `logs` 的 `--group` 需要能够唯一定位 instance。存在多个 instance 时应同时提供
 `--instance`。在已有 tmux 内 attach 时使用 `switch-client`，否则使用 `attach-session`。

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class MenuAction:
     key: str
     label: str
-    handler: Callable[[MenuSession], None]
+    handler: Callable[[MenuSession], int | None]
     enabled: Callable[[MenuSession], bool] = lambda _: True
     disabled_reason: str = "unavailable"
 

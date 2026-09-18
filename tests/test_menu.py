@@ -66,7 +66,7 @@ def test_bare_command_enters_primary_action_menu_only_for_tty(tmp_path: Path):
     assert "1) Build image [no images configured]" in rendered
     assert "2) Create container" in rendered
     assert "3) Build project [no builds configured]" in rendered
-    assert "4) Start scene [no scenarios configured]" in rendered
+    assert "4) Scene… [no scenarios configured]" in rendered
     assert "Configure parameters" not in rendered
     assert "Show effective parameters" not in rendered
     assert "Validate configuration" not in rendered

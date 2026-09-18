@@ -304,7 +304,7 @@ mapping 键或配置定义名称。执行所选操作不会读取其他未选配
 1) Build image
 2) Create container
 3) Build project
-4) Start scene
+4) Scene…            → Start scene / Stop scene / Down scene
 0) Exit
 ```
 

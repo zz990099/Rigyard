@@ -1509,10 +1509,20 @@ def test_cli_dry_run_describes_compose_runtime(tmp_path: Path, capsys):
 class FakeScenarioExecutor:
     def __init__(self) -> None:
         self.started = []
+        self.stopped = []
+        self.downed = []
 
     def start(self, plan):
         self.started.append(plan)
         return ScenarioResult(plan.scene_name, plan.profile_name)
+
+    def stop(self, plan):
+        self.stopped.append(plan)
+        return ScenarioResult(plan.scene_name, plan.profile_name)
+
+    def down(self, plan):
+        self.downed.append(plan)
+        return ScenarioResult(plan.scene_name, plan.profile_name, "down")
 
 
 def test_menu_starts_scene_once_and_exits(tmp_path: Path):
@@ -1527,6 +1537,8 @@ def test_menu_starts_scene_once_and_exits(tmp_path: Path):
     assert len(executor.started) == 1
     rendered = output.getvalue()
     assert rendered.count("Configuration:") == 1
+    assert "Select profile" not in rendered          # 唯一 profile 不再询问
+    assert "Profile: development" in rendered
     assert "Started scenario 'robot' profile 'development'" in rendered
 
 
@@ -1567,7 +1579,7 @@ scene-b:
     executor = FakeScenarioExecutor()
     output = TTYBuffer()
     app = MenuApp(
-        MenuIO(TTYBuffer("4\n2\n1\n1\ny\n"), output),
+        MenuIO(TTYBuffer("4\n1\n2\n1\ny\n"), output),
         scenario_executor_factory=lambda: executor,
     )
 
@@ -1577,6 +1589,112 @@ scene-b:
     rendered = output.getvalue()
     assert "1) A scenarios (scenarios/a.yaml)" in rendered
     assert "2) B scenarios (scenarios/b.yaml)" in rendered
+
+
+def test_menu_scene_submenu_lists_start_stop_and_down(tmp_path: Path):
+    config = project(tmp_path, scenario_yaml())
+    output = TTYBuffer()
+    app = MenuApp(
+        MenuIO(TTYBuffer("4\n0\n0\n"), output),
+        scenario_executor_factory=lambda: FakeScenarioExecutor(),
+    )
+
+    assert app.run(config) == 0
+
+    rendered = output.getvalue()
+    assert "1) Start scene" in rendered
+    assert "2) Stop scene" in rendered
+    assert "3) Down scene" in rendered
+
+
+def test_menu_asks_for_the_profile_when_several_are_configured(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """robot:
+  instances:
+    robot1: {container: robot-dev, groups: {drivers: {script: /a.sh}}}
+  profiles:
+    development: {attach: false}
+    headless: {attach: false}
+""",
+    )
+    executor = FakeScenarioExecutor()
+    output = TTYBuffer()
+    app = MenuApp(
+        MenuIO(TTYBuffer("4\n1\n1\n2\ny\n"), output),
+        scenario_executor_factory=lambda: executor,
+    )
+
+    assert app.run(config) == 0
+
+    rendered = output.getvalue()
+    assert "1) development" in rendered
+    assert "2) headless" in rendered
+    assert "Profile: headless" in rendered
+
+
+def test_menu_stop_scene_stops_and_reports(tmp_path: Path):
+    config = project(tmp_path, scenario_yaml())
+    executor = FakeScenarioExecutor()
+    output = TTYBuffer()
+    app = MenuApp(
+        MenuIO(TTYBuffer("4\n2\n1\ny\n"), output),
+        scenario_executor_factory=lambda: executor,
+    )
+
+    assert app.run(config) == 0
+
+    assert len(executor.stopped) == 1
+    assert executor.stopped[0].scene_name == "robot"
+    rendered = output.getvalue()
+    assert "Stop this scenario now?" in rendered
+    assert "Scenario 'robot': stopped" in rendered
+
+
+def test_menu_down_scene_is_unavailable_without_compose_scenes(tmp_path: Path):
+    config = project(tmp_path, scenario_yaml())
+    output = TTYBuffer()
+    app = MenuApp(
+        MenuIO(TTYBuffer("4\n3\n"), output),
+        scenario_executor_factory=lambda: FakeScenarioExecutor(),
+    )
+
+    assert app.run(config) == 2
+
+    assert "no Compose-managed scenes configured" in output.getvalue()
+
+
+def test_menu_down_scene_removes_the_compose_environment(tmp_path: Path):
+    config = write(
+        tmp_path / "toolchain.yaml",
+        """version: 3
+metadata: {name: menu-compose}
+sources: {scenarios: scenarios/compose.yaml}
+""",
+    )
+    write(tmp_path / "deploy.yaml", "services: {robot: {image: ubuntu}}\n")
+    write(
+        tmp_path / "scenarios/compose.yaml",
+        """compose-scene:
+  compose: {file: deploy.yaml, project_name: menu-compose-project}
+  instances:
+    robot: {service: robot, groups: {drivers: {script: /a.sh}}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+    executor = FakeScenarioExecutor()
+    output = TTYBuffer()
+    app = MenuApp(
+        MenuIO(TTYBuffer("4\n3\n1\ny\n"), output),
+        scenario_executor_factory=lambda: executor,
+    )
+
+    assert app.run(config) == 0
+
+    assert len(executor.downed) == 1
+    assert executor.downed[0].scene_name == "compose-scene"
+    assert "Scenario 'compose-scene': down" in output.getvalue()
 
 
 def test_tmux_runner_os_error_is_actionable():

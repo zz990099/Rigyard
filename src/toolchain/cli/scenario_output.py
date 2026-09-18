@@ -5,6 +5,17 @@ from __future__ import annotations
 from ..scenarios.models import ScenarioPlan
 
 
+def describe_scenario_target(plan: ScenarioPlan) -> tuple[str, ...]:
+    """Short rendering for scene management actions such as stop and down."""
+
+    return (
+        f"Scenario: {plan.scene_name}",
+        f"Profile: {plan.profile_name}",
+        f"tmux session: {plan.session}",
+        "Instances: " + ", ".join(instance.name for instance in plan.instances),
+    )
+
+
 def describe_scenario(plan: ScenarioPlan) -> tuple[str, ...]:
     lines = [
         f"Scenario: {plan.scene_name}",
