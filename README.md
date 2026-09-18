@@ -1,33 +1,33 @@
 # Toolchain
 
-Toolchain 是一个面向容器化机器人软件开发的配置驱动 CLI。它用同一份工程清单组织分层镜像构建、开发容器创建、容器内工程编译，以及由 tmux 管理的多进程调试场景。
+Toolchain is a configuration-driven CLI for containerized robotics development. A single project manifest organizes layered image builds, development containers, project builds inside containers, and multi-process debugging scenarios managed by tmux.
 
-## 核心能力
+## Features
 
-- 按顺序组合 Dockerfile 片段并构建分层镜像。
-- 创建可复现的开发容器并执行生命周期 hooks。
-- 在已经运行的容器中执行工程编译脚本。
-- 在已有容器或 Docker Compose service 中启动 tmux 调试场景。
-- 使用全局变量、字符串模板和交互式运行时参数复用配置。
-- 通过直接命令或一次性交互菜单使用同一套执行逻辑。
+- Build layered images from ordered Dockerfile fragments.
+- Create reproducible development containers and run lifecycle hooks.
+- Run project build scripts inside existing containers.
+- Start tmux debugging scenarios in existing containers or Docker Compose services.
+- Reuse configuration with global variables, string templates, and interactive runtime values.
+- Use the same application behavior through direct commands or a one-shot interactive menu.
 
-## 要求
+## Requirements
 
-- Python 3.10 或更高版本
-- Docker；使用 Compose 场景时需要 Docker Compose v2
-- 使用场景功能时，宿主机需要安装 tmux，目标容器需要可用的交互 shell
+- Python 3.10 or newer
+- Docker; Compose scenarios require Docker Compose v2
+- Scenario support requires tmux on the host and an interactive shell in each target container
 
-## 安装
+## Installation
 
-项目发布到 PyPI 后，推荐将其作为独立命令行工具安装：
+After the project is published to PyPI, install it as an isolated command-line tool:
 
 ```bash
 pipx install robot-toolchain
-# 或
+# or
 uv tool install robot-toolchain
 ```
 
-当前从源码试用：
+To install the current source tree:
 
 ```bash
 python3 -m venv .venv
@@ -35,11 +35,11 @@ source .venv/bin/activate
 pip install .
 ```
 
-开发环境的安装与测试方式见 [贡献指南](https://github.com/zz990099/toolchain/blob/main/CONTRIBUTING.md)。
+See the [contribution guide](https://github.com/zz990099/toolchain/blob/main/CONTRIBUTING.md) for development installation and checks.
 
-## 快速开始
+## Quick start
 
-项目默认读取当前目录的 `toolchain.yaml`：
+By default, Toolchain reads `toolchain.yaml` from the current directory:
 
 ```yaml
 version: 3
@@ -58,7 +58,7 @@ sources:
   scenarios: [config/scenarios.yaml]
 ```
 
-验证配置并执行功能：
+Validate the configuration and run configured operations:
 
 ```bash
 toolchain validate
@@ -68,13 +68,13 @@ toolchain build native
 toolchain scene start robot-system development
 ```
 
-不带子命令时进入一次性交互菜单：
+Run `toolchain` without a subcommand to open the one-shot interactive menu:
 
 ```bash
 toolchain
 ```
 
-配置位于其他目录时，可以显式指定，也可以绑定当前工作区：
+When the manifest lives elsewhere, pass it explicitly or bind the current workspace:
 
 ```bash
 toolchain --config path/to/toolchain.yaml validate
@@ -82,22 +82,22 @@ toolchain init -f path/to/toolchain.yaml --alias xxxbot
 ./xxxbot build native
 ```
 
-## 文档
+## Documentation
 
-- [入门教程](https://github.com/zz990099/toolchain/blob/main/docs/getting-started.md)
-- [安装与系统要求](https://github.com/zz990099/toolchain/blob/main/docs/installation.md)
-- [配置总览](https://github.com/zz990099/toolchain/blob/main/docs/configuration/index.md)
-- [全局变量与字符串模板](https://github.com/zz990099/toolchain/blob/main/docs/configuration/templates.md)
-- [运行时参数](https://github.com/zz990099/toolchain/blob/main/docs/configuration/runtime-values.md)
-- [镜像](https://github.com/zz990099/toolchain/blob/main/docs/features/images.md)
-- [容器](https://github.com/zz990099/toolchain/blob/main/docs/features/containers.md)
-- [工程编译](https://github.com/zz990099/toolchain/blob/main/docs/features/builds.md)
-- [场景启动](https://github.com/zz990099/toolchain/blob/main/docs/features/scenarios.md)
-- [CLI 参考](https://github.com/zz990099/toolchain/blob/main/docs/reference/cli.md)
-- [配置字段参考](https://github.com/zz990099/toolchain/blob/main/docs/reference/configuration-schema.md)
-- [退出码](https://github.com/zz990099/toolchain/blob/main/docs/reference/exit-codes.md)
+- [Getting started](https://github.com/zz990099/toolchain/blob/main/docs/getting-started.md)
+- [Installation and requirements](https://github.com/zz990099/toolchain/blob/main/docs/installation.md)
+- [Configuration overview](https://github.com/zz990099/toolchain/blob/main/docs/configuration/index.md)
+- [Global variables and string templates](https://github.com/zz990099/toolchain/blob/main/docs/configuration/templates.md)
+- [Runtime values](https://github.com/zz990099/toolchain/blob/main/docs/configuration/runtime-values.md)
+- [Images](https://github.com/zz990099/toolchain/blob/main/docs/features/images.md)
+- [Containers](https://github.com/zz990099/toolchain/blob/main/docs/features/containers.md)
+- [Project builds](https://github.com/zz990099/toolchain/blob/main/docs/features/builds.md)
+- [Scenarios](https://github.com/zz990099/toolchain/blob/main/docs/features/scenarios.md)
+- [CLI reference](https://github.com/zz990099/toolchain/blob/main/docs/reference/cli.md)
+- [Configuration schema reference](https://github.com/zz990099/toolchain/blob/main/docs/reference/configuration-schema.md)
+- [Exit codes](https://github.com/zz990099/toolchain/blob/main/docs/reference/exit-codes.md)
 
-完整示例位于 [`examples/`](https://github.com/zz990099/toolchain/tree/main/examples)。
+Complete examples are available in [`examples/`](https://github.com/zz990099/toolchain/tree/main/examples).
 
 ## License
 

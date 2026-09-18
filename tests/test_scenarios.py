@@ -1267,11 +1267,11 @@ def test_tmux_keep_alive_pane_keeps_a_ready_container_shell_and_a_host_terminal(
     assert process[5:7] == ("/bin/sh", "-c")
     program = process[-1]
     assert program.startswith('trap "" INT\ndocker exec -it')
-    # 组命令作为子进程运行，退出后留在容器内、已 source setup 的交互 shell
+    # The group runs as a child, then leaves an interactive container shell with setup sourced.
     assert "set +e\n/bin/bash -euo pipefail /workspace/drivers.sh" in program
     assert "[toolchain] drivers exited with code $__toolchain_status" in program
     assert "exec /bin/bash -i" in program
-    # 容器 shell exit 之后：清理 SIGINT 处置并落到宿主 shell，pane 保持可用
+    # After the container shell exits, reset SIGINT and enter a host shell to keep the pane usable.
     assert "[toolchain] drivers container shell exited with code $__toolchain_status" in program
     assert program.endswith("trap - INT\nexec /bin/bash -i")
 
@@ -1537,7 +1537,7 @@ def test_menu_starts_scene_once_and_exits(tmp_path: Path):
     assert len(executor.started) == 1
     rendered = output.getvalue()
     assert rendered.count("Configuration:") == 1
-    assert "Select profile" not in rendered          # 唯一 profile 不再询问
+    assert "Select profile" not in rendered  # A single profile is selected without prompting.
     assert "Profile: development" in rendered
     assert "Started scenario 'robot' profile 'development'" in rendered
 

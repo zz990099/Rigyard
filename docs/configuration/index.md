@@ -1,6 +1,6 @@
-# 配置总览
+# Configuration overview
 
-Toolchain 使用 Schema v3。根 `toolchain.yaml` 是 manifest，只声明工程元数据、全局变量和各领域配置文件的位置；镜像、容器、编译和场景分别存放在 source 文件中。
+Toolchain uses schema version 3. The root `toolchain.yaml` is a manifest containing project metadata, global variables, and paths to domain-specific source files. Images, containers, builds, and scenarios live in separate source files.
 
 ```yaml
 version: 3
@@ -14,29 +14,25 @@ variables:
   CONTAINER_WORKSPACE_ROOT: /workspace
 
 sources:
-  images:
-    - config/images.yaml
-  containers:
-    - config/containers.yaml
-  builds:
-    - config/builds.yaml
-  scenarios:
-    - config/scenarios.yaml
+  images: [config/images.yaml]
+  containers: [config/containers.yaml]
+  builds: [config/builds.yaml]
+  scenarios: [config/scenarios.yaml]
 ```
 
-至少需要配置一种 source。每种 source 可以是单一路径，也可以是非空路径列表。路径相对于根 manifest 所在目录，而不是当前目录或 source 文件目录。
+At least one source kind is required. Each source can be one path or a non-empty list of paths. Paths are relative to the root manifest, not the current directory or the source file.
 
-## 文件职责
+## File responsibilities
 
-| 文件 | 顶层内容 | 文档 |
+| File | Top-level content | Guide |
 | --- | --- | --- |
-| `toolchain.yaml` | `version`、`metadata`、`variables`、`sources` | [根 manifest](manifest.md) |
-| images source | 镜像名称到镜像定义的 mapping | [镜像](../features/images.md) |
-| containers source | 容器名称到容器定义的 mapping | [容器](../features/containers.md) |
-| builds source | 编译名称到编译定义的 mapping | [工程编译](../features/builds.md) |
-| scenarios source | 场景名称到场景定义的 mapping | [场景启动](../features/scenarios.md) |
+| `toolchain.yaml` | `version`, `metadata`, `variables`, and `sources` | [Root manifest](manifest.md) |
+| Image source | Mapping from image names to definitions | [Images](../features/images.md) |
+| Container source | Mapping from container names to definitions | [Containers](../features/containers.md) |
+| Build source | Mapping from build names to definitions | [Project builds](../features/builds.md) |
+| Scenario source | Mapping from scenario names to definitions | [Scenarios](../features/scenarios.md) |
 
-source 文件可使用保留字段 `description` 作为菜单分组名称：
+A source may use the reserved `description` key as its menu group label:
 
 ```yaml
 description: Desktop development targets
@@ -46,45 +42,45 @@ development:
   command: [/bin/bash]
 ```
 
-不同 source 可以声明同名资源。菜单会先让用户选择来源；直接 CLI 必须使用 `--source PATH` 消除歧义。当前不支持递归 include、跨文件继承或覆盖合并。
+Different sources may define the same resource name. The menu asks for a source first; direct CLI commands require `--source PATH` to resolve ambiguity. Recursive includes, cross-file inheritance, and merge overlays are not supported.
 
-## 配置发现顺序
+## Configuration discovery
 
-Toolchain 按以下优先级选择根 manifest：
+Toolchain selects the root manifest in this order:
 
-1. 全局 `--config/-f PATH`。
-2. 当前目录 `.toolchain/context.yaml` 中的工作区绑定。
-3. 当前目录 `toolchain.yaml`。
+1. Global `--config/-f PATH`.
+2. The workspace binding in `.toolchain/context.yaml` in the current directory.
+3. `toolchain.yaml` in the current directory.
 
-工作区绑定只在当前目录生效，不搜索父目录。详见 [CLI 的工作区初始化](../reference/cli.md#工作区初始化)。
+Workspace bindings apply only to the current directory. Parent directories are not searched. See [Workspace initialization](../reference/cli.md#workspace-initialization).
 
-## 路径基准
+## Path bases
 
-除非功能文档特别声明，宿主机相对路径都以根 manifest 所在目录为基准：
+Unless a feature guide says otherwise, relative host paths are resolved from the directory containing the root manifest:
 
-- source 文件路径
-- 镜像 context 和 Dockerfile 片段
-- 容器 bind mount source
-- 容器 lifecycle hook 脚本
-- Compose 文件
+- Source file paths
+- Image contexts and Dockerfile fragments
+- Container bind-mount sources
+- Container lifecycle hook scripts
+- Compose files
 
-build 和 scenario 中的 `script`、`workdir`、`setup` 是容器内路径，不会相对于宿主机配置目录转换。
+The `script`, `workdir`, and `setup` fields in builds and scenarios are container paths and are not resolved against the host configuration directory.
 
-## 求值过程
+## Evaluation order
 
-执行一个动作时依次完成：
+An operation follows these steps:
 
-1. 加载并校验根 manifest 和全部 source。
-2. 选择本次操作需要的资源子树。
-3. 解析该子树的[运行时参数](runtime-values.md)。
-4. 展开[全局变量与字符串模板](templates.md)。
-5. 进行严格类型和业务约束校验。
-6. 生成不可变计划；`--dry-run` 在此停止。
-7. 调用 Docker 或 tmux 执行计划。
+1. Load and validate the manifest and all source files.
+2. Select the resource subtree required by the operation.
+3. Resolve [runtime values](runtime-values.md) in that subtree.
+4. Expand [global variables and string templates](templates.md).
+5. Apply strict type and business-rule validation.
+6. Create an immutable plan; `--dry-run` stops here where supported.
+7. Invoke Docker or tmux.
 
-未选中的资源不会询问运行时参数，也不会读取其中引用的宿主环境变量。
+Unselected resources do not prompt for runtime values or read host environment variables referenced by templates.
 
-## 验证与排查
+## Validation and diagnostics
 
 ```bash
 toolchain validate
@@ -92,6 +88,6 @@ toolchain inspect --format yaml
 toolchain resolve --non-interactive --with-sources
 ```
 
-- `validate` 检查全部文件、字段和模板语法，但不要求 `${env:NAME}` 当时存在。
-- `inspect` 列出所有内联 PromptValue。
-- `resolve` 解析运行时参数；`--with-sources` 同时显示每个值的来源。
+- `validate` checks every file, field, and template expression without requiring `${env:NAME}` to exist.
+- `inspect` lists all inline PromptValues.
+- `resolve` resolves runtime values; `--with-sources` includes each value's source.

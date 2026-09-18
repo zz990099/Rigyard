@@ -1,24 +1,24 @@
-# 安装与系统要求
+# Installation and requirements
 
 ## Python
 
-Toolchain 要求 Python 3.10 或更高版本。
+Toolchain requires Python 3.10 or newer.
 
-项目发布到 PyPI 后，推荐用隔离的工具环境安装 CLI：
+After the package is published to PyPI, install the CLI in an isolated environment:
 
 ```bash
 pipx install robot-toolchain
-# 或
+# or
 uv tool install robot-toolchain
 ```
 
-也可以安装到已经激活的虚拟环境：
+It can also be installed into an active virtual environment:
 
 ```bash
 python -m pip install robot-toolchain
 ```
 
-当前从源码安装稳定版本：
+To install the current source tree:
 
 ```bash
 git clone https://github.com/zz990099/toolchain.git
@@ -28,22 +28,22 @@ source .venv/bin/activate
 python -m pip install .
 ```
 
-安装后确认命令可用：
+Verify the installation:
 
 ```bash
 toolchain --version
 ```
 
-可编辑安装、测试和代码检查属于开发流程，见[贡献指南](../CONTRIBUTING.md)。
+Editable installs, tests, and code checks are covered by the [contribution guide](../CONTRIBUTING.md).
 
-## 外部工具
+## External tools
 
-Python 包不会安装以下系统工具：
+The Python package does not install these system tools:
 
-| 功能 | 宿主机要求 | 容器要求 |
+| Feature | Host requirement | Container requirement |
 | --- | --- | --- |
-| 镜像、容器、编译 | Docker CLI 和可访问的 Docker daemon | 编译脚本所需工具 |
-| Compose 场景 | Docker Compose v2，即 `docker compose` | 场景命令所需工具 |
-| tmux 场景 | tmux、Docker CLI | 可用的交互 shell |
+| Images, containers, and builds | Docker CLI and an accessible Docker daemon | Tools required by project scripts |
+| Compose scenarios | Docker Compose v2 (`docker compose`) | Tools required by scenario commands |
+| tmux scenarios | tmux and Docker CLI | An interactive shell |
 
-Toolchain 当前面向能够运行 Docker 与 tmux 的开发环境。执行前可分别运行 `docker version`、`docker compose version` 和 `tmux -V` 检查依赖。
+Toolchain currently targets development environments that can run Docker and tmux. Use `docker version`, `docker compose version`, and `tmux -V` to verify the external dependencies.

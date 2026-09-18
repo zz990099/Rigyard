@@ -1,6 +1,6 @@
-# 运行时参数
+# Runtime values
 
-任何声明为 Runtime 类型的业务字段，都可以直接填写固定值，也可以在原位置写成 `default + prompt`。不需要单独的顶层参数表。
+Any Runtime-typed business field can contain a fixed value or an inline `default + prompt` object. No separate top-level parameter declaration is required.
 
 ```yaml
 privileged:
@@ -10,37 +10,37 @@ privileged:
     message: Enable privileged mode?
 ```
 
-只有执行所选资源时才解析其参数。例如构建 `images.development` 不会询问其他镜像或容器的参数。
+Only the selected resource is resolved. Building `images.development`, for example, does not prompt for values belonging to other images or containers.
 
-## PromptValue 结构
+## PromptValue structure
 
 ```yaml
 default: optional-value
 prompt:
   mode: input | confirm | select
   message: Message shown to the user
-  options: [one, two]       # 仅静态 select
-  source:                   # 或动态 select；与 options 互斥
+  options: [one, two]       # Static select only
+  source:                   # Dynamic select; mutually exclusive with options
     provider: docker-containers
     filter: "^robot_"
     running_only: true
-  repeat: false             # 仅 input
-  item_hint: VALUE          # repeat input 的提示
+  repeat: false             # Input only
+  item_hint: VALUE          # Hint for repeated input
 ```
 
-`default` 可省略。省略后，在非交互模式中必须通过 values、环境变量或 `--set` 提供值。
+`default` is optional. Without it, non-interactive execution requires a values file, an environment variable, or `--set`.
 
-## 模式
+## Modes
 
-| mode | 返回值 | 规则 |
+| Mode | Result | Rules |
 | --- | --- | --- |
-| `input` | 输入字符串，或由业务字段进一步转换的值 | `repeat: true` 时返回 list |
-| `confirm` | boolean | default 必须是 boolean |
-| `select` | 候选项 | 必须提供非空 `options` 或 `source` |
+| `input` | Input string, later converted by the business field if needed | `repeat: true` returns a list |
+| `confirm` | Boolean | The default must be a boolean |
+| `select` | Selected candidate | Requires non-empty `options` or a `source` |
 
-最终类型由字段本身校验。例如 integer 字段的 input 结果会在物化 Spec 时转换并检查范围。
+The final business field validates the resolved type and range.
 
-## 静态候选
+## Static options
 
 ```yaml
 base:
@@ -51,11 +51,11 @@ base:
     options: [ubuntu:22.04, ubuntu:24.04]
 ```
 
-交互输入和显式值必须匹配静态 options。default 也必须是 options 中的一项。
+Interactive and explicit values must match static options. The default must also be one of the options.
 
-## 动态候选
+## Dynamic options
 
-内置 provider `docker-containers` 在真正显示问题时查询宿主 Docker：
+The built-in `docker-containers` provider queries host Docker only when the prompt is displayed:
 
 ```yaml
 container:
@@ -69,27 +69,27 @@ container:
       running_only: true
 ```
 
-- `filter` 是可选正则表达式，匹配容器名称。
-- `running_only` 默认 `false`。
-- 动态候选是开放集合；values、环境变量和 `--set` 的显式值不要求出现在查询结果中。
-- Docker 不可用或没有候选时，交互模式回退为普通输入。
-- 非交互模式或已有显式值时不会查询 provider。
+- `filter` is an optional regular expression matched against container names.
+- `running_only` defaults to `false`.
+- Dynamic options are an open set; explicit values need not appear in the query result.
+- If Docker is unavailable or no candidates exist, interactive mode falls back to ordinary input.
+- Non-interactive execution and explicit values do not query the provider.
 
-## 值来源和优先级
+## Value sources and precedence
 
-从低到高：
+From lowest to highest precedence:
 
-1. 内联 `default`
-2. values YAML
-3. `TOOL_PARAM_*` 环境变量
+1. Inline `default`
+2. Values YAML
+3. `TOOL_PARAM_*` environment variable
 4. `--set PATH=VALUE`
-5. 无显式来源且启用交互时，由用户输入
+5. Interactive input when no explicit source exists
 
-交互模式即使存在 default 也会显示问题，直接回车采用 default。`--non-interactive` 不显示问题；缺少必填值时报错。
+Interactive mode shows a prompt even when a default exists; pressing Enter accepts it. `--non-interactive` never prompts and fails when a required value is missing.
 
-### values 文件
+### Values files
 
-values 的结构镜像完整配置路径：
+The values structure mirrors full configuration paths:
 
 ```yaml
 images:
@@ -110,22 +110,22 @@ toolchain --values local-values.yaml
 toolchain image build development --values local-values.yaml
 ```
 
-values 文件是用户输入，不是工程 source，也不参与定义合并。
+A values file supplies user input; it is not a project source and does not merge definitions.
 
-### 环境变量
+### Environment variables
 
-完整配置路径转成大写，并把非字母数字字符替换为下划线：
+The full path is uppercased and every non-alphanumeric character becomes an underscore:
 
 ```text
 containers.development.privileged
 → TOOL_PARAM_CONTAINERS_DEVELOPMENT_PRIVILEGED
 ```
 
-如果两个参数路径映射到同一个环境变量名，Toolchain 会拒绝配置。
+Toolchain rejects configurations in which two parameter paths map to the same environment variable name.
 
-### CLI override
+### CLI overrides
 
-`--set` 可重复使用，值按 YAML scalar/list/mapping 语法解析：
+`--set` is repeatable, and values use YAML scalar, list, or mapping syntax:
 
 ```bash
 toolchain container create development \
@@ -134,11 +134,11 @@ toolchain container create development \
   --set 'containers.development.mounts=["./:/workspace"]'
 ```
 
-未知路径会直接报错，避免拼写错误被忽略。
+Unknown paths are errors, preventing silent spelling mistakes.
 
-## 与字符串模板的顺序
+## Template ordering
 
-PromptValue 先确定原始值，再由[字符串模板](templates.md)递归展开，最后进入业务字段校验。因此 default 和显式输入都可以包含模板：
+A PromptValue first selects its raw value. [String templates](templates.md) then expand recursively, followed by business-field validation. Defaults and explicit values may therefore contain templates:
 
 ```yaml
 name:
@@ -148,4 +148,4 @@ name:
     message: Container name
 ```
 
-提示中会显示渲染后的默认值；直接回车仍采用原始 default，然后在统一模板阶段展开。
+The prompt displays the rendered default. Pressing Enter still selects the raw default, which is expanded during the common template phase.

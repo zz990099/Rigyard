@@ -1,25 +1,24 @@
-# 发布流程
+# Release process
 
-本流程用于未来发布 PyPI wheel 和 source distribution。首次发布前应确定最终 distribution name；PyPI 项目发布后不适合直接改名。
+This process is intended for future PyPI wheel and source distribution releases. Choose the final distribution name before the first upload because renaming a published PyPI project is not a normal in-place operation.
 
-## 发布前准备
+## Release preparation
 
-1. 更新版本号和 `CHANGELOG.md`。
-2. 确认 `pyproject.toml` 的 description、license、classifiers 和 project URLs。
-3. 确认 README 中的公开链接可从 PyPI 访问。
-4. 在受支持的 Python 版本上运行测试。
+1. Update the version and `CHANGELOG.md`.
+2. Verify description, license, classifiers, and project URLs in `pyproject.toml`.
+3. Verify that README links are publicly reachable from PyPI.
+4. Run the test suite on every supported Python version.
 
-## 本地检查
+## Local checks
 
 ```bash
-python -m ruff check src tests
-python -m ruff format --check src tests
+python -m ruff check .
 python -m pytest
 python -m build
 python -m twine check dist/*
 ```
 
-还应从构建产物安装到全新虚拟环境并检查：
+Install the artifact into a clean environment and smoke-test the CLI:
 
 ```bash
 python -m pip install dist/*.whl
@@ -27,20 +26,20 @@ toolchain --version
 toolchain --help
 ```
 
-检查 wheel/sdist 内容，确保 Python 包、README 和 LICENSE 已包含，且没有测试缓存、本地配置或凭据。
+Inspect wheel and sdist contents to ensure they include the Python package, README, and LICENSE and exclude caches, local configuration, and credentials.
 
 ## TestPyPI
 
-正式发布前先将相同构建产物发布到 TestPyPI，并从 TestPyPI 安装验证。TestPyPI 与 PyPI 使用独立账户和项目空间。
+Publish the same artifacts to TestPyPI before the production release, then install and verify them from TestPyPI. TestPyPI and PyPI use separate accounts and project namespaces.
 
-## 自动发布
+## Automated publishing
 
-推荐 GitHub Actions 使用 PyPI Trusted Publishing：
+Use GitHub Actions with PyPI Trusted Publishing:
 
-1. tag/release 触发独立 build job。
-2. build job 只生成并上传 wheel/sdist artifact。
-3. publish job 下载已经生成的 artifact，不重新构建。
-4. 通过受保护的 GitHub Environment 和 OIDC 发布。
-5. PyPI environment 要求人工批准。
+1. Trigger a dedicated build job from a tag or release.
+2. Build wheel and sdist artifacts only in that job.
+3. Download the existing artifacts in the publishing job; do not rebuild them there.
+4. Publish through a protected GitHub Environment and OIDC.
+5. Require manual approval for the PyPI environment.
 
-不要在仓库中保存长期 PyPI API token。首次配置 Trusted Publisher 后，使用短期项目级凭据完成上传。
+Do not store long-lived PyPI API tokens in the repository. Trusted Publishing exchanges the CI identity for a short-lived, project-scoped credential.

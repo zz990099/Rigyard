@@ -1,14 +1,14 @@
-# 贡献指南
+# Contributing
 
-## 开发环境
+## Development environment
 
-项目要求 Python 3.10 或更高版本。推荐使用 uv：
+The project requires Python 3.10 or newer. The recommended setup uses uv:
 
 ```bash
 uv sync --extra dev
 ```
 
-也可以使用标准虚拟环境：
+Alternatively, use a standard virtual environment:
 
 ```bash
 python3 -m venv .venv
@@ -16,9 +16,9 @@ source .venv/bin/activate
 python -m pip install -e '.[dev]'
 ```
 
-## 检查
+## Checks
 
-提交前运行：
+Run these checks before submitting a change:
 
 ```bash
 python -m ruff check .
@@ -28,13 +28,13 @@ python -m build
 python -m twine check dist/*
 ```
 
-文档示例必须与当前 Schema 和 CLI 一致。修改配置模型、默认值或命令参数时，应同步更新 `docs/reference/configuration-schema.md`、对应功能文档和示例配置。
+Documentation examples must match the current schema and CLI. When changing configuration models, defaults, or command arguments, update `docs/reference/configuration-schema.md`, the relevant feature guide, and the example configuration.
 
-## 代码边界
+## Code boundaries
 
-- 配置文件由 `config` 层加载并定位错误。
-- 运行时参数和模板由 `parameters` 层解析。
-- images、containers、builds 和 scenarios 先生成不可变计划，再调用执行端。
-- CLI 和交互菜单共享 application use case。
+- `config` loads manifest and source files and reports source locations.
+- `parameters` resolves runtime values and string templates.
+- `images`, `containers`, `builds`, and `scenarios` create immutable plans before invoking an executor.
+- The CLI and interactive menu share application use cases.
 
-更完整的设计见[架构文档](docs/development/architecture.md)。
+See the [architecture guide](docs/development/architecture.md) for more detail.

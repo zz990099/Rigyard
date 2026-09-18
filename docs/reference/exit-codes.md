@@ -1,11 +1,11 @@
-# 退出码
+# Exit codes
 
-| 退出码 | 含义 | 常见原因 |
+| Code | Meaning | Common causes |
 | ---: | --- | --- |
-| `0` | 成功 | 执行、验证或 dry-run 成功 |
-| `1` | 未分类 Toolchain 错误 | 通用应用边界错误 |
-| `2` | 配置或用法错误 | YAML、Schema、工作区绑定、CLI 参数、交互菜单无 TTY |
-| `3` | 参数或计划错误 | 缺少运行时值、模板求值失败、计划约束不满足 |
-| `4` | 执行端错误 | Docker/tmux 不可用，镜像、容器、build、scenario 执行失败 |
+| `0` | Success | Execution, validation, or dry-run completed |
+| `1` | Unclassified Toolchain error | Generic application boundary failure |
+| `2` | Configuration or usage error | YAML, schema, workspace binding, CLI arguments, or non-TTY menu use |
+| `3` | Resolution or planning error | Missing runtime value, template failure, or invalid plan constraint |
+| `4` | Execution backend error | Docker/tmux unavailable or image, container, build, or scenario execution failed |
 
-外部进程的详细失败信息会包装为稳定的 Toolchain 错误并写入 stderr。脚本、Docker 和 tmux 的原始退出码不保证直接成为 Toolchain 进程退出码。
+External process failures are wrapped in stable Toolchain errors and written to stderr. A script, Docker, or tmux exit status is not guaranteed to become the Toolchain process exit code directly.

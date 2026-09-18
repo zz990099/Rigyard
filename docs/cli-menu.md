@@ -1,3 +1,3 @@
-# CLI 与交互式菜单
+# CLI and interactive menu
 
-文档已移动到[CLI 参考](reference/cli.md)。
+This document moved to the [CLI reference](reference/cli.md).

@@ -1,36 +1,36 @@
-# 配置字段参考
+# Configuration schema reference
 
-这是 Schema v3 的快速索引。完整语义、示例和失败行为以对应功能文档为准。所有模型都拒绝未知字段。
+This page is a compact index for schema version 3. The feature guides define complete behavior, examples, and failure semantics. Every model rejects unknown fields.
 
-## 通用类型
+## Common runtime types
 
-| 类型 | 固定值 | 运行时值 |
+| Type | Fixed form | Runtime form |
 | --- | --- | --- |
 | RuntimeText | string | PromptValue |
 | RuntimePath | path string | PromptValue |
 | RuntimeBool | boolean | PromptValue |
 | RuntimeInteger | integer | PromptValue |
 | RuntimeList | string list | PromptValue |
-| RuntimeScalar | string/integer/float/boolean | PromptValue |
+| RuntimeScalar | string, integer, float, or boolean | PromptValue |
 
-PromptValue 的字段为 `default` 和必填的 `prompt`。详见[运行时参数](../configuration/runtime-values.md)。
+A PromptValue contains optional `default` and required `prompt` fields. See [Runtime values](../configuration/runtime-values.md).
 
-## 根 manifest
+## Root manifest
 
-| 路径 | 类型 | 默认值 |
+| Path | Type | Default |
 | --- | --- | --- |
-| `version` | integer，必须为 3 | 必填 |
-| `metadata.name` | string | 必填 |
+| `version` | integer; must be 3 | required |
+| `metadata.name` | string | required |
 | `metadata.description` | string/null | `null` |
 | `variables` | string mapping | `{}` |
-| `sources.images` | path/path list/null | `null` |
-| `sources.containers` | path/path list/null | `null` |
-| `sources.builds` | path/path list/null | `null` |
-| `sources.scenarios` | path/path list/null | `null` |
+| `sources.images` | path, path list, or null | `null` |
+| `sources.containers` | path, path list, or null | `null` |
+| `sources.builds` | path, path list, or null | `null` |
+| `sources.scenarios` | path, path list, or null | `null` |
 
-至少一种 source 非空。详见[根 manifest](../configuration/manifest.md)。
+At least one source kind is required. See the [root manifest guide](../configuration/manifest.md).
 
-## Images source
+## Image source
 
 ```text
 <image>.description
@@ -44,9 +44,9 @@ PromptValue 的字段为 `default` 和必填的 `prompt`。详见[运行时参�
 <image>.layers[].build_args
 ```
 
-`base`、`tag`、至少一个 layer 为必填项。详见[镜像配置](../features/images.md#字段)。
+`base`, `tag`, and at least one layer are required. See [Image fields](../features/images.md#fields).
 
-## Containers source
+## Container source
 
 ```text
 <container>.description
@@ -68,9 +68,9 @@ PromptValue 的字段为 `default` 和必填的 `prompt`。详见[运行时参�
 <container>.command = []
 ```
 
-hook 字段为 `name`、`script`、`interpreter`、`user`、`workdir`、`environment`、`timeout_seconds`。详见[容器配置](../features/containers.md#字段)。
+Hook fields are `name`, `script`, `interpreter`, `user`, `workdir`, `environment`, and `timeout_seconds`. See [Container fields](../features/containers.md#fields).
 
-## Builds source
+## Build source
 
 ```text
 <build>.description
@@ -84,9 +84,9 @@ hook 字段为 `name`、`script`、`interpreter`、`user`、`workdir`、`environ
 <build>.timeout_seconds
 ```
 
-`container` 和 `script` 必填。详见[工程编译](../features/builds.md#字段)。
+`container` and `script` are required. See [Build fields](../features/builds.md#fields).
 
-## Scenarios source
+## Scenario source
 
 ```text
 <scenario>.description
@@ -95,7 +95,7 @@ hook 字段为 `name`、`script`、`interpreter`、`user`、`workdir`、`environ
 <scenario>.profiles
 ```
 
-Compose 字段：
+Compose fields:
 
 ```text
 file
@@ -104,7 +104,7 @@ wait_timeout_seconds = 60
 environment = {}
 ```
 
-instance 字段：
+Instance fields:
 
 ```text
 description
@@ -113,7 +113,7 @@ container | service
 groups
 ```
 
-group 字段：
+Group fields:
 
 ```text
 description
@@ -126,7 +126,7 @@ workdir
 environment = {}
 ```
 
-profile 字段：
+Profile fields:
 
 ```text
 session
@@ -138,14 +138,14 @@ mouse = true
 keep_alive = true
 ```
 
-详见[场景配置](../features/scenarios.md)。
+See the complete [scenario configuration](../features/scenarios.md).
 
-## Source 保留字段
+## Reserved source field
 
-每个 source 顶层可以包含：
+Every source may contain this top-level field:
 
 ```yaml
 description: Human-readable source group
 ```
 
-它不是业务资源，不参与名称冲突。其他顶层键都是对应领域的命名定义。
+It is not a business resource and does not participate in name conflicts. Every other top-level key is a named definition for that source kind.

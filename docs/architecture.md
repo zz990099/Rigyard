@@ -1,3 +1,3 @@
-# 架构
+# Architecture
 
-文档已移动到[开发文档：架构](development/architecture.md)。
+This document moved to [Development: Architecture](development/architecture.md).

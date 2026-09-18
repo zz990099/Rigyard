@@ -1,3 +1,3 @@
-# 容器
+# Containers
 
-文档已移动到[核心功能：容器](features/containers.md)。
+This document moved to [Core features: Containers](features/containers.md).

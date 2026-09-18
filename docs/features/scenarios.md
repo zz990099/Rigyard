@@ -1,14 +1,14 @@
-# 场景启动
+# Scenarios
 
-场景用于在 Docker 容器中启动开发和调试进程。Toolchain 固定使用 tmux 作为场景入口，不支持 supervisord 或生产部署编排。容器可以提前创建，也可以由场景引用的 Docker Compose 文件创建。
+Scenarios start development and debugging processes in Docker containers. Toolchain uses tmux as the only scenario process entry point; supervisord and production deployment orchestration are outside this feature. Containers may already exist or be created from a referenced Docker Compose file.
 
-| 层级 | 含义 | tmux 映射 |
+| Level | Meaning | tmux mapping |
 | --- | --- | --- |
-| scenario | 一次调试启动单元 | session |
-| instance | 一个容器中的一套软件系统 | window |
-| group | 一个容器内调试进程 | pane |
+| Scenario | One debugging launch unit | Session |
+| Instance | One software system in one container | Window |
+| Group | One debugging process inside the container | Pane |
 
-## 已有容器模式
+## Existing-container mode
 
 ```yaml
 robot-system:
@@ -37,9 +37,9 @@ robot-system:
       keep_alive: true
 ```
 
-没有 `compose` 时，每个 instance 必须使用 `container` 指向已有容器名称或 ID。目标不存在或无法按 profile 策略启动时，场景启动失败，不会自动切换到 Compose。
+Without `compose`, every instance must use `container` to name an existing container or ID. A missing container or failed profile lifecycle operation aborts startup; Toolchain never falls back to Compose automatically.
 
-## Compose 模式
+## Compose mode
 
 ```yaml
 robot-system:
@@ -60,12 +60,12 @@ robot-system:
       attach: true
 ```
 
-配置 `compose` 后，每个 instance 必须使用 `service` 指向 Compose service，不能使用 `container`。`scene start` 执行 `docker compose up -d --wait`，然后通过 `docker compose ps -q` 将每个 service 解析为唯一容器 ID；当前不支持一个 instance 对应多个副本。
+With `compose`, every instance must use `service`, not `container`. `scene start` runs `docker compose up -d --wait`, then resolves each service to exactly one container ID through `docker compose ps -q`. One instance cannot currently target a scaled service.
 
-`compose.file` 相对于根 manifest 解析。`compose.environment` 会在工具链模板解析后作为 Compose 插值环境传给 `config`、`up`、`ps` 和 `down`，并覆盖同名宿主环境变量：
+`compose.file` is relative to the root manifest. `compose.environment` is expanded by Toolchain and passed to Compose `config`, `up`, `ps`, and `down`, overriding the same host variable:
 
 ```yaml
-# scenario source
+# Scenario source
 compose:
   file: deploy/compose.yaml
   environment:
@@ -80,113 +80,113 @@ services:
       - "${WORKSPACE}:/workspace"
 ```
 
-dry-run 只显示变量名，不显示变量值。
+Dry-run output shows Compose environment names, not values.
 
-## scenario 字段
+## Scenario fields
 
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
+| Field | Type | Required | Default | Description |
 | --- | --- | ---: | --- | --- |
-| `description` | string | 否 | — | 菜单说明 |
-| `compose` | mapping | 否 | — | Compose 生命周期配置 |
-| `instances` | mapping | 是 | — | 至少一个 instance |
-| `profiles` | mapping | 是 | — | 至少一个 profile |
+| `description` | string | no | — | Menu description |
+| `compose` | mapping | no | — | Compose lifecycle configuration |
+| `instances` | mapping | yes | — | At least one instance |
+| `profiles` | mapping | yes | — | At least one profile |
 
-## Compose 字段
+## Compose fields
 
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
+| Field | Type | Required | Default | Description |
 | --- | --- | ---: | --- | --- |
-| `file` | path | 是 | — | Compose YAML，基于根 manifest |
-| `project_name` | string | 否 | 稳定生成 | Compose project name |
-| `wait_timeout_seconds` | integer | 否 | `60` | 1～3600 秒 |
-| `environment` | string mapping | 否 | `{}` | Compose 插值环境 |
+| `file` | path | yes | — | Compose YAML based on the root manifest |
+| `project_name` | string | no | Stable generated value | Compose project name |
+| `wait_timeout_seconds` | integer | no | `60` | 1 through 3600 seconds |
+| `environment` | string mapping | no | `{}` | Compose interpolation environment |
 
-## instance 字段
+## Instance fields
 
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
+| Field | Type | Required | Default | Description |
 | --- | --- | ---: | --- | --- |
-| `description` | string | 否 | — | instance 说明 |
-| `enabled` | boolean | 否 | `true` | 是否默认选择 |
-| `container` | string | 条件 | — | 已有容器模式目标 |
-| `service` | string | 条件 | — | Compose 模式目标 |
-| `groups` | mapping | 是 | — | 至少一个 group |
+| `description` | string | no | — | Instance description |
+| `enabled` | boolean | no | `true` | Included by default |
+| `container` | string | conditional | — | Existing-container target |
+| `service` | string | conditional | — | Compose service target |
+| `groups` | mapping | yes | — | At least one group |
 
-instance 名成为 tmux window 名，必须匹配 `[A-Za-z0-9][A-Za-z0-9_-]*`。`.` 和 `:` 会与 tmux target 语法冲突，因此不允许。
+Instance names become tmux window names and must match `[A-Za-z0-9][A-Za-z0-9_-]*`. Dots and colons conflict with tmux target syntax and are rejected during planning.
 
-## group 字段
+## Group fields
 
-每个 group 必须使用 `script` 或 `command`，两者互斥：
+Every group must define exactly one of `script` or `command`:
 
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
+| Field | Type | Required | Default | Description |
 | --- | --- | ---: | --- | --- |
-| `description` | string | 否 | — | group 说明 |
-| `enabled` | boolean | 否 | `true` | 是否启动 |
-| `script` | string | 条件 | — | 容器内脚本路径 |
-| `command` | string list | 条件 | — | 直接执行的 argv |
-| `setup` | string list | 否 | `[]` | 依次 source 后执行进程 |
-| `interpreter` | string list | 否 | `[/bin/sh, -eu]` | 执行 setup/script 的解释器 |
-| `user` | string | 否 | 容器默认用户 | `docker exec --user` |
-| `workdir` | string | 否 | 容器默认目录 | 容器绝对工作目录 |
-| `environment` | string mapping | 否 | `{}` | group 环境变量 |
+| `description` | string | no | — | Group description |
+| `enabled` | boolean | no | `true` | Whether to launch the group |
+| `script` | string | conditional | — | Script path inside the container |
+| `command` | string list | conditional | — | Direct argv |
+| `setup` | string list | no | `[]` | Scripts sourced in order before the process |
+| `interpreter` | string list | no | `[/bin/sh, -eu]` | Interpreter for setup and script |
+| `user` | string | no | Container default | Passed to `docker exec --user` |
+| `workdir` | string | no | Container default | Absolute container working directory |
+| `environment` | string mapping | no | `{}` | Group environment |
 
-ROS 的 `setup.bash` 通常要求 bash，且可能不兼容 `set -u`，因此建议显式使用：
+ROS `setup.bash` generally requires Bash and may not tolerate `set -u`. Use an explicit interpreter such as:
 
 ```yaml
 interpreter: [/bin/bash, -eo, pipefail]
 ```
 
-## profile 字段
+## Profile fields
 
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
+| Field | Type | Required | Default | Description |
 | --- | --- | ---: | --- | --- |
-| `session` | string | 否 | 稳定生成 | tmux session 名 |
-| `attach` | boolean | 否 | `true` | 启动后 attach |
-| `replace` | boolean | 否 | `true` | 替换同名场景 tmux 对象 |
-| `stop_grace_seconds` | integer | 否 | `5` | 发送 Ctrl+C 后等待 0～30 秒 |
-| `restart_container` | enum | 否 | `always` | 已有容器生命周期策略 |
-| `mouse` | boolean | 否 | `true` | tmux mouse |
-| `keep_alive` | boolean | 否 | `true` | group 退出后保留可操作 shell |
+| `session` | string | no | Stable generated value | tmux session name |
+| `attach` | boolean | no | `true` | Attach after startup |
+| `replace` | boolean | no | `true` | Replace matching scenario tmux objects |
+| `stop_grace_seconds` | integer | no | `5` | Wait 0 through 30 seconds after Ctrl+C |
+| `restart_container` | enum | no | `always` | Existing-container lifecycle policy |
+| `mouse` | boolean | no | `true` | Enable tmux mouse support |
+| `keep_alive` | boolean | no | `true` | Leave interactive shells after group exit |
 
-`restart_container` 只用于已有容器模式：
+`restart_container` applies only to existing-container mode:
 
-| 值 | 行为 |
+| Value | Behavior |
 | --- | --- |
-| `always` | 运行中执行 restart，停止时执行 start |
-| `if_not_running` | 运行中不处理，停止时执行 start |
-| `never` | 不改变生命周期，只接受已经运行的容器 |
+| `always` | Restart a running container or start a stopped one |
+| `if_not_running` | Leave a running container unchanged or start a stopped one |
+| `never` | Do not change lifecycle; require the container to be running |
 
-## 参数解析
+## Resolution and selection
 
-profile、instance/group 的 `enabled` 和 instance 目标会先解析；只有被选中 instance 中启用的 group 才继续解析进程字段。所有 Runtime 字段支持相应类型的[运行时参数](../configuration/runtime-values.md)，字符串支持[模板](../configuration/templates.md)。
+Profiles, instance/group enablement, and instance targets resolve first. Process fields resolve only for enabled groups in selected instances. Runtime-capable fields accept [runtime values](../configuration/runtime-values.md), and strings support [templates](../configuration/templates.md).
 
-默认选择所有 `enabled: true` 的 instance。`--instance NAME` 可重复使用，仅启动、停止或查询指定 window：
+By default, all enabled instances are selected. Repeat `--instance NAME` to operate on specific windows:
 
 ```bash
 toolchain scene start robot-system development --instance robot1
 toolchain scene stop robot-system development --instance robot1
 ```
 
-场景只有一个 profile 时可省略 profile 名；存在多个 profile 时必须显式选择。
+The profile may be omitted when a scenario defines exactly one profile. Scenarios with multiple profiles require an explicit name.
 
-## tmux 与 keep-alive
+## tmux and keep-alive behavior
 
-每个 pane 开启 `remain-on-exit`。`keep_alive: true` 时：
+Every pane enables `remain-on-exit`. With `keep_alive: true`:
 
-1. group 进程退出后进入已执行相同 setup 的容器交互 shell。
-2. 容器 shell 退出后进入宿主交互 shell。
+1. When the group process exits, the pane enters an interactive container shell with the same setup sourced.
+2. When that container shell exits, the pane enters an interactive host shell.
 
-这便于查看输出、修改命令并重试。设为 `false` 时，进程退出后 pane 变为 dead，只保留输出。进程在启动宽限期内退出仍被视为启动失败，并保留 tmux 对象用于诊断。
+This preserves output and supports quick command edits and retries. With `keep_alive: false`, the pane becomes dead when the process exits and retains only its output. A process that exits during the startup grace period still counts as a startup failure, and tmux objects remain for diagnosis.
 
-## 生命周期边界
+## Lifecycle boundaries
 
-| 命令 | tmux | 已有容器 | Compose 容器 |
+| Command | tmux | Existing container | Compose containers |
 | --- | --- | --- | --- |
-| `scene start` | 创建 session/window/pane | 按 restart 策略处理 | `compose up -d --wait` |
-| `scene stop` | 停止进程并关闭目标 | 保留 | 保留 |
-| `scene down` | 停止完整场景 | 不适用 | `compose down` |
+| `scene start` | Creates session, windows, and panes | Applies restart policy | Runs `compose up -d --wait` |
+| `scene stop` | Stops processes and closes targets | Preserved | Preserved |
+| `scene down` | Stops the complete scenario | Not applicable | Runs `compose down` |
 
-`scene down` 只适用于 Compose 场景，并以完整 Compose project 为边界，因此不接受 `--instance`。Compose up 后若后续解析或 tmux 创建失败，容器会保留以便诊断；需要清理时显式执行 `scene down`。
+`scene down` is available only for Compose scenarios and operates on the complete Compose project, so it rejects `--instance`. If a failure occurs after Compose up, containers remain available for diagnosis; use `scene down` to remove them.
 
-## 命令
+## Commands
 
 ```bash
 toolchain scene start robot-system development
@@ -199,4 +199,4 @@ toolchain scene stop robot-system development
 toolchain scene down robot-system development
 ```
 
-`attach` 和指定 group 的 `logs` 需要能够唯一定位 instance；多 instance 场景应同时传入 `--instance`。停止时先向 pane 发送 Ctrl+C，等待 `stop_grace_seconds` 后关闭对应 tmux 对象。
+`attach` and group-specific `logs` must identify a unique instance; pass `--instance` in multi-instance scenarios. Stopping first sends Ctrl+C, waits for `stop_grace_seconds`, and then closes the target tmux objects.

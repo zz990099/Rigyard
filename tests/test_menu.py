@@ -251,7 +251,7 @@ def test_menu_final_confirmation_defaults_to_yes(tmp_path: Path):
 
     assert app.run(config) == 0
 
-    assert len(backend.steps) == 1                     # 空回车 = 默认 Y，直接执行
+    assert len(backend.steps) == 1  # Empty input accepts the default Y and executes.
     assert "Build development now? [Y/n]: " in output.getvalue()
 
 
@@ -292,7 +292,7 @@ def test_menu_colours_titles_options_and_plan_fields(tmp_path: Path):
     assert app.run(config) == 0
 
     rendered = output.getvalue()
-    # 标题、选项序号、字段名/值分别用不同角色包裹
+    # Headings, option numbers, field names, and values use distinct style roles.
     assert "\x1b[1;36mToolchain" in rendered
     assert "\x1b[36m1)\x1b[0m Build image" in rendered
     assert "\x1b[2mImage\x1b[0m: \x1b[1mexample/development:latest; layers: 1\x1b[0m" in rendered

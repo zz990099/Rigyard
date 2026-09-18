@@ -1,32 +1,32 @@
-# Toolchain 文档
+# Toolchain documentation
 
-Toolchain 将机器人软件开发中的镜像、容器、工程编译和多进程调试场景组织为可版本控制的 YAML 配置。工具运行在宿主机，通过 Docker 和 tmux 执行计划，不理解 colcon、CMake 或 ROS launch 等具体工程系统。
+Toolchain represents image builds, containers, project builds, and multi-process debugging scenarios as version-controlled YAML. It runs on the host and executes explicit plans through Docker and tmux; it does not interpret build systems such as colcon, CMake, or ROS launch.
 
-## 开始使用
+## Start here
 
-- [安装与系统要求](installation.md)
-- [入门教程](getting-started.md)
-- [CLI 参考](reference/cli.md)
-- [退出码](reference/exit-codes.md)
+- [Installation and requirements](installation.md)
+- [Getting started](getting-started.md)
+- [CLI reference](reference/cli.md)
+- [Exit codes](reference/exit-codes.md)
 
-## 配置
+## Configuration
 
-- [配置总览](configuration/index.md)
-- [根 manifest](configuration/manifest.md)
-- [全局变量与字符串模板](configuration/templates.md)
-- [运行时参数](configuration/runtime-values.md)
-- [配置字段参考](reference/configuration-schema.md)
+- [Configuration overview](configuration/index.md)
+- [Root manifest](configuration/manifest.md)
+- [Global variables and string templates](configuration/templates.md)
+- [Runtime values](configuration/runtime-values.md)
+- [Configuration schema reference](reference/configuration-schema.md)
 
-## 核心功能
+## Core features
 
-- [镜像](features/images.md)
-- [容器](features/containers.md)
-- [工程编译](features/builds.md)
-- [场景启动](features/scenarios.md)
+- [Images](features/images.md)
+- [Containers](features/containers.md)
+- [Project builds](features/builds.md)
+- [Scenarios](features/scenarios.md)
 
-## 项目维护
+## Project maintenance
 
-- [架构](development/architecture.md)
-- [发布流程](development/releasing.md)
-- [贡献指南](../CONTRIBUTING.md)
-- [变更记录](../CHANGELOG.md)
+- [Architecture](development/architecture.md)
+- [Release process](development/releasing.md)
+- [Contributing](../CONTRIBUTING.md)
+- [Changelog](../CHANGELOG.md)

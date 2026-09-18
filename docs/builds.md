@@ -1,3 +1,3 @@
-# 工程编译
+# Project builds
 
-文档已移动到[核心功能：工程编译](features/builds.md)。
+This document moved to [Core features: Project builds](features/builds.md).

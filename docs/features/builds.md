@@ -1,8 +1,8 @@
-# 工程编译
+# Project builds
 
-工程编译统一通过 `docker exec` 在已经存在且正在运行的容器内执行。Toolchain 不创建、启动或拉取 build 使用的容器，也不理解 colcon、catkin、CMake 等具体构建系统。
+Project builds always run through `docker exec` inside an existing, running container. Toolchain does not create, start, or pull the build container and does not interpret build systems such as colcon, catkin, or CMake.
 
-## 配置
+## Configuration
 
 ```yaml
 native:
@@ -25,25 +25,25 @@ native:
   timeout_seconds: 3600
 ```
 
-## 字段
+## Fields
 
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
+| Field | Type | Required | Default | Description |
 | --- | --- | ---: | --- | --- |
-| `description` | string | 否 | — | 菜单说明 |
-| `container` | string | 是 | — | 已有容器名称或 ID |
-| `script` | path | 是 | — | 容器内脚本路径 |
-| `interpreter` | string list | 否 | `[/bin/sh, -eu]` | 容器内解释器 argv，不能为空 |
-| `workdir` | path | 否 | 容器默认目录 | 容器内工作目录 |
-| `user` | string | 否 | 容器默认用户 | `docker exec --user` |
-| `setup` | string list | 否 | `[]` | 按顺序 source 的容器内脚本 |
-| `environment` | string mapping | 否 | `{}` | 仅注入当前 build，不继承宿主环境 |
-| `timeout_seconds` | integer | 否 | 无限制 | 1～86400 秒 |
+| `description` | string | no | — | Menu description |
+| `container` | string | yes | — | Existing container name or ID |
+| `script` | path | yes | — | Script path inside the container |
+| `interpreter` | string list | no | `[/bin/sh, -eu]` | Non-empty container interpreter argv |
+| `workdir` | path | no | Container default | Container working directory |
+| `user` | string | no | Container default | Passed to `docker exec --user` |
+| `setup` | string list | no | `[]` | Container scripts sourced in order |
+| `environment` | string mapping | no | `{}` | Build-only environment; host environment is not inherited |
+| `timeout_seconds` | integer | no | unlimited | 1 through 86400 seconds |
 
-所有业务字段支持相应类型的[运行时参数](../configuration/runtime-values.md)，字符串和路径支持[模板](../configuration/templates.md)。`container` 常配合 `docker-containers` 动态候选使用。
+All business fields support corresponding [runtime values](../configuration/runtime-values.md). Strings and paths support [templates](../configuration/templates.md). The `container` field is commonly paired with the `docker-containers` dynamic option source.
 
-## 执行语义
+## Execution semantics
 
-容器必须已经存在且正在运行；不存在或停止时命令失败，不会改变其生命周期。实际容器内控制流等价于：
+The container must exist and be running. A missing or stopped container causes an error without changing its lifecycle. Container-side control flow is equivalent to:
 
 ```text
 . /opt/ros/humble/setup.bash &&
@@ -51,11 +51,11 @@ native:
 exec /bin/bash -euo pipefail /workspace/scripts/build-native.sh
 ```
 
-解释器、setup、script、workdir 都是容器内值。Toolchain 通过 argv 调用 `docker exec`，不会让宿主 shell 解释业务命令。`environment` 只包含显式配置的覆盖，不会复制整个宿主环境。
+The interpreter, setup scripts, build script, and workdir are container-side values. Toolchain invokes `docker exec` through argv and never asks the host shell to interpret the business command. Only explicitly configured environment overrides are passed.
 
-`timeout_seconds` 控制宿主上的 `docker exec` client，不保证能够可靠终止容器内已经派生的所有进程。需要严格的进程树超时时，应在 build script 内使用容器侧的 `timeout` 或相应机制。
+`timeout_seconds` controls the host-side `docker exec` client and cannot guarantee termination of every process spawned inside the container. For strict process-tree timeout behavior, use a container-side mechanism such as `timeout` in the build script.
 
-## 命令
+## Commands
 
 ```bash
 toolchain build native
@@ -65,4 +65,4 @@ toolchain build native --non-interactive \
   --set builds.native.environment.BUILD_TYPE=Debug
 ```
 
-`--dry-run` 会完成容器名、脚本、setup、环境和最终 `docker exec` argv 的计划生成，但不检查或执行 Docker 容器。
+`--dry-run` resolves the container, script, setup, environment, and final `docker exec` argv without checking or invoking the Docker container.

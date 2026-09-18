@@ -1,25 +1,24 @@
-# 全局变量与字符串模板
+# Global variables and string templates
 
-模板用于配置中的字符串和路径。它在运行时参数选定之后执行，每个字符串只展开一次。
+Templates apply to configuration strings and paths. Expansion happens after runtime values are selected, and every string is expanded once.
 
-## 内置表达式
+## Built-in expressions
 
-| 表达式 | 值 |
+| Expression | Value |
 | --- | --- |
-| `${WORKSPACE_ROOT}` | 当前工作区的宿主机绝对路径 |
-| `${TOOLCHAIN_ROOT}` | 实际根 `toolchain.yaml` 所在目录的宿主机绝对路径 |
-| `${env:NAME}` | Toolchain 进程的宿主环境变量；不存在时报错 |
-| `${date:FORMAT}` | 命令开始时的本地时间 |
-| `${utcdate:FORMAT}` | 同一个时间点的 UTC 时间 |
-| `${NAME}` | 根 manifest 中的 `variables.NAME` |
-| `$${...}` | 输出字面量 `${...}`，不求值 |
+| `${WORKSPACE_ROOT}` | Absolute host path of the active workspace |
+| `${TOOLCHAIN_ROOT}` | Absolute host directory containing the root `toolchain.yaml` |
+| `${env:NAME}` | Host environment variable; missing variables are errors at resolution time |
+| `${date:FORMAT}` | Local time captured at the start of the command |
+| `${utcdate:FORMAT}` | The same instant in UTC |
+| `${NAME}` | `variables.NAME` from the root manifest |
+| `$${...}` | Literal `${...}` without evaluation |
 
 ```yaml
 variables:
   PROJECT_ROOT: ${TOOLCHAIN_ROOT}/..
   CONTAINER_PROJECT_ROOT: /workspace/project
 
-# source 文件
 development:
   image: robot/app:${date:%Y%m%d}
   name: dev_${env:USER}_${date:%Y%m%d%H%M}
@@ -27,22 +26,22 @@ development:
     - ${PROJECT_ROOT}:${CONTAINER_PROJECT_ROOT}
 ```
 
-## 路径变量的语义
+## Root path semantics
 
-`WORKSPACE_ROOT` 与 `TOOLCHAIN_ROOT` 是 Toolchain 能够确定的宿主机值：
+`WORKSPACE_ROOT` and `TOOLCHAIN_ROOT` are host values known to Toolchain:
 
-- 通过 `toolchain init` 绑定时，`WORKSPACE_ROOT` 是执行初始化的目录。
-- 直接使用 `--config` 或当前目录 `toolchain.yaml` 时，`WORKSPACE_ROOT` 是当前目录。
-- `TOOLCHAIN_ROOT` 始终是实际根配置文件的父目录。
+- With `toolchain init`, `WORKSPACE_ROOT` is the directory that was initialized.
+- With direct `--config` use or a local `toolchain.yaml`, `WORKSPACE_ROOT` is the current directory.
+- `TOOLCHAIN_ROOT` is always the parent directory of the actual root manifest.
 
-Toolchain 不定义也不推断 `PROJECT_ROOT`。工程结构属于用户语义，应显式配置：
+Toolchain does not define or infer `PROJECT_ROOT`; project layout is user-owned semantics:
 
 ```yaml
 variables:
   PROJECT_ROOT: ${TOOLCHAIN_ROOT}/..
 ```
 
-内置根变量描述宿主文件系统。由于 Toolchain 无法预知 Docker 挂载，容器内路径也必须由用户定义：
+Because Toolchain cannot infer Docker mount destinations, container-side paths must also be explicit:
 
 ```yaml
 variables:
@@ -50,14 +49,9 @@ variables:
   CONTAINER_PROJECT_ROOT: /workspace/src/robot
 ```
 
-## 用户变量
+## User variables
 
-变量名匹配 `[A-Za-z_][A-Za-z0-9_]*`。变量按声明顺序解析，可引用：
-
-- `WORKSPACE_ROOT`、`TOOLCHAIN_ROOT`
-- 前面已经声明的用户变量
-- `${env:...}`
-- `${date:...}`、`${utcdate:...}`
+Variables are evaluated in declaration order and may reference built-in roots, the host environment, date expressions, and earlier variables:
 
 ```yaml
 variables:
@@ -65,61 +59,40 @@ variables:
   CONFIG_ROOT: ${PROJECT_ROOT}/config
 ```
 
-不允许前向引用，因此以下配置无效：
+Forward references and cycles fail. A user variable with the same name overrides `WORKSPACE_ROOT` or `TOOLCHAIN_ROOT`; avoid overriding those names unless a project intentionally changes their semantics.
 
-```yaml
-variables:
-  CONFIG_ROOT: ${PROJECT_ROOT}/config
-  PROJECT_ROOT: ${TOOLCHAIN_ROOT}/..
-```
+## Date formats
 
-用户定义同名变量会覆盖 `WORKSPACE_ROOT` 或 `TOOLCHAIN_ROOT`。除非确实需要改变这两个名称的语义，否则不建议覆盖。
+Date expressions support a restricted set of `strftime` directives, including:
 
-## 日期格式
-
-日期使用受限的 `strftime` 格式，例如：
-
-| 指令 | 含义 |
+| Directive | Meaning |
 | --- | --- |
-| `%Y` | 四位年份 |
-| `%m` | 两位月份 |
-| `%d` | 两位日期 |
-| `%H` | 小时 |
-| `%M` | 分钟 |
-| `%S` | 秒 |
-| `%z` | UTC 偏移 |
-| `%%` | 字面量 `%` |
+| `%Y` | Four-digit year |
+| `%m` | Two-digit month |
+| `%d` | Two-digit day |
+| `%H` | Hour |
+| `%M` | Minute |
+| `%S` | Second |
+| `%z` | UTC offset |
+| `%%` | Literal `%` |
 
-同一条命令只采集一次时间，因此不同字段生成的时间戳保持一致。
+A command captures time once, so timestamps remain consistent across all fields in that operation.
 
-## 展开范围
+## Expansion scope
 
-模板会递归处理所选操作中的：
+Templates recursively process selected operation values in strings, paths, lists, tuples, mapping values, resolved PromptValues, and static prompt options.
 
-- 字符串和路径
-- list/tuple 中的字符串和路径
-- mapping 的值
-- PromptValue 最终解析出的值
-- PromptValue 的静态 `options`
+Templates do not process mapping keys, resource names, prompt messages, dynamic source settings, or expressions produced by an earlier replacement. For example, if `VALUE='${date:%Y}'`, `${env:VALUE}` remains the literal string `${date:%Y}`.
 
-模板不会处理：
+## Two forms of environment lookup
 
-- mapping 键
-- image、container、build、scenario 等定义名称
-- prompt 的 `message`、动态 source 配置
-- 替换结果中再次出现的模板
-
-例如宿主环境变量 `VALUE='${date:%Y}'` 时，`${env:VALUE}` 的结果仍是字面量 `${date:%Y}`。
-
-## 环境变量的两种写法
-
-普通字符串模板：
+General string template:
 
 ```yaml
 name: dev_${env:USER}
 ```
 
-容器和 hook 的环境字段还支持结构化引用：
+Container and hook environment fields also accept a structured host reference:
 
 ```yaml
 environment:
@@ -127,18 +100,13 @@ environment:
   OPTIONAL_TOKEN: {env: TOKEN, default: ""}
 ```
 
-两者区别：
+`${env:NAME}` works in any supported string and may appear in plans or error output. `{env: NAME, default: ...}` is limited to supported container environment fields and participates in sensitive-value redaction. Do not use general templates for secrets that require automatic redaction.
 
-- `${env:NAME}` 可以出现在任意受支持字符串中，结果可能显示在计划和错误消息里。
-- `{env: NAME, default: ...}` 只用于支持它的容器环境字段，并保留敏感值脱敏语义。
+## Validation rules
 
-不要使用普通字符串模板传递需要自动脱敏的 secret。
-
-## 校验规则
-
-- 环境变量名必须匹配 `[A-Za-z_][A-Za-z0-9_]*`。
-- 不支持 `${env:${NAME}}` 等嵌套表达式。
-- 不支持未知模板 kind。
-- 模板不能未闭合，结果不能包含 NUL 字节。
-- `toolchain validate` 检查语法，但不会读取 `${env:NAME}`。
-- 只有实际执行选中配置时，缺失的环境变量才会报错。
+- Environment variable names must match `[A-Za-z_][A-Za-z0-9_]*`.
+- Nested expressions such as `${env:${NAME}}` are not supported.
+- Unknown template kinds are rejected.
+- Expressions must be closed, and results cannot contain NUL bytes.
+- `toolchain validate` checks syntax without reading `${env:NAME}`.
+- A missing environment value fails only when the selected configuration is resolved.

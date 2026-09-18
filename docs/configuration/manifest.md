@@ -1,6 +1,6 @@
-# 根 manifest
+# Root manifest
 
-根 manifest 的 Schema 版本当前固定为 3，并拒绝未知字段。
+The root manifest currently requires schema version 3 and rejects unknown fields.
 
 ```yaml
 version: 3
@@ -11,46 +11,45 @@ variables:
   PROJECT_ROOT: ${TOOLCHAIN_ROOT}/..
 sources:
   images: config/images.yaml
-  containers:
-    - config/containers.yaml
+  containers: [config/containers.yaml]
   builds: config/builds.yaml
   scenarios: config/scenarios.yaml
 ```
 
-## 字段
+## Fields
 
-| 字段 | 类型 | 必填 | 规则 |
+| Field | Type | Required | Rule |
 | --- | --- | ---: | --- |
-| `version` | integer | 是 | 必须是 `3` |
-| `metadata` | mapping | 是 | 工程展示信息 |
-| `metadata.name` | string | 是 | 去除空白后不能为空 |
-| `metadata.description` | string | 否 | 工程说明 |
-| `variables` | string mapping | 否 | 默认空；见[模板变量](templates.md) |
-| `sources` | mapping | 是 | 至少声明一种领域配置 |
-| `sources.images` | path 或 path list | 否 | 镜像 source |
-| `sources.containers` | path 或 path list | 否 | 容器 source |
-| `sources.builds` | path 或 path list | 否 | 编译 source |
-| `sources.scenarios` | path 或 path list | 否 | 场景 source |
+| `version` | integer | yes | Must be `3` |
+| `metadata` | mapping | yes | Project display metadata |
+| `metadata.name` | string | yes | Must not be blank |
+| `metadata.description` | string | no | Project description |
+| `variables` | string mapping | no | Defaults to empty; see [Templates](templates.md) |
+| `sources` | mapping | yes | Must contain at least one source kind |
+| `sources.images` | path or path list | no | Image sources |
+| `sources.containers` | path or path list | no | Container sources |
+| `sources.builds` | path or path list | no | Build sources |
+| `sources.scenarios` | path or path list | no | Scenario sources |
 
-source 列表不能为空，所有路径相对于根 manifest 解析。配置文件应使用 UTF-8 YAML。
+Source lists cannot be empty. All source paths are relative to the root manifest. Configuration files must be UTF-8 YAML.
 
-## 定义名称
+## Definition names
 
-镜像、容器、build、scenario、layer 和 group 的定义名称匹配：
+Image, container, build, scenario, layer, profile, and group names match:
 
 ```text
 [A-Za-z][A-Za-z0-9_.-]*
 ```
 
-scenario instance 会直接成为 tmux window 名，因此使用更严格的规则：
+Scenario instances become tmux window names during planning and must match:
 
 ```text
 [A-Za-z0-9][A-Za-z0-9_-]*
 ```
 
-## 全局变量
+## Global variables
 
-变量名匹配 `[A-Za-z_][A-Za-z0-9_]*`，值必须是字符串。它们按 YAML 声明顺序解析：
+Variable names match `[A-Za-z_][A-Za-z0-9_]*`, and values must be strings. Variables are evaluated in YAML declaration order:
 
 ```yaml
 variables:
@@ -59,4 +58,4 @@ variables:
   CONTAINER_PROJECT_ROOT: /workspace/project
 ```
 
-允许引用内置变量、宿主环境、日期和前面已经定义的变量；不允许前向引用。完整规则见[全局变量与字符串模板](templates.md)。
+They may reference built-in roots, host environment variables, dates, and previously declared variables. Forward references are invalid. See [Global variables and string templates](templates.md).

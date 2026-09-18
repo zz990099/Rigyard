@@ -228,7 +228,7 @@ def test_dynamic_source_returns_the_default_on_an_empty_answer():
 
     context = resolver.resolve(input_fn=lambda text: seen.append(text) or "")
 
-    assert seen == ["Container [dev]: "]           # 没有候选就不列空括号
+    assert seen == ["Container [dev]: "]  # No empty candidate block is shown.
     assert context["containers.dev.name"] == "dev"
 
 
