@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from toolchain.cli.main import run
-from toolchain.images.models import BuildStepResult
+from rigyard.cli.main import run
+from rigyard.images.models import BuildStepResult
 
 
 def write(path: Path, text: str) -> Path:
@@ -12,7 +12,7 @@ def write(path: Path, text: str) -> Path:
 
 def config_file(tmp_path: Path) -> Path:
     config = write(
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         """version: 3
 metadata: {name: test-project}
 sources:
@@ -91,7 +91,7 @@ containers:
 
 def test_noninteractive_missing_runtime_value(tmp_path: Path, capsys):
     config = write(
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         """version: 3
 metadata: {name: test-project}
 sources: {containers: config/containers.yaml}
@@ -124,7 +124,7 @@ def test_image_build_resolves_only_selected_image(tmp_path: Path, monkeypatch, c
             return BuildStepResult(step.index, step.layer_name, step.output_tag, ("fake",))
 
     backend = FakeBackend()
-    monkeypatch.setattr("toolchain.cli.commands.images.DockerImageBackend", lambda: backend)
+    monkeypatch.setattr("rigyard.cli.commands.images.DockerImageBackend", lambda: backend)
     assert (
         run(
             [
@@ -145,7 +145,7 @@ def test_image_build_resolves_only_selected_image(tmp_path: Path, monkeypatch, c
 
 def test_image_build_source_disambiguates_duplicate_names(tmp_path: Path, monkeypatch, capsys):
     config = write(
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         """version: 3
 metadata: {name: duplicate-images}
 sources:
@@ -184,7 +184,7 @@ sources:
             return BuildStepResult(step.index, step.layer_name, step.output_tag, ("fake",))
 
     backend = FakeBackend()
-    monkeypatch.setattr("toolchain.cli.commands.images.DockerImageBackend", lambda: backend)
+    monkeypatch.setattr("rigyard.cli.commands.images.DockerImageBackend", lambda: backend)
     assert (
         run(
             [
@@ -221,7 +221,7 @@ containers: {development: {privileged: true}}
         def build_step(self, step):
             return BuildStepResult(step.index, step.layer_name, step.output_tag, ("fake",))
 
-    monkeypatch.setattr("toolchain.cli.commands.images.DockerImageBackend", FakeBackend)
+    monkeypatch.setattr("rigyard.cli.commands.images.DockerImageBackend", FakeBackend)
     assert (
         run(
             [

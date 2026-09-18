@@ -1,6 +1,6 @@
-from toolchain.execution import CommandResult
-from toolchain.parameters.sources import PromptSource
-from toolchain.providers.docker.containers import (
+from rigyard.execution import CommandResult
+from rigyard.parameters.sources import PromptSource
+from rigyard.providers.docker.containers import (
     CONTAINER_FORMAT,
     PROVIDER_NAME,
     docker_container_sources,

@@ -2,13 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from toolchain.errors import ImageConfigError, ImagePlanError
-from toolchain.images.models import ImageSpec
-from toolchain.images.planner import ImageBuildPlanner
+from rigyard.errors import ImageConfigError, ImagePlanError
+from rigyard.images.models import ImageSpec
+from rigyard.images.planner import ImageBuildPlanner
 
 
 def make_project(tmp_path: Path) -> Path:
-    config = tmp_path / "toolchain.yaml"
+    config = tmp_path / "rigyard.yaml"
     config.write_text("version: 3\n")
     (tmp_path / "system.Dockerfile").write_text("RUN echo system\n")
     (tmp_path / "app.Dockerfile").write_text("ARG MODE\nRUN echo ok\n")

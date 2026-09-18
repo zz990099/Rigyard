@@ -22,8 +22,8 @@ Install the artifact into a clean environment and smoke-test the CLI:
 
 ```bash
 python -m pip install dist/*.whl
-toolchain --version
-toolchain --help
+rigyard --version
+rigyard --help
 ```
 
 Inspect wheel and sdist contents to ensure they include the Python package, README, and LICENSE and exclude caches, local configuration, and credentials.

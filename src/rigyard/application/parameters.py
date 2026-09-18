@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from ..builds.models import BuildSpec
 from ..config.loader import load_config, load_values
-from ..config.models import ToolchainConfig
+from ..config.models import RigyardConfig
 from ..containers.models import ContainerSpec
 from ..errors import ResolutionError
 from ..images.models import ImageSpec
@@ -40,7 +40,7 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 class ValidateConfigUseCase:
-    def execute(self, config_path: str | Path) -> ToolchainConfig:
+    def execute(self, config_path: str | Path) -> RigyardConfig:
         config = load_config(config_path)
         _validate_config_templates(config, config_path)
         return config
@@ -120,7 +120,7 @@ class ResolveParametersUseCase:
         return context
 
 
-def _validate_config_templates(config: ToolchainConfig, config_path: str | Path) -> None:
+def _validate_config_templates(config: RigyardConfig, config_path: str | Path) -> None:
     base = TemplateContext.capture({}, config_path=config_path)
     previous: list[str] = []
     for name, value in config.variables.items():

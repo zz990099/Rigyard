@@ -17,7 +17,7 @@ from ..common import emit, parse_overrides, say
 
 
 def register_parameter_commands(commands: Any) -> None:
-    validate = commands.add_parser("validate", help="validate the toolchain configuration")
+    validate = commands.add_parser("validate", help="validate the Rigyard configuration")
     validate.set_defaults(handler=_validate)
     inspect = commands.add_parser("inspect", help="show inline runtime prompts")
     inspect.add_argument("--format", choices=("json", "yaml"), default="yaml")

@@ -3,13 +3,13 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from toolchain.config.loader import load_config
-from toolchain.config.models import ImageDefinitions
-from toolchain.parameters.models import PromptValue
+from rigyard.config.loader import load_config
+from rigyard.config.models import ImageDefinitions
+from rigyard.parameters.models import PromptValue
 
 
 def test_external_image_source_contains_inline_prompts(tmp_path: Path):
-    manifest = tmp_path / "toolchain.yaml"
+    manifest = tmp_path / "rigyard.yaml"
     manifest.write_text(
         """version: 3
 metadata: {name: test-project}

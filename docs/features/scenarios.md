@@ -1,6 +1,6 @@
 # Scenarios
 
-Scenarios start development and debugging processes in Docker containers. Toolchain uses tmux as the only scenario process entry point; supervisord and production deployment orchestration are outside this feature. Containers may already exist or be created from a referenced Docker Compose file.
+Scenarios start development and debugging processes in Docker containers. Rigyard uses tmux as the only scenario process entry point; supervisord and production deployment orchestration are outside this feature. Containers may already exist or be created from a referenced Docker Compose file.
 
 | Level | Meaning | tmux mapping |
 | --- | --- | --- |
@@ -37,7 +37,7 @@ robot-system:
       keep_alive: true
 ```
 
-Without `compose`, every instance must use `container` to name an existing container or ID. A missing container or failed profile lifecycle operation aborts startup; Toolchain never falls back to Compose automatically.
+Without `compose`, every instance must use `container` to name an existing container or ID. A missing container or failed profile lifecycle operation aborts startup; Rigyard never falls back to Compose automatically.
 
 ## Compose mode
 
@@ -62,7 +62,7 @@ robot-system:
 
 With `compose`, every instance must use `service`, not `container`. `scene start` runs `docker compose up -d --wait`, then resolves each service to exactly one container ID through `docker compose ps -q`. One instance cannot currently target a scaled service.
 
-`compose.file` is relative to the root manifest. `compose.environment` is expanded by Toolchain and passed to Compose `config`, `up`, `ps`, and `down`, overriding the same host variable:
+`compose.file` is relative to the root manifest. `compose.environment` is expanded by Rigyard and passed to Compose `config`, `up`, `ps`, and `down`, overriding the same host variable:
 
 ```yaml
 # Scenario source
@@ -161,8 +161,8 @@ Profiles, instance/group enablement, and instance targets resolve first. Process
 By default, all enabled instances are selected. Repeat `--instance NAME` to operate on specific windows:
 
 ```bash
-toolchain scene start robot-system development --instance robot1
-toolchain scene stop robot-system development --instance robot1
+rigyard scene start robot-system development --instance robot1
+rigyard scene stop robot-system development --instance robot1
 ```
 
 The profile may be omitted when a scenario defines exactly one profile. Scenarios with multiple profiles require an explicit name.
@@ -189,14 +189,14 @@ This preserves output and supports quick command edits and retries. With `keep_a
 ## Commands
 
 ```bash
-toolchain scene start robot-system development
-toolchain scene start robot-system --dry-run --no-attach
-toolchain scene status robot-system development
-toolchain scene attach robot-system development --instance robot1 --group drivers
-toolchain scene logs robot-system development --instance robot1 --group drivers
-toolchain scene logs robot-system development --follow
-toolchain scene stop robot-system development
-toolchain scene down robot-system development
+rigyard scene start robot-system development
+rigyard scene start robot-system --dry-run --no-attach
+rigyard scene status robot-system development
+rigyard scene attach robot-system development --instance robot1 --group drivers
+rigyard scene logs robot-system development --instance robot1 --group drivers
+rigyard scene logs robot-system development --follow
+rigyard scene stop robot-system development
+rigyard scene down robot-system development
 ```
 
 `attach` and group-specific `logs` must identify a unique instance; pass `--instance` in multi-instance scenarios. Stopping first sends Ctrl+C, waits for `stop_grace_seconds`, and then closes the target tmux objects.

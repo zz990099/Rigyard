@@ -1,6 +1,6 @@
-# Toolchain
+# Rigyard
 
-Toolchain is a configuration-driven CLI for containerized robotics development. A single project manifest organizes layered image builds, development containers, project builds inside containers, and multi-process debugging scenarios managed by tmux.
+Rigyard is a configuration-driven CLI for containerized robotics development. A single project manifest organizes layered image builds, development containers, project builds inside containers, and multi-process debugging scenarios managed by tmux.
 
 ## Features
 
@@ -22,9 +22,9 @@ Toolchain is a configuration-driven CLI for containerized robotics development. 
 After the project is published to PyPI, install it as an isolated command-line tool:
 
 ```bash
-pipx install robot-toolchain
+pipx install rigyard
 # or
-uv tool install robot-toolchain
+uv tool install rigyard
 ```
 
 To install the current source tree:
@@ -39,7 +39,7 @@ See the [contribution guide](https://github.com/zz990099/toolchain/blob/main/CON
 
 ## Quick start
 
-By default, Toolchain reads `toolchain.yaml` from the current directory:
+By default, Rigyard reads `rigyard.yaml` from the current directory:
 
 ```yaml
 version: 3
@@ -48,7 +48,7 @@ metadata:
   name: robot-development
 
 variables:
-  PROJECT_ROOT: ${TOOLCHAIN_ROOT}
+  PROJECT_ROOT: ${RIGYARD_ROOT}
   CONTAINER_WORKSPACE_ROOT: /workspace
 
 sources:
@@ -61,24 +61,24 @@ sources:
 Validate the configuration and run configured operations:
 
 ```bash
-toolchain validate
-toolchain image build development
-toolchain container create development
-toolchain build native
-toolchain scene start robot-system development
+rigyard validate
+rigyard image build development
+rigyard container create development
+rigyard build native
+rigyard scene start robot-system development
 ```
 
-Run `toolchain` without a subcommand to open the one-shot interactive menu:
+Run `rigyard` without a subcommand to open the one-shot interactive menu:
 
 ```bash
-toolchain
+rigyard
 ```
 
 When the manifest lives elsewhere, pass it explicitly or bind the current workspace:
 
 ```bash
-toolchain --config path/to/toolchain.yaml validate
-toolchain init -f path/to/toolchain.yaml --alias xxxbot
+rigyard --config path/to/rigyard.yaml validate
+rigyard init -f path/to/rigyard.yaml --alias xxxbot
 ./xxxbot build native
 ```
 

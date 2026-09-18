@@ -7,7 +7,7 @@ Templates apply to configuration strings and paths. Expansion happens after runt
 | Expression | Value |
 | --- | --- |
 | `${WORKSPACE_ROOT}` | Absolute host path of the active workspace |
-| `${TOOLCHAIN_ROOT}` | Absolute host directory containing the root `toolchain.yaml` |
+| `${RIGYARD_ROOT}` | Absolute host directory containing the root `rigyard.yaml` |
 | `${env:NAME}` | Host environment variable; missing variables are errors at resolution time |
 | `${date:FORMAT}` | Local time captured at the start of the command |
 | `${utcdate:FORMAT}` | The same instant in UTC |
@@ -16,7 +16,7 @@ Templates apply to configuration strings and paths. Expansion happens after runt
 
 ```yaml
 variables:
-  PROJECT_ROOT: ${TOOLCHAIN_ROOT}/..
+  PROJECT_ROOT: ${RIGYARD_ROOT}/..
   CONTAINER_PROJECT_ROOT: /workspace/project
 
 development:
@@ -28,20 +28,20 @@ development:
 
 ## Root path semantics
 
-`WORKSPACE_ROOT` and `TOOLCHAIN_ROOT` are host values known to Toolchain:
+`WORKSPACE_ROOT` and `RIGYARD_ROOT` are host values known to Rigyard:
 
-- With `toolchain init`, `WORKSPACE_ROOT` is the directory that was initialized.
-- With direct `--config` use or a local `toolchain.yaml`, `WORKSPACE_ROOT` is the current directory.
-- `TOOLCHAIN_ROOT` is always the parent directory of the actual root manifest.
+- With `rigyard init`, `WORKSPACE_ROOT` is the directory that was initialized.
+- With direct `--config` use or a local `rigyard.yaml`, `WORKSPACE_ROOT` is the current directory.
+- `RIGYARD_ROOT` is always the parent directory of the actual root manifest.
 
-Toolchain does not define or infer `PROJECT_ROOT`; project layout is user-owned semantics:
+Rigyard does not define or infer `PROJECT_ROOT`; project layout is user-owned semantics:
 
 ```yaml
 variables:
-  PROJECT_ROOT: ${TOOLCHAIN_ROOT}/..
+  PROJECT_ROOT: ${RIGYARD_ROOT}/..
 ```
 
-Because Toolchain cannot infer Docker mount destinations, container-side paths must also be explicit:
+Because Rigyard cannot infer Docker mount destinations, container-side paths must also be explicit:
 
 ```yaml
 variables:
@@ -55,11 +55,11 @@ Variables are evaluated in declaration order and may reference built-in roots, t
 
 ```yaml
 variables:
-  PROJECT_ROOT: ${TOOLCHAIN_ROOT}/..
+  PROJECT_ROOT: ${RIGYARD_ROOT}/..
   CONFIG_ROOT: ${PROJECT_ROOT}/config
 ```
 
-Forward references and cycles fail. A user variable with the same name overrides `WORKSPACE_ROOT` or `TOOLCHAIN_ROOT`; avoid overriding those names unless a project intentionally changes their semantics.
+Forward references and cycles fail. A user variable with the same name overrides `WORKSPACE_ROOT` or `RIGYARD_ROOT`; avoid overriding those names unless a project intentionally changes their semantics.
 
 ## Date formats
 
@@ -108,5 +108,5 @@ environment:
 - Nested expressions such as `${env:${NAME}}` are not supported.
 - Unknown template kinds are rejected.
 - Expressions must be closed, and results cannot contain NUL bytes.
-- `toolchain validate` checks syntax without reading `${env:NAME}`.
+- `rigyard validate` checks syntax without reading `${env:NAME}`.
 - A missing environment value fails only when the selected configuration is resolved.

@@ -1,6 +1,6 @@
-# Toolchain documentation
+# Rigyard documentation
 
-Toolchain represents image builds, containers, project builds, and multi-process debugging scenarios as version-controlled YAML. It runs on the host and executes explicit plans through Docker and tmux; it does not interpret build systems such as colcon, CMake, or ROS launch.
+Rigyard represents image builds, containers, project builds, and multi-process debugging scenarios as version-controlled YAML. It runs on the host and executes explicit plans through Docker and tmux; it does not interpret build systems such as colcon, CMake, or ROS launch.
 
 ## Start here
 

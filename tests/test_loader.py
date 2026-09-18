@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from toolchain.config.loader import load_config, load_values
-from toolchain.errors import ConfigIOError, SchemaValidationError
+from rigyard.config.loader import load_config, load_values
+from rigyard.errors import ConfigIOError, SchemaValidationError
 
 
 def write(path: Path, text: str) -> Path:
@@ -14,7 +14,7 @@ def write(path: Path, text: str) -> Path:
 
 def manifest(tmp_path: Path, sources: str) -> Path:
     return write(
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         f"""version: 3
 metadata:
   name: test-project
@@ -50,7 +50,7 @@ def test_manifest_loads_relative_sources(tmp_path: Path, monkeypatch):
 
 def test_manifest_loads_global_variables(tmp_path: Path):
     config = write(
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         """version: 3
 metadata: {name: test-project}
 variables:
@@ -127,7 +127,7 @@ def test_empty_source_list_is_rejected(tmp_path: Path):
 
 def test_manifest_rejects_invalid_global_variable_names(tmp_path: Path):
     config = write(
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         """version: 3
 metadata: {name: test-project}
 variables: {bad-name: /workspace}
@@ -158,7 +158,7 @@ def test_invalid_external_prompt_reports_source_location(tmp_path: Path):
 
 
 def test_v1_inline_configuration_is_rejected(tmp_path: Path):
-    config = write(tmp_path / "toolchain.yaml", "version: 1\nimages: {}\n")
+    config = write(tmp_path / "rigyard.yaml", "version: 1\nimages: {}\n")
     with pytest.raises(SchemaValidationError, match="version"):
         load_config(config)
 

@@ -13,7 +13,7 @@ from ..common import print_fields
 def register_workspace_commands(commands: Any) -> None:
     initialize = commands.add_parser(
         "init",
-        help="bind the current directory to a toolchain configuration",
+        help="bind the current directory to a Rigyard configuration",
     )
     initialize.add_argument(
         "-f",
@@ -21,7 +21,7 @@ def register_workspace_commands(commands: Any) -> None:
         dest="init_config_path",
         type=Path,
         required=True,
-        help="toolchain configuration file to bind",
+        help="Rigyard configuration file to bind",
     )
     initialize.add_argument(
         "--force",
@@ -40,7 +40,7 @@ def _initialize(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
     result = initialize_workspace(args.init_config_path, force=args.force, alias=args.alias)
     state = "Initialized" if result.changed else "Already initialized"
     fields = [
-        f"{state} toolchain workspace: {result.root}",
+        f"{state} Rigyard workspace: {result.root}",
         f"Configuration: {result.stored_path}",
     ]
     if result.alias_path is not None:

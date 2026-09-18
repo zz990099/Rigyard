@@ -1,12 +1,12 @@
 import io
 from pathlib import Path
 
-from toolchain.cli.main import run
-from toolchain.cli.menu.app import MenuApp
-from toolchain.cli.menu.prompt import MenuIO
-from toolchain.cli.style import Style
-from toolchain.errors import ImageBuildError
-from toolchain.images.models import BuildStepResult
+from rigyard.cli.main import run
+from rigyard.cli.menu.app import MenuApp
+from rigyard.cli.menu.prompt import MenuIO
+from rigyard.cli.style import Style
+from rigyard.errors import ImageBuildError
+from rigyard.images.models import BuildStepResult
 
 
 class TTYBuffer(io.StringIO):
@@ -39,7 +39,7 @@ def project(
         sources.append("  containers: config/containers.yaml")
         write(tmp_path / "config/containers.yaml", containers)
     return write(
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         "version: 3\nmetadata: {name: menu-test}\nsources:\n" + "\n".join(sources) + "\n",
     )
 
@@ -76,7 +76,7 @@ def test_bare_command_enters_primary_action_menu_only_for_tty(tmp_path: Path):
 def test_non_tty_bare_command_prints_help_without_loading_config():
     output = io.StringIO()
     assert run([], stdin=io.StringIO(), stdout=output) == 2
-    assert "usage: toolchain" in output.getvalue()
+    assert "usage: rigyard" in output.getvalue()
 
 
 def test_image_menu_executes_once_and_exits(tmp_path: Path):
@@ -117,7 +117,7 @@ def test_image_menu_executes_once_and_exits(tmp_path: Path):
 
 def test_image_menu_allows_same_name_in_different_sources(tmp_path: Path):
     config = write(
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         """version: 3
 metadata: {name: menu-multi-images}
 sources:
@@ -186,7 +186,7 @@ def test_failed_menu_action_exits_with_backend_error(tmp_path: Path, monkeypatch
         def build_step(self, step):
             raise ImageBuildError("failed")
 
-    monkeypatch.setattr("toolchain.cli.menu.app.DockerImageBackend", FailingBackend)
+    monkeypatch.setattr("rigyard.cli.menu.app.DockerImageBackend", FailingBackend)
     output = TTYBuffer()
     error = io.StringIO()
     assert (
@@ -293,6 +293,6 @@ def test_menu_colours_titles_options_and_plan_fields(tmp_path: Path):
 
     rendered = output.getvalue()
     # Headings, option numbers, field names, and values use distinct style roles.
-    assert "\x1b[1;36mToolchain" in rendered
+    assert "\x1b[1;36mRigyard" in rendered
     assert "\x1b[36m1)\x1b[0m Build image" in rendered
     assert "\x1b[2mImage\x1b[0m: \x1b[1mexample/development:latest; layers: 1\x1b[0m" in rendered

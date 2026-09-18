@@ -3,17 +3,17 @@ from dataclasses import FrozenInstanceError
 import pytest
 from pydantic import ValidationError
 
-from toolchain.config.models import ToolchainConfig
-from toolchain.containers.models import ContainerSpec
-from toolchain.errors import MissingValueError, ResolutionError
-from toolchain.parameters.models import PromptValue
-from toolchain.parameters.resolver import (
+from rigyard.config.models import RigyardConfig
+from rigyard.containers.models import ContainerSpec
+from rigyard.errors import MissingValueError, ResolutionError
+from rigyard.parameters.models import PromptValue
+from rigyard.parameters.resolver import (
     RuntimeValueResolver,
     collect_prompts,
     environment_name,
     materialize_as,
 )
-from toolchain.parameters.sources import DynamicOption, PromptSource
+from rigyard.parameters.sources import DynamicOption, PromptSource
 
 
 def prompt(mode="input", default="value", **prompt_options):
@@ -40,7 +40,7 @@ def test_prompt_schema_validates_modes_and_defaults():
 
 
 def test_prompts_are_discovered_by_configuration_path():
-    config = ToolchainConfig.model_validate(
+    config = RigyardConfig.model_validate(
         {
             "version": 2,
             "metadata": {"name": "test"},
@@ -323,7 +323,7 @@ def test_prompt_source_schema_rules():
 
 
 def test_target_model_performs_type_validation_after_interaction():
-    template = ToolchainConfig.model_validate(
+    template = RigyardConfig.model_validate(
         {
             "version": 2,
             "metadata": {"name": "test"},

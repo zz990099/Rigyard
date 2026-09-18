@@ -1,8 +1,8 @@
 set -euo pipefail
 
 test -d "${SYSROOT}/usr"
-mkdir -p /opt/toolchain
+mkdir -p /opt/rigyard
 
 sed "s|@SYSROOT@|${SYSROOT}|g" \
-  /workspace/scripts/cross/toolchain.cmake.in \
-  > /opt/toolchain/aarch64.cmake
+  /workspace/scripts/cross/rigyard.cmake.in \
+  > /opt/rigyard/aarch64.cmake

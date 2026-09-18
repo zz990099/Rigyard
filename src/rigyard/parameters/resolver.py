@@ -10,14 +10,14 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from ..errors import MissingValueError, ResolutionError, ToolchainError
+from ..errors import MissingValueError, ResolutionError, RigyardError
 from .context import ResolvedContext, ResolvedValue, ValueSource
 from .models import PromptMode, PromptValue
 from .prompt import Formatter, InputFunction, prompt_for_value
 from .sources import DynamicOption, DynamicSources
 from .templates import StringTemplateRenderer, TemplateContext
 
-ENV_PREFIX = "TOOL_PARAM_"
+ENV_PREFIX = "RIGYARD_PARAM_"
 ModelT = TypeVar("ModelT", bound=BaseModel)
 DefaultRenderer = Callable[[str, Any], str]
 
@@ -107,7 +107,7 @@ class RuntimeValueResolver:
             return str(value.default)
         try:
             return self.render_default(path, value.default)
-        except ToolchainError:
+        except RigyardError:
             return str(value.default)
 
     def _check_environment_collisions(self) -> None:

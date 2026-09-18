@@ -16,7 +16,7 @@ from ..errors import ResolutionError
 from .models import PromptValue
 
 ENVIRONMENT_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-ROOT_NAMES = frozenset({"WORKSPACE_ROOT", "TOOLCHAIN_ROOT"})
+ROOT_NAMES = frozenset({"WORKSPACE_ROOT", "RIGYARD_ROOT"})
 SUPPORTED_DATE_DIRECTIVES = frozenset("aAwdbBmyYHIpMSfzZjUWcxXGuV%")
 
 
@@ -42,14 +42,14 @@ class TemplateContext:
             raise ValueError("template time must include timezone information")
         roots: dict[str, str] = {}
         if config_path is not None:
-            toolchain_root = Path(config_path).resolve().parent
+            rigyard_root = Path(config_path).resolve().parent
             roots = {
                 "WORKSPACE_ROOT": str(
                     Path.cwd().resolve()
                     if workspace_root is None
                     else Path(workspace_root).resolve()
                 ),
-                "TOOLCHAIN_ROOT": str(toolchain_root),
+                "RIGYARD_ROOT": str(rigyard_root),
             }
         base = cls(
             MappingProxyType(dict(environment)),

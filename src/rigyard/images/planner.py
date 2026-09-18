@@ -110,4 +110,4 @@ def _intermediate_tag(config_file: Path, image_name: str, index: int, layer_name
     project_id = hashlib.sha256(str(config_file).encode()).hexdigest()[:12]
     image_slug = re.sub(r"[^a-z0-9_.-]", "-", image_name.lower())
     layer_slug = re.sub(r"[^a-z0-9_.-]", "-", layer_name.lower())
-    return f"toolchain.local/{project_id}/{image_slug}:{index:02d}-{layer_slug}"
+    return f"rigyard.local/{project_id}/{image_slug}:{index:02d}-{layer_slug}"

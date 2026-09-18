@@ -3,23 +3,23 @@ from pathlib import Path
 
 import pytest
 
-from toolchain.application.requests import ResolutionRequest
-from toolchain.application.scenarios import PlanScenarioUseCase
-from toolchain.cli.main import run
-from toolchain.cli.menu.app import MenuApp
-from toolchain.cli.menu.prompt import MenuIO
-from toolchain.config.loader import load_config
-from toolchain.errors import ScenarioExecutionError, ScenarioPlanError, SchemaValidationError
-from toolchain.execution import CommandResult
-from toolchain.scenarios.executor import PANE_GROUP_OPTION, ScenarioExecutor
-from toolchain.scenarios.models import (
+from rigyard.application.requests import ResolutionRequest
+from rigyard.application.scenarios import PlanScenarioUseCase
+from rigyard.cli.main import run
+from rigyard.cli.menu.app import MenuApp
+from rigyard.cli.menu.prompt import MenuIO
+from rigyard.config.loader import load_config
+from rigyard.errors import ScenarioExecutionError, ScenarioPlanError, SchemaValidationError
+from rigyard.execution import CommandResult
+from rigyard.scenarios.executor import PANE_GROUP_OPTION, ScenarioExecutor
+from rigyard.scenarios.models import (
     ScenarioComposePlan,
     ScenarioGroupPlan,
     ScenarioInstancePlan,
     ScenarioPlan,
     ScenarioResult,
 )
-from toolchain.scenarios.process import (
+from rigyard.scenarios.process import (
     command_line,
     container_session_argv,
     host_shell_argv,
@@ -42,7 +42,7 @@ def write(path: Path, text: str) -> Path:
 
 def project(tmp_path: Path, scenarios: str) -> Path:
     config = write(
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         """version: 3
 metadata: {name: scenario-test}
 sources: {scenarios: config/scenarios.yaml}
@@ -172,7 +172,7 @@ def test_compose_plan_uses_service_reference(tmp_path: Path):
     assert plan.instances[0].container is None
 
 
-def test_compose_environment_resolves_toolchain_templates(
+def test_compose_environment_resolves_rigyard_templates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.chdir(tmp_path)
@@ -183,7 +183,7 @@ def test_compose_environment_resolves_toolchain_templates(
     file: compose.yaml
     environment:
       WORKSPACE: ${WORKSPACE_ROOT}
-      CONFIG_ROOT: ${TOOLCHAIN_ROOT}
+      CONFIG_ROOT: ${RIGYARD_ROOT}
   instances:
     robot1: {service: robot, groups: {drivers: {script: /a.sh}}}
   profiles:
@@ -562,7 +562,7 @@ def test_group_requires_exactly_one_of_script_or_command(tmp_path: Path):
 
 def test_schema_version_2_is_rejected_with_migration_hint(tmp_path: Path):
     config = write(
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         "version: 2\nmetadata: {name: old}\nsources: {scenarios: s.yaml}\n",
     )
     with pytest.raises(SchemaValidationError, match="instances.<name>"):
@@ -830,8 +830,8 @@ def test_keep_alive_wrapper_survives_interrupts_and_hands_over_a_host_shell():
     assert program.splitlines() == [
         'trap "" INT',
         "docker exec -it robot-dev bash -c 'sleep 1'",
-        "__toolchain_status=$?",
-        'echo "[toolchain] drivers container shell exited with code $__toolchain_status"',
+        "__rigyard_status=$?",
+        'echo "[rigyard] drivers container shell exited with code $__rigyard_status"',
         "trap - INT",
         "exec /bin/bash -i",
     ]
@@ -851,12 +851,12 @@ def test_container_session_runs_the_group_as_a_child_and_keeps_a_ready_shell():
         ". install/setup.bash",
         "set +e",
         "ros2 launch a.launch.py",
-        "__toolchain_status=$?",
-        'echo "[toolchain] drivers exited with code $__toolchain_status"',
-        '__toolchain_history="${HISTFILE-$HOME/.bash_history}"',
-        'if [ -n "$__toolchain_history" ]; then',
+        "__rigyard_status=$?",
+        'echo "[rigyard] drivers exited with code $__rigyard_status"',
+        '__rigyard_history="${HISTFILE-$HOME/.bash_history}"',
+        'if [ -n "$__rigyard_history" ]; then',
         "  printf '%s\\n' '. install/setup.bash; ros2 launch a.launch.py'"
-        ' >> "$__toolchain_history" 2>/dev/null',
+        ' >> "$__rigyard_history" 2>/dev/null',
         "fi",
         "exec /bin/bash -i",
     ]
@@ -866,18 +866,18 @@ def test_container_session_works_without_setup_and_for_scripts():
     assert container_session_argv(group("drivers", command=("true",)))[-1].splitlines() == [
         "set +e",
         "true",
-        "__toolchain_status=$?",
-        'echo "[toolchain] drivers exited with code $__toolchain_status"',
-        '__toolchain_history="${HISTFILE-$HOME/.bash_history}"',
-        'if [ -n "$__toolchain_history" ]; then',
-        "  printf '%s\\n' true >> \"$__toolchain_history\" 2>/dev/null",
+        "__rigyard_status=$?",
+        'echo "[rigyard] drivers exited with code $__rigyard_status"',
+        '__rigyard_history="${HISTFILE-$HOME/.bash_history}"',
+        'if [ -n "$__rigyard_history" ]; then',
+        "  printf '%s\\n' true >> \"$__rigyard_history\" 2>/dev/null",
         "fi",
         "exec /bin/bash -i",
     ]
     assert container_session_argv(group("nav"))[-1].splitlines()[1:4] == [
         "/bin/bash -euo pipefail /workspace/nav.sh",
-        "__toolchain_status=$?",
-        'echo "[toolchain] nav exited with code $__toolchain_status"',
+        "__rigyard_status=$?",
+        'echo "[rigyard] nav exited with code $__rigyard_status"',
     ]
 
 
@@ -904,10 +904,10 @@ def test_host_shell_prefers_the_login_shell_and_falls_back_to_bash(tmp_path: Pat
 
 
 def test_startup_exit_code_reads_the_keep_alive_marker():
-    content = "boom\n[toolchain] drivers exited with code 127\n$ "
+    content = "boom\n[rigyard] drivers exited with code 127\n$ "
     assert startup_exit_code(content, "drivers") == 127
     assert startup_exit_code(content, "navigation") is None
-    assert startup_exit_code("[toolchain] drivers exited with code ?\n", "drivers") is None
+    assert startup_exit_code("[rigyard] drivers exited with code ?\n", "drivers") is None
 
 
 def test_tmux_start_creates_one_window_per_instance_and_one_pane_per_group():
@@ -1188,7 +1188,7 @@ def test_tmux_restart_policy_if_not_running_starts_a_stopped_container():
 
 def test_tmux_missing_container_reports_an_actionable_error():
     fake = FakeTmux(missing_containers=("robot-dev",))
-    with pytest.raises(ScenarioExecutionError, match="toolchain container create robot-dev"):
+    with pytest.raises(ScenarioExecutionError, match="rigyard container create robot-dev"):
         executor(fake).start(scenario_plan(instance()))
 
 
@@ -1269,10 +1269,10 @@ def test_tmux_keep_alive_pane_keeps_a_ready_container_shell_and_a_host_terminal(
     assert program.startswith('trap "" INT\ndocker exec -it')
     # The group runs as a child, then leaves an interactive container shell with setup sourced.
     assert "set +e\n/bin/bash -euo pipefail /workspace/drivers.sh" in program
-    assert "[toolchain] drivers exited with code $__toolchain_status" in program
+    assert "[rigyard] drivers exited with code $__rigyard_status" in program
     assert "exec /bin/bash -i" in program
     # After the container shell exits, reset SIGINT and enter a host shell to keep the pane usable.
-    assert "[toolchain] drivers container shell exited with code $__toolchain_status" in program
+    assert "[rigyard] drivers container shell exited with code $__rigyard_status" in program
     assert program.endswith("trap - INT\nexec /bin/bash -i")
 
 
@@ -1298,7 +1298,7 @@ def test_tmux_reports_a_group_that_exited_before_keep_alive_shell_started():
     fake = FakeTmux()
     fake.pane_logs["robot-session:robot1.0"] = (
         "docker: Error response from daemon: No such file\n"
-        "[toolchain] drivers exited with code 127\n"
+        "[rigyard] drivers exited with code 127\n"
         "root@container:/ros2_ws# "
     )
     with pytest.raises(ScenarioExecutionError, match="exit 127.*No such file"):
@@ -1544,7 +1544,7 @@ def test_menu_starts_scene_once_and_exits(tmp_path: Path):
 
 def test_menu_groups_scenarios_by_source_description(tmp_path: Path):
     config = write(
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         """version: 3
 metadata: {name: menu-scenarios}
 sources:
@@ -1666,7 +1666,7 @@ def test_menu_down_scene_is_unavailable_without_compose_scenes(tmp_path: Path):
 
 def test_menu_down_scene_removes_the_compose_environment(tmp_path: Path):
     config = write(
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         """version: 3
 metadata: {name: menu-compose}
 sources: {scenarios: scenarios/compose.yaml}

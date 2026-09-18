@@ -1,6 +1,6 @@
 # Configuration overview
 
-Toolchain uses schema version 3. The root `toolchain.yaml` is a manifest containing project metadata, global variables, and paths to domain-specific source files. Images, containers, builds, and scenarios live in separate source files.
+Rigyard uses schema version 3. The root `rigyard.yaml` is a manifest containing project metadata, global variables, and paths to domain-specific source files. Images, containers, builds, and scenarios live in separate source files.
 
 ```yaml
 version: 3
@@ -10,7 +10,7 @@ metadata:
   description: Robot software development environment
 
 variables:
-  PROJECT_ROOT: ${TOOLCHAIN_ROOT}
+  PROJECT_ROOT: ${RIGYARD_ROOT}
   CONTAINER_WORKSPACE_ROOT: /workspace
 
 sources:
@@ -26,7 +26,7 @@ At least one source kind is required. Each source can be one path or a non-empty
 
 | File | Top-level content | Guide |
 | --- | --- | --- |
-| `toolchain.yaml` | `version`, `metadata`, `variables`, and `sources` | [Root manifest](manifest.md) |
+| `rigyard.yaml` | `version`, `metadata`, `variables`, and `sources` | [Root manifest](manifest.md) |
 | Image source | Mapping from image names to definitions | [Images](../features/images.md) |
 | Container source | Mapping from container names to definitions | [Containers](../features/containers.md) |
 | Build source | Mapping from build names to definitions | [Project builds](../features/builds.md) |
@@ -46,11 +46,11 @@ Different sources may define the same resource name. The menu asks for a source 
 
 ## Configuration discovery
 
-Toolchain selects the root manifest in this order:
+Rigyard selects the root manifest in this order:
 
 1. Global `--config/-f PATH`.
-2. The workspace binding in `.toolchain/context.yaml` in the current directory.
-3. `toolchain.yaml` in the current directory.
+2. The workspace binding in `.rigyard/context.yaml` in the current directory.
+3. `rigyard.yaml` in the current directory.
 
 Workspace bindings apply only to the current directory. Parent directories are not searched. See [Workspace initialization](../reference/cli.md#workspace-initialization).
 
@@ -83,9 +83,9 @@ Unselected resources do not prompt for runtime values or read host environment v
 ## Validation and diagnostics
 
 ```bash
-toolchain validate
-toolchain inspect --format yaml
-toolchain resolve --non-interactive --with-sources
+rigyard validate
+rigyard inspect --format yaml
+rigyard resolve --non-interactive --with-sources
 ```
 
 - `validate` checks every file, field, and template expression without requiring `${env:NAME}` to exist.

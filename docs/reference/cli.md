@@ -3,7 +3,7 @@
 ## Global entry point
 
 ```text
-toolchain [--version] [-f PATH] [--values PATH] [--color MODE] COMMAND
+rigyard [--version] [-f PATH] [--values PATH] [--color MODE] COMMAND
 ```
 
 | Option | Description |
@@ -13,14 +13,14 @@ toolchain [--version] [-f PATH] [--values PATH] [--color MODE] COMMAND
 | `--values PATH` | Runtime values file used by the interactive menu |
 | `--color auto\|always\|never` | Output color mode; default is `auto` |
 
-With no command, Toolchain opens the one-shot interactive menu. When stdin is not a terminal, it prints help and returns 2.
+With no command, Rigyard opens the one-shot interactive menu. When stdin is not a terminal, it prints help and returns 2.
 
 ## Configuration commands
 
 ```bash
-toolchain validate
-toolchain inspect [--format json|yaml]
-toolchain resolve [--values FILE] [--set PATH=VALUE] \
+rigyard validate
+rigyard inspect [--format json|yaml]
+rigyard resolve [--values FILE] [--set PATH=VALUE] \
   [--non-interactive] [--with-sources] [--format json|yaml]
 ```
 
@@ -31,10 +31,10 @@ toolchain resolve [--values FILE] [--set PATH=VALUE] \
 ## Feature commands
 
 ```bash
-toolchain image build NAME [resolution options]
-toolchain container create NAME [--dry-run] [resolution options]
-toolchain build NAME [--dry-run] [resolution options]
-toolchain scene ACTION SCENE [PROFILE] [scene options] [resolution options]
+rigyard image build NAME [resolution options]
+rigyard container create NAME [--dry-run] [resolution options]
+rigyard build NAME [--dry-run] [resolution options]
+rigyard scene ACTION SCENE [PROFILE] [scene options] [resolution options]
 ```
 
 Common resolution options:
@@ -59,26 +59,26 @@ Scenario actions:
 | `attach` | `--instance NAME`, `--group GROUP` |
 | `logs` | `--instance NAME`, `--group GROUP`, `--follow` |
 
-`--instance` is repeatable. Use `toolchain COMMAND --help` for the exact parser surface.
+`--instance` is repeatable. Use `rigyard COMMAND --help` for the exact parser surface.
 
 ## Workspace initialization
 
 ```bash
-toolchain init -f PATH [--force] [--alias NAME]
+rigyard init -f PATH [--force] [--alias NAME]
 ```
 
-The command validates the configuration and writes `.toolchain/context.yaml` in the current directory. Resolution order is explicit `--config`, current-directory binding, then current-directory `toolchain.yaml`. Parent directories are not searched.
+The command validates the configuration and writes `.rigyard/context.yaml` in the current directory. Resolution order is explicit `--config`, current-directory binding, then current-directory `rigyard.yaml`. Parent directories are not searched.
 
 When the manifest is inside the workspace, the binding records a relative path so the same checkout can use different host and container mount roots. Rebinding the same configuration is idempotent; changing it requires `--force`.
 
 `--alias NAME` creates an executable wrapper in the workspace root:
 
 ```bash
-toolchain init -f src/robot/.toolchain/toolchain.yaml --alias robot
+rigyard init -f src/robot/.rigyard/rigyard.yaml --alias robot
 ./robot build native
 ```
 
-The wrapper locates the bound configuration relative to itself and invokes the stable `toolchain --config ...` entry point. It does not modify PATH or write to a user-wide bin directory. Existing files are protected unless `--force` explicitly replaces them.
+The wrapper locates the bound configuration relative to itself and invokes the stable `rigyard --config ...` entry point. It does not modify PATH or write to a user-wide bin directory. Existing files are protected unless `--force` explicitly replaces them.
 
 ## Interactive menu
 

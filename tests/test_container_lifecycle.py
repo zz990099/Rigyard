@@ -4,18 +4,18 @@ from pathlib import Path
 
 import pytest
 
-from toolchain.application.containers import CreateContainerUseCase
-from toolchain.application.requests import ResolutionRequest
-from toolchain.containers.models import (
+from rigyard.application.containers import CreateContainerUseCase
+from rigyard.application.requests import ResolutionRequest
+from rigyard.containers.models import (
     ContainerCreateResult,
     ContainerSpec,
     LifecyclePhase,
 )
-from toolchain.containers.planner import ContainerRunPlanner
-from toolchain.containers.service import ContainerCreateService
-from toolchain.errors import ContainerLifecycleError, ContainerPlanError
-from toolchain.providers.docker.container_backend import DockerContainerBackend
-from toolchain.providers.docker.runner import CommandResult
+from rigyard.containers.planner import ContainerRunPlanner
+from rigyard.containers.service import ContainerCreateService
+from rigyard.errors import ContainerLifecycleError, ContainerPlanError
+from rigyard.providers.docker.container_backend import DockerContainerBackend
+from rigyard.providers.docker.runner import CommandResult
 
 
 class QueueRunner:
@@ -62,7 +62,7 @@ def lifecycle_plan(tmp_path: Path, *, secret: str = "host-secret"):
                 ],
                 "post_start": [
                     {
-                        "name": "verify-toolchain",
+                        "name": "verify-rigyard",
                         "script": "scripts/verify.sh",
                     }
                 ],
@@ -72,7 +72,7 @@ def lifecycle_plan(tmp_path: Path, *, secret: str = "host-secret"):
     return ContainerRunPlanner().plan(
         "cross-aarch64",
         spec,
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         {"TOKEN": secret},
     )
 
@@ -116,7 +116,7 @@ def test_invalid_hooks_fail_during_planning(tmp_path: Path, hook, match):
     (tmp_path / "ok.sh").write_text("true\n")
     spec = ContainerSpec.model_validate({"image": "ubuntu", "lifecycle": {"post_create": [hook]}})
     with pytest.raises(ContainerPlanError, match=match):
-        ContainerRunPlanner().plan("dev", spec, tmp_path / "toolchain.yaml", {})
+        ContainerRunPlanner().plan("dev", spec, tmp_path / "rigyard.yaml", {})
 
 
 def test_service_runs_hooks_in_order_through_docker_exec(tmp_path: Path):
@@ -130,7 +130,7 @@ def test_service_runs_hooks_in_order_through_docker_exec(tmp_path: Path):
 
     assert [(hook.phase, hook.name) for hook in result.hooks] == [
         (LifecyclePhase.POST_CREATE, "prepare-sysroot"),
-        (LifecyclePhase.POST_START, "verify-toolchain"),
+        (LifecyclePhase.POST_START, "verify-rigyard"),
     ]
     prepare_command, prepare_options = runner.calls[2]
     assert prepare_command == (
@@ -179,7 +179,7 @@ def test_hook_timeout_reports_retained_container(tmp_path: Path):
 
 
 def test_values_file_can_target_prompt_inside_hook_array(tmp_path: Path):
-    manifest = tmp_path / "toolchain.yaml"
+    manifest = tmp_path / "rigyard.yaml"
     manifest.write_text(
         """version: 3
 metadata: {name: lifecycle-test}

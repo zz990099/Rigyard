@@ -3,23 +3,23 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from toolchain.application.containers import CreateContainerUseCase
-from toolchain.application.requests import ResolutionRequest
-from toolchain.cli.main import run
-from toolchain.cli.menu.app import MenuApp
-from toolchain.cli.menu.prompt import MenuIO
-from toolchain.containers.models import ContainerCreateResult, ContainerSpec
-from toolchain.containers.planner import ContainerRunPlanner
-from toolchain.errors import BackendUnavailableError, ContainerCreateError, ContainerPlanError
-from toolchain.providers.docker.container_backend import DockerContainerBackend
-from toolchain.providers.docker.runner import CommandResult
+from rigyard.application.containers import CreateContainerUseCase
+from rigyard.application.requests import ResolutionRequest
+from rigyard.cli.main import run
+from rigyard.cli.menu.app import MenuApp
+from rigyard.cli.menu.prompt import MenuIO
+from rigyard.containers.models import ContainerCreateResult, ContainerSpec
+from rigyard.containers.planner import ContainerRunPlanner
+from rigyard.errors import BackendUnavailableError, ContainerCreateError, ContainerPlanError
+from rigyard.providers.docker.container_backend import DockerContainerBackend
+from rigyard.providers.docker.runner import CommandResult
 
 
 def make_plan(tmp_path, host_environment=None, **kwargs):
     return ContainerRunPlanner().plan(
         "dev",
         ContainerSpec(image="ubuntu:24.04", **kwargs),
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         host_environment or {},
     )
 
@@ -147,7 +147,7 @@ def test_backend_missing_and_empty_id(tmp_path):
 
 
 def write_config(tmp_path):
-    path = tmp_path / "toolchain.yaml"
+    path = tmp_path / "rigyard.yaml"
     path.write_text("""version: 3
 metadata: {name: container-test}
 sources: {containers: config/containers.yaml}
@@ -195,7 +195,7 @@ def test_cli_uses_default_project_config_and_path_overrides(tmp_path, monkeypatc
     monkeypatch.chdir(tmp_path)
     backend = FakeBackend()
     monkeypatch.setattr(
-        "toolchain.cli.commands.containers.DockerContainerBackend", lambda **_: backend
+        "rigyard.cli.commands.containers.DockerContainerBackend", lambda **_: backend
     )
     command = [
         "container",

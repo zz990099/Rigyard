@@ -5,11 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from ...config.models import ToolchainConfig
+from ...config.models import RigyardConfig
 
 
 @dataclass
 class MenuSession:
     config_path: Path
-    config: ToolchainConfig
+    config: RigyardConfig
     values_path: Path | None = None

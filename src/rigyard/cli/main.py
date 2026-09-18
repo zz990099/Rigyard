@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TextIO
 
-from ..errors import ToolchainError
+from ..errors import RigyardError
 from ..version import __version__
 from ..workspace import resolve_config_path
 from .commands.builds import register_build_commands
@@ -23,8 +23,8 @@ from .style import ColorMode, Style
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="toolchain",
-        description="Configuration-driven development toolchain.",
+        prog="rigyard",
+        description="Configuration-driven container development workflows.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument(
@@ -33,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="config_path",
         type=Path,
         default=None,
-        help="toolchain configuration file (overrides workspace initialization)",
+        help="Rigyard configuration file (overrides workspace initialization)",
     )
     parser.add_argument(
         "--values",
@@ -83,7 +83,7 @@ def run(
         if args.command != "init":
             args.config_path = resolve_config_path(args.config_path)
         return args.handler(args, parser)
-    except ToolchainError as exc:
+    except RigyardError as exc:
         print(error_style.render("error", f"Error: {exc}"), file=error_stream)
         return exc.exit_code
 

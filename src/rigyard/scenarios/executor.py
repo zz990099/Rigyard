@@ -421,7 +421,7 @@ class ScenarioExecutor:
             self._checked(
                 command,
                 f"cannot {action} container {container!r}; recreate it with "
-                f"'toolchain container create {container}'",
+                f"'rigyard container create {container}'",
             )
             self._wait_container_running(container)
 
@@ -446,7 +446,7 @@ class ScenarioExecutor:
             suffix = f": {detail}" if detail else ""
             raise ScenarioExecutionError(
                 f"container {container!r} is not available{suffix}; "
-                f"create it first with 'toolchain container create {container}'"
+                f"create it first with 'rigyard container create {container}'"
             )
         return result.stdout.strip() == "true"
 

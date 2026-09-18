@@ -1,6 +1,6 @@
 # Project builds
 
-Project builds always run through `docker exec` inside an existing, running container. Toolchain does not create, start, or pull the build container and does not interpret build systems such as colcon, catkin, or CMake.
+Project builds always run through `docker exec` inside an existing, running container. Rigyard does not create, start, or pull the build container and does not interpret build systems such as colcon, catkin, or CMake.
 
 ## Configuration
 
@@ -51,17 +51,17 @@ The container must exist and be running. A missing or stopped container causes a
 exec /bin/bash -euo pipefail /workspace/scripts/build-native.sh
 ```
 
-The interpreter, setup scripts, build script, and workdir are container-side values. Toolchain invokes `docker exec` through argv and never asks the host shell to interpret the business command. Only explicitly configured environment overrides are passed.
+The interpreter, setup scripts, build script, and workdir are container-side values. Rigyard invokes `docker exec` through argv and never asks the host shell to interpret the business command. Only explicitly configured environment overrides are passed.
 
 `timeout_seconds` controls the host-side `docker exec` client and cannot guarantee termination of every process spawned inside the container. For strict process-tree timeout behavior, use a container-side mechanism such as `timeout` in the build script.
 
 ## Commands
 
 ```bash
-toolchain build native
-toolchain build native --dry-run
-toolchain build native --source config/builds.yaml
-toolchain build native --non-interactive \
+rigyard build native
+rigyard build native --dry-run
+rigyard build native --source config/builds.yaml
+rigyard build native --non-interactive \
   --set builds.native.environment.BUILD_TYPE=Debug
 ```
 

@@ -53,8 +53,8 @@ cross-aarch64:
           SYSROOT: /opt/sysroot
         timeout_seconds: 300
     post_start:
-      - name: verify-toolchain
-        script: scripts/cross/verify-toolchain.sh
+      - name: verify-rigyard
+        script: scripts/cross/verify-rigyard.sh
         interpreter: [/bin/bash, -eu]
         workdir: /workspace
         environment:

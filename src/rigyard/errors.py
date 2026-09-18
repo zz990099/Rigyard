@@ -1,4 +1,4 @@
-"""Actionable errors exposed by toolchain application boundaries."""
+"""Actionable errors exposed by rigyard application boundaries."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ class SourceLocation:
         return f"{self.path}:{self.line}:{self.column}"
 
 
-class ToolchainError(Exception):
+class RigyardError(Exception):
     """Base class for errors suitable for CLI display."""
 
     exit_code = 1
@@ -36,25 +36,25 @@ class ToolchainError(Exception):
         return f"{prefix}{self.message}"
 
 
-class ConfigIOError(ToolchainError):
+class ConfigIOError(RigyardError):
     """The configuration could not be read or parsed as YAML."""
 
     exit_code = 2
 
 
-class SchemaValidationError(ToolchainError):
+class SchemaValidationError(RigyardError):
     """A YAML document does not conform to the active schema."""
 
     exit_code = 2
 
 
-class WorkspaceError(ToolchainError):
+class WorkspaceError(RigyardError):
     """A workspace binding cannot be read or updated."""
 
     exit_code = 2
 
 
-class ResolutionError(ToolchainError):
+class ResolutionError(RigyardError):
     """A runtime value could not be resolved or validated."""
 
     exit_code = 3
@@ -72,61 +72,61 @@ class MissingValueError(ResolutionError):
         self.names = tuple(ordered)
 
 
-class BuildPlanError(ToolchainError):
+class BuildPlanError(RigyardError):
     """A project build definition cannot be converted into an execution plan."""
 
     exit_code = 3
 
 
-class BuildExecutionError(ToolchainError):
+class BuildExecutionError(RigyardError):
     """A configured project build process failed."""
 
     exit_code = 4
 
 
-class ScenarioPlanError(ToolchainError):
+class ScenarioPlanError(RigyardError):
     """A scenario cannot be converted into a backend execution plan."""
 
     exit_code = 3
 
 
-class ScenarioExecutionError(ToolchainError):
+class ScenarioExecutionError(RigyardError):
     """A scenario backend operation failed."""
 
     exit_code = 4
 
 
-class ImageConfigError(ToolchainError):
+class ImageConfigError(RigyardError):
     """An image definition or Dockerfile fragment is invalid."""
 
     exit_code = 2
 
 
-class ImagePlanError(ToolchainError):
+class ImagePlanError(RigyardError):
     """An image definition cannot be materialized into a build plan."""
 
     exit_code = 3
 
 
-class BackendUnavailableError(ToolchainError):
+class BackendUnavailableError(RigyardError):
     """The requested execution backend is not available."""
 
     exit_code = 4
 
 
-class ImageBuildError(ToolchainError):
+class ImageBuildError(RigyardError):
     """A backend failed while building an image layer."""
 
     exit_code = 4
 
 
-class ContainerPlanError(ToolchainError):
+class ContainerPlanError(RigyardError):
     """A container definition cannot be resolved into an execution plan."""
 
     exit_code = 3
 
 
-class ContainerCreateError(ToolchainError):
+class ContainerCreateError(RigyardError):
     """Docker failed to create and start a container."""
 
     exit_code = 4

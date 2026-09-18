@@ -10,8 +10,8 @@ from ..errors import ScenarioPlanError
 from .models import ScenarioGroupPlan, ScenarioGroupSpec
 
 ScenarioGroup = ScenarioGroupSpec | ScenarioGroupPlan
-EXIT_MARKER = "[toolchain] {group} exited with code "
-SHELL_EXIT_MARKER = "[toolchain] {group} container shell exited with code "
+EXIT_MARKER = "[rigyard] {group} exited with code "
+SHELL_EXIT_MARKER = "[rigyard] {group} container shell exited with code "
 HOST_SHELL = "/bin/sh"
 
 
@@ -45,14 +45,14 @@ def container_session_argv(group: ScenarioGroup) -> tuple[str, ...]:
         (
             "set +e",
             shlex.join(_base_argv(group)),
-            "__toolchain_status=$?",
-            f'echo "{EXIT_MARKER.format(group=_label(group))}$__toolchain_status"',
+            "__rigyard_status=$?",
+            f'echo "{EXIT_MARKER.format(group=_label(group))}$__rigyard_status"',
             # Same effect as typing the command into an interactive shell (legacy):
             # seed the history file so ↑ recalls it after the shell has started.
-            '__toolchain_history="${HISTFILE-$HOME/.bash_history}"',
-            'if [ -n "$__toolchain_history" ]; then',
+            '__rigyard_history="${HISTFILE-$HOME/.bash_history}"',
+            'if [ -n "$__rigyard_history" ]; then',
             "  printf '%s\\n' "
-            f"{shlex.quote(command_line(group))} >> \"$__toolchain_history\" 2>/dev/null",
+            f"{shlex.quote(command_line(group))} >> \"$__rigyard_history\" 2>/dev/null",
             "fi",
             f"exec {shlex.join((shell, '-i'))}",
         )
@@ -94,8 +94,8 @@ def keep_alive_argv(
         (
             'trap "" INT',
             shlex.join(primary),
-            "__toolchain_status=$?",
-            f'echo "{SHELL_EXIT_MARKER.format(group=group_name)}$__toolchain_status"',
+            "__rigyard_status=$?",
+            f'echo "{SHELL_EXIT_MARKER.format(group=group_name)}$__rigyard_status"',
             # The ignored SIGINT disposition survives exec, so reset it before
             # handing the pane to an interactive host shell.
             "trap - INT",

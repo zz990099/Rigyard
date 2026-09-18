@@ -21,7 +21,7 @@ def _invalid_names(values: dict[str, object]) -> list[str]:
     return sorted(name for name in values if not IMAGE_NAME.fullmatch(name))
 
 
-class ToolchainMetadata(BaseModel):
+class RigyardMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str
@@ -35,7 +35,7 @@ class ToolchainMetadata(BaseModel):
         return value
 
 
-class ToolchainSources(BaseModel):
+class RigyardSources(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     images: Path | tuple[Path, ...] | None = None
@@ -53,7 +53,7 @@ class ToolchainSources(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def at_least_one_source(self) -> ToolchainSources:
+    def at_least_one_source(self) -> RigyardSources:
         if all(
             source is None for source in (self.images, self.containers, self.builds, self.scenarios)
         ):
@@ -70,12 +70,12 @@ class SourceFileInfo(BaseModel):
     definitions: dict[str, Any] = Field(default_factory=dict)
 
 
-class ToolchainManifest(BaseModel):
+class RigyardManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     version: int
-    metadata: ToolchainMetadata
-    sources: ToolchainSources
+    metadata: RigyardMetadata
+    sources: RigyardSources
     variables: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("version")
@@ -147,14 +147,14 @@ class ScenarioDefinitions(RootModel[dict[str, ScenarioTemplate]]):
         return value
 
 
-class ToolchainConfig(BaseModel):
+class RigyardConfig(BaseModel):
     """Fully loaded immutable configuration used by application services."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     version: int
-    metadata: ToolchainMetadata
-    sources: ToolchainSources
+    metadata: RigyardMetadata
+    sources: RigyardSources
     variables: dict[str, str] = Field(default_factory=dict)
     images: dict[str, ImageTemplate] = Field(default_factory=dict)
     containers: dict[str, ContainerTemplate] = Field(default_factory=dict)

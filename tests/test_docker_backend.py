@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from toolchain.errors import BackendUnavailableError, ImageBuildError
-from toolchain.images.models import ImageBuildStep
-from toolchain.providers.docker.image_backend import DockerImageBackend
-from toolchain.providers.docker.runner import CommandResult
+from rigyard.errors import BackendUnavailableError, ImageBuildError
+from rigyard.images.models import ImageBuildStep
+from rigyard.providers.docker.image_backend import DockerImageBackend
+from rigyard.providers.docker.runner import CommandResult
 
 
 class FakeRunner:

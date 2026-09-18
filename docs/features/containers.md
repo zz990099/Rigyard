@@ -114,8 +114,8 @@ cross-aarch64:
           SYSROOT: /opt/sysroot
         timeout_seconds: 300
     post_start:
-      - name: verify-toolchain
-        script: scripts/cross/verify-toolchain.sh
+      - name: verify-rigyard
+        script: scripts/cross/verify-rigyard.sh
         timeout_seconds: 30
   command: [/bin/bash]
 ```
@@ -145,9 +145,9 @@ If a container with the requested name exists, interactive mode asks whether to 
 ## Commands
 
 ```bash
-toolchain container create development
-toolchain container create development --dry-run
-toolchain container create development --source config/containers.yaml
+rigyard container create development
+rigyard container create development --dry-run
+rigyard container create development --source config/containers.yaml
 ```
 
 `--dry-run` resolves parameters, host environment values, mounts, and hook scripts without invoking Docker.

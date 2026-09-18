@@ -4,23 +4,23 @@ from pathlib import Path
 
 import pytest
 
-from toolchain.application.builds import BuildProjectUseCase
-from toolchain.application.requests import ResolutionRequest
-from toolchain.builds.models import BuildPlan, BuildResult
-from toolchain.cli.build_output import describe_build
-from toolchain.cli.main import run
-from toolchain.cli.menu.app import MenuApp
-from toolchain.cli.menu.prompt import MenuIO
-from toolchain.cli.style import Style
-from toolchain.config.loader import load_config
-from toolchain.errors import (
+from rigyard.application.builds import BuildProjectUseCase
+from rigyard.application.requests import ResolutionRequest
+from rigyard.builds.models import BuildPlan, BuildResult
+from rigyard.cli.build_output import describe_build
+from rigyard.cli.main import run
+from rigyard.cli.menu.app import MenuApp
+from rigyard.cli.menu.prompt import MenuIO
+from rigyard.cli.style import Style
+from rigyard.config.loader import load_config
+from rigyard.errors import (
     BackendUnavailableError,
     BuildExecutionError,
     SchemaValidationError,
 )
-from toolchain.execution import CommandResult
-from toolchain.parameters.sources import DynamicOption
-from toolchain.providers.docker import DockerExecBuildBackend
+from rigyard.execution import CommandResult
+from rigyard.parameters.sources import DynamicOption
+from rigyard.providers.docker import DockerExecBuildBackend
 
 
 class TTYBuffer(io.StringIO):
@@ -36,7 +36,7 @@ def write(path: Path, text: str) -> Path:
 
 def project(tmp_path: Path, builds: str) -> Path:
     config = write(
-        tmp_path / "toolchain.yaml",
+        tmp_path / "rigyard.yaml",
         """version: 3
 metadata: {name: build-test}
 sources: {builds: config/builds.yaml}
@@ -396,7 +396,7 @@ def test_cli_dry_run_resolves_build_without_executing(tmp_path: Path, monkeypatc
         def execute(self, plan):
             raise AssertionError("dry-run must not execute")
 
-    monkeypatch.setattr("toolchain.cli.commands.builds.DockerExecBuildBackend", ForbiddenBackend)
+    monkeypatch.setattr("rigyard.cli.commands.builds.DockerExecBuildBackend", ForbiddenBackend)
     assert run(["--config", str(config), "build", "native", "--dry-run"]) == 0
     output = capsys.readouterr().out
     assert "Build: native" in output
@@ -408,7 +408,7 @@ def test_cli_dry_run_resolves_build_without_executing(tmp_path: Path, monkeypatc
 def test_cli_build_executes_once_and_returns_backend_error(tmp_path: Path, monkeypatch, capsys):
     config = project(tmp_path, "native: {container: dev, script: /workspace/build.sh}\n")
     backend = RecordingBackend()
-    monkeypatch.setattr("toolchain.cli.commands.builds.DockerExecBuildBackend", lambda: backend)
+    monkeypatch.setattr("rigyard.cli.commands.builds.DockerExecBuildBackend", lambda: backend)
 
     assert run(["--config", str(config), "build", "native"]) == 0
     assert len(backend.plans) == 1
@@ -418,7 +418,7 @@ def test_cli_build_executes_once_and_returns_backend_error(tmp_path: Path, monke
         def execute(self, plan):
             raise BuildExecutionError("failed")
 
-    monkeypatch.setattr("toolchain.cli.commands.builds.DockerExecBuildBackend", FailingBackend)
+    monkeypatch.setattr("rigyard.cli.commands.builds.DockerExecBuildBackend", FailingBackend)
     assert run(["--config", str(config), "build", "native"]) == 4
     assert "Error: failed" in capsys.readouterr().err
 

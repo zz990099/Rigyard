@@ -81,7 +81,7 @@ From lowest to highest precedence:
 
 1. Inline `default`
 2. Values YAML
-3. `TOOL_PARAM_*` environment variable
+3. `RIGYARD_PARAM_*` environment variable
 4. `--set PATH=VALUE`
 5. Interactive input when no explicit source exists
 
@@ -106,8 +106,8 @@ scenarios:
 ```
 
 ```bash
-toolchain --values local-values.yaml
-toolchain image build development --values local-values.yaml
+rigyard --values local-values.yaml
+rigyard image build development --values local-values.yaml
 ```
 
 A values file supplies user input; it is not a project source and does not merge definitions.
@@ -118,17 +118,17 @@ The full path is uppercased and every non-alphanumeric character becomes an unde
 
 ```text
 containers.development.privileged
-→ TOOL_PARAM_CONTAINERS_DEVELOPMENT_PRIVILEGED
+→ RIGYARD_PARAM_CONTAINERS_DEVELOPMENT_PRIVILEGED
 ```
 
-Toolchain rejects configurations in which two parameter paths map to the same environment variable name.
+Rigyard rejects configurations in which two parameter paths map to the same environment variable name.
 
 ### CLI overrides
 
 `--set` is repeatable, and values use YAML scalar, list, or mapping syntax:
 
 ```bash
-toolchain container create development \
+rigyard container create development \
   --non-interactive \
   --set containers.development.privileged=true \
   --set 'containers.development.mounts=["./:/workspace"]'

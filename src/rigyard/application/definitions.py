@@ -5,12 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ..config.models import ToolchainConfig
+from ..config.models import RigyardConfig
 from ..errors import SchemaValidationError
 
 
 def find_definition(
-    config: ToolchainConfig,
+    config: RigyardConfig,
     kind: str,
     name: str,
     source_path: Path | None,
@@ -59,7 +59,7 @@ def _resolve_source_path(config_path: Path, source_path: Path) -> Path:
     return path.resolve()
 
 
-def _legacy_mapping(config: ToolchainConfig, kind: str) -> dict[str, Any]:
+def _legacy_mapping(config: RigyardConfig, kind: str) -> dict[str, Any]:
     if kind == "images":
         return config.images
     if kind == "containers":

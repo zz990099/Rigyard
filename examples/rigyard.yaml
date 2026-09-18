@@ -2,10 +2,10 @@ version: 3
 
 metadata:
   name: robot-development
-  description: Example robot development toolchain
+  description: Example Rigyard project for robot development
 
 variables:
-  PROJECT_ROOT: ${TOOLCHAIN_ROOT}
+  PROJECT_ROOT: ${RIGYARD_ROOT}
   CONTAINER_WORKSPACE_ROOT: /workspace
 
 sources:

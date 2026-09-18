@@ -4,12 +4,12 @@ from .loader import load_config, load_values
 from .models import (
     SCHEMA_VERSION,
     BuildDefinitions,
+    RigyardConfig,
+    RigyardManifest,
+    RigyardMetadata,
+    RigyardSources,
     ScenarioDefinitions,
     SourceFileInfo,
-    ToolchainConfig,
-    ToolchainManifest,
-    ToolchainMetadata,
-    ToolchainSources,
 )
 
 __all__ = [
@@ -17,10 +17,10 @@ __all__ = [
     "BuildDefinitions",
     "ScenarioDefinitions",
     "SourceFileInfo",
-    "ToolchainConfig",
-    "ToolchainManifest",
-    "ToolchainMetadata",
-    "ToolchainSources",
+    "RigyardConfig",
+    "RigyardManifest",
+    "RigyardMetadata",
+    "RigyardSources",
     "load_config",
     "load_values",
 ]

@@ -1,4 +1,4 @@
-"""One-shot interactive frontend for primary toolchain operations."""
+"""One-shot interactive frontend for primary rigyard operations."""
 
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ class MenuApp:
 
     def run(
         self,
-        config_path: str | Path = Path("toolchain.yaml"),
+        config_path: str | Path = Path("rigyard.yaml"),
         values_path: str | Path | None = None,
     ) -> int:
         config_file = Path(config_path)
@@ -98,7 +98,7 @@ class MenuApp:
         session = MenuSession(config_file, config, values_file)
 
         try:
-            self.io.write(self.io.style.render("title", "Toolchain"))
+            self.io.write(self.io.style.render("title", "Rigyard"))
             self.io.write_field(f"Project: {session.config.metadata.name}")
             self.io.write_field(f"Configuration: {session.config_path}")
             labels = [self._action_label(action, session) for action in self.registry.actions]

@@ -2,27 +2,27 @@
 
 ## Python
 
-Toolchain requires Python 3.10 or newer.
+Rigyard requires Python 3.10 or newer.
 
 After the package is published to PyPI, install the CLI in an isolated environment:
 
 ```bash
-pipx install robot-toolchain
+pipx install rigyard
 # or
-uv tool install robot-toolchain
+uv tool install rigyard
 ```
 
 It can also be installed into an active virtual environment:
 
 ```bash
-python -m pip install robot-toolchain
+python -m pip install rigyard
 ```
 
 To install the current source tree:
 
 ```bash
 git clone https://github.com/zz990099/toolchain.git
-cd toolchain
+cd rigyard
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install .
@@ -31,7 +31,7 @@ python -m pip install .
 Verify the installation:
 
 ```bash
-toolchain --version
+rigyard --version
 ```
 
 Editable installs, tests, and code checks are covered by the [contribution guide](../CONTRIBUTING.md).
@@ -46,4 +46,4 @@ The Python package does not install these system tools:
 | Compose scenarios | Docker Compose v2 (`docker compose`) | Tools required by scenario commands |
 | tmux scenarios | tmux and Docker CLI | An interactive shell |
 
-Toolchain currently targets development environments that can run Docker and tmux. Use `docker version`, `docker compose version`, and `tmux -V` to verify the external dependencies.
+Rigyard currently targets development environments that can run Docker and tmux. Use `docker version`, `docker compose version`, and `tmux -V` to verify the external dependencies.

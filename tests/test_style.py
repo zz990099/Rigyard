@@ -1,7 +1,7 @@
 import io
 
-from toolchain.cli.main import run
-from toolchain.cli.style import ColorMode, Style, field, line
+from rigyard.cli.main import run
+from rigyard.cli.style import ColorMode, Style, field, line
 
 
 class TTYBuffer(io.StringIO):
@@ -37,7 +37,7 @@ def test_for_stream_detects_terminals_and_honours_overrides():
 
 
 def test_cli_colour_option_overrides_the_stream(tmp_path, monkeypatch, capsys):
-    config = tmp_path / "toolchain.yaml"
+    config = tmp_path / "rigyard.yaml"
     config.write_text(
         "version: 3\nmetadata: {name: style-test}\n"
         "sources: {containers: containers.yaml}\n"

@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from toolchain.errors import ImageBuildError
-from toolchain.images.models import BuildStepResult, ImageSpec
-from toolchain.images.planner import ImageBuildPlanner
-from toolchain.images.service import ImageBuildService
+from rigyard.errors import ImageBuildError
+from rigyard.images.models import BuildStepResult, ImageSpec
+from rigyard.images.planner import ImageBuildPlanner
+from rigyard.images.service import ImageBuildService
 
 
 class RecordingBackend:
@@ -25,7 +25,7 @@ class RecordingBackend:
 
 
 def setup_spec(tmp_path: Path) -> tuple[Path, ImageSpec]:
-    config = tmp_path / "toolchain.yaml"
+    config = tmp_path / "rigyard.yaml"
     config.write_text("version: 3\n", encoding="utf-8")
     for name in ("one", "two", "three"):
         (tmp_path / f"{name}.Dockerfile").write_text(f"RUN echo {name}\n", encoding="utf-8")

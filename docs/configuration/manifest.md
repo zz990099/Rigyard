@@ -8,7 +8,7 @@ metadata:
   name: robot-development
   description: Optional description
 variables:
-  PROJECT_ROOT: ${TOOLCHAIN_ROOT}/..
+  PROJECT_ROOT: ${RIGYARD_ROOT}/..
 sources:
   images: config/images.yaml
   containers: [config/containers.yaml]
@@ -53,7 +53,7 @@ Variable names match `[A-Za-z_][A-Za-z0-9_]*`, and values must be strings. Varia
 
 ```yaml
 variables:
-  PROJECT_ROOT: ${TOOLCHAIN_ROOT}/..
+  PROJECT_ROOT: ${RIGYARD_ROOT}/..
   CONFIG_ROOT: ${PROJECT_ROOT}/config
   CONTAINER_PROJECT_ROOT: /workspace/project
 ```

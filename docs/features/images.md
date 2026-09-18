@@ -49,7 +49,7 @@ Dockerfile fragments cannot contain:
 - A `# syntax=...` or `# escape=...` parser directive
 - Empty content
 
-Toolchain creates a complete Dockerfile for every layer, using the previous result as `FROM`. Root and layer build arguments are merged, with layer values winning on duplicate keys. Boolean arguments become lowercase `true` or `false`.
+Rigyard creates a complete Dockerfile for every layer, using the previous result as `FROM`. Root and layer build arguments are merged, with layer values winning on duplicate keys. Boolean arguments become lowercase `true` or `false`.
 
 Relative `context` and `dockerfile` paths are based on the root manifest directory. The context must be an existing directory, and fragments must be readable UTF-8 files.
 
@@ -67,7 +67,7 @@ development:
       dockerfile: docker/system.Dockerfile
 ```
 
-After every layer succeeds, Toolchain performs the equivalent of:
+After every layer succeeds, Rigyard performs the equivalent of:
 
 ```bash
 docker tag example/development:20260918 example/development:latest
@@ -78,10 +78,10 @@ A failed build does not update the alias. If alias tagging fails, the original f
 ## Commands
 
 ```bash
-toolchain image build development
-toolchain image build development --source config/images.yaml
-toolchain image build development --non-interactive \
+rigyard image build development
+rigyard image build development --source config/images.yaml
+rigyard image build development --non-interactive \
   --set images.development.base=ubuntu:24.04
 ```
 
-`image build` currently has no `--dry-run` and invokes Docker after planning. Use `toolchain validate` for schema and template syntax and `toolchain resolve --non-interactive` for parameter checks. Dockerfile content and the context are checked during the actual build's planning phase.
+`image build` currently has no `--dry-run` and invokes Docker after planning. Use `rigyard validate` for schema and template syntax and `rigyard resolve --non-interactive` for parameter checks. Dockerfile content and the context are checked during the actual build's planning phase.

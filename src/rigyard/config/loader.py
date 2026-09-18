@@ -1,4 +1,4 @@
-"""Load a v2 project manifest and its referenced YAML configuration sources."""
+"""Load a v3 project manifest and its referenced YAML configuration sources."""
 
 from __future__ import annotations
 
@@ -15,10 +15,10 @@ from .models import (
     BuildDefinitions,
     ContainerDefinitions,
     ImageDefinitions,
+    RigyardConfig,
+    RigyardManifest,
     ScenarioDefinitions,
     SourceFileInfo,
-    ToolchainConfig,
-    ToolchainManifest,
 )
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -189,9 +189,9 @@ def _load_optional_source_group(
     return _load_source_group(manifest_path, configured, model, label=label)
 
 
-def load_config(path: str | Path) -> ToolchainConfig:
+def load_config(path: str | Path) -> RigyardConfig:
     manifest_path = Path(path).resolve()
-    manifest = _validate_file(manifest_path, ToolchainManifest, label="manifest")
+    manifest = _validate_file(manifest_path, RigyardManifest, label="manifest")
     images, image_files, image_duplicates = _load_optional_source_group(
         manifest_path, manifest.sources.images, ImageDefinitions, label="image source"
     )
@@ -207,7 +207,7 @@ def load_config(path: str | Path) -> ToolchainConfig:
     scenarios, scenario_files, scenario_duplicates = _load_optional_source_group(
         manifest_path, manifest.sources.scenarios, ScenarioDefinitions, label="scenario source"
     )
-    return ToolchainConfig(
+    return RigyardConfig(
         version=manifest.version,
         metadata=manifest.metadata,
         sources=manifest.sources,
