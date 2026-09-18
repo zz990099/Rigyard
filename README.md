@@ -53,6 +53,18 @@ toolchain build native
 会记录为相对路径，便于在宿主机和容器使用不同挂载路径时复用。重复绑定同一配置是幂等的；
 改绑其他配置需要 `toolchain init -f PATH --force`。
 
+可以在初始化时生成一个项目级命令别名：
+
+```bash
+toolchain init -f src/xbot/.toolchain/toolchain.yaml --alias xxxbot
+./xxxbot build native
+./xxxbot scene start robot-system development
+```
+
+别名是工作区根目录下的可执行脚本，会从脚本自身位置定位已绑定的配置，因此可以从其他目录
+调用。它最终仍执行稳定的 `toolchain --config ...` 入口；不会修改 `PATH`，也不会写入
+`~/.local/bin`。已有同名文件默认不会覆盖，确认替换时使用 `--force`。
+
 ## 工程配置
 
 Schema v3 将根文件作为 manifest。它只保存工具链版本、工程元信息和各领域配置文件的位置：

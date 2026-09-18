@@ -49,6 +49,16 @@ toolchain init -f src/xbot/.toolchain/toolchain.yaml
 toolchain init -f /opt/robot/toolchain.yaml --force
 ```
 
+初始化时可以通过 `--alias` 在工作区根目录生成项目专用入口：
+
+```bash
+toolchain init -f src/xbot/.toolchain/toolchain.yaml --alias xxxbot
+./xxxbot build native
+```
+
+生成的脚本绑定这次初始化使用的配置，但底层仍调用 `toolchain`。工具不会自动安装全局命令或
+修改 `PATH`；同名文件受到保护，只有显式 `--force` 才会替换。
+
 ## 一次性菜单
 
 一级菜单包含镜像构建、容器创建、工程编译和场景管理。`Scene…` 是二级菜单，包含启动、停止和
