@@ -7,11 +7,11 @@ import pytest
 from toolchain.application.builds import BuildProjectUseCase
 from toolchain.application.requests import ResolutionRequest
 from toolchain.builds.models import BuildPlan, BuildResult
-from toolchain.cli.main import run
 from toolchain.cli.build_output import describe_build
-from toolchain.cli.style import Style
+from toolchain.cli.main import run
 from toolchain.cli.menu.app import MenuApp
 from toolchain.cli.menu.prompt import MenuIO
+from toolchain.cli.style import Style
 from toolchain.config.loader import load_config
 from toolchain.errors import (
     BackendUnavailableError,

@@ -16,13 +16,13 @@ from ..containers.models import ContainerSpec
 from ..errors import ResolutionError
 from ..images.models import ImageSpec
 from ..parameters.context import ResolvedContext
+from ..parameters.prompt import Formatter
 from ..parameters.resolver import (
     RuntimeValueResolver,
     collect_prompts,
     flatten_values,
     materialize_as,
 )
-from ..parameters.prompt import Formatter
 from ..parameters.sources import DynamicSources
 from ..parameters.templates import (
     StringTemplateRenderer,

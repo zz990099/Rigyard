@@ -12,8 +12,8 @@ from ..images.backend import ImageBuildBackend
 from ..images.models import ImageBuildPlan, ImageBuildResult, ImageSpec
 from ..images.planner import ImageBuildPlanner
 from ..images.service import ImageBuildService
-from ..parameters.sources import DynamicSources
 from ..parameters.prompt import Formatter
+from ..parameters.sources import DynamicSources
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from .definitions import find_definition
 from .parameters import resolve_template

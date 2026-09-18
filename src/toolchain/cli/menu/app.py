@@ -153,10 +153,7 @@ class MenuApp:
         labels = []
         for group in groups:
             path = str(self._source_relative_path(session, group.path))
-            if group.description:
-                label = f"{group.description} ({path})"
-            else:
-                label = path
+            label = f"{group.description} ({path})" if group.description else path
             labels.append(label)
         return labels
 

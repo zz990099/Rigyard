@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass, field as dataclass_field
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from enum import Enum
 from typing import TextIO
 
@@ -38,7 +39,7 @@ class Line:
     def text(self) -> str:
         return "".join(part for _, part in self.parts)
 
-    def render(self, style: "Style") -> str:
+    def render(self, style: Style) -> str:
         return "".join(
             style.render(role, part) if role else part for role, part in self.parts
         )
@@ -47,7 +48,7 @@ class Line:
         return self.text()
 
 
-def line(*parts: "tuple[str | None, str] | str") -> Line:
+def line(*parts: tuple[str | None, str] | str) -> Line:
     """Build a line from ``(role, text)`` pairs or plain text parts."""
 
     return Line(tuple((None, part) if isinstance(part, str) else part for part in parts))

@@ -9,9 +9,9 @@ from datetime import datetime
 from ..config.loader import load_config
 from ..errors import SchemaValidationError
 from ..parameters.models import PromptValue
+from ..parameters.prompt import Formatter
 from ..parameters.resolver import collect_prompts, materialize, materialize_as
 from ..parameters.sources import DynamicSources
-from ..parameters.prompt import Formatter
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from ..scenarios.models import (
     ScenarioComposeSpec,

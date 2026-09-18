@@ -12,8 +12,8 @@ from ..builds.planner import BuildPlanner
 from ..builds.service import BuildService
 from ..config.loader import load_config
 from ..errors import SchemaValidationError
-from ..parameters.sources import DynamicSources
 from ..parameters.prompt import Formatter
+from ..parameters.sources import DynamicSources
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from .definitions import find_definition
 from .parameters import resolve_template

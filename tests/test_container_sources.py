@@ -61,7 +61,8 @@ def test_docker_container_sources_registers_the_container_provider():
     sources = docker_container_sources(FakeRunner(CommandResult(0, PS_OUTPUT)))
 
     assert set(sources) == {PROVIDER_NAME}
-    assert [option.value for option in sources[PROVIDER_NAME](PromptSource(provider=PROVIDER_NAME))] == [
+    options = sources[PROVIDER_NAME](PromptSource(provider=PROVIDER_NAME))
+    assert [option.value for option in options] == [
         "nhybot_dev_a",
         "nhybot_dev_b",
         "other",
