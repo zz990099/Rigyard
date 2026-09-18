@@ -8,6 +8,7 @@ from typing import Any
 
 from ...application.containers import CreateContainerUseCase
 from ...application.requests import ResolutionRequest
+from ...providers.docker import docker_container_sources
 from ...providers.docker.container_backend import DockerContainerBackend
 from ..common import parse_overrides
 from ..container_output import describe_container
@@ -42,7 +43,10 @@ def _create(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         except EOFError:
             return False
 
-    use_case = CreateContainerUseCase(DockerContainerBackend(confirm_replace=confirm_replace))
+    use_case = CreateContainerUseCase(
+        DockerContainerBackend(confirm_replace=confirm_replace),
+        sources=docker_container_sources(),
+    )
     plan = use_case.plan(
         args.container_name,
         ResolutionRequest(

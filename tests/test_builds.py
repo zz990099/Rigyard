@@ -17,6 +17,7 @@ from toolchain.errors import (
     SchemaValidationError,
 )
 from toolchain.execution import CommandResult
+from toolchain.parameters.sources import DynamicOption
 from toolchain.providers.docker import DockerExecBuildBackend
 
 
@@ -140,6 +141,45 @@ def test_interactive_prompt_shows_rendered_default(tmp_path: Path):
     )
 
     assert seen == ["Choose the container [dev_root]: "]
+    assert plan.container == "dev_root"
+
+
+def test_interactive_container_prompt_lists_dynamic_candidates(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """native:
+  container:
+    default: dev_${env:USER}
+    prompt:
+      mode: select
+      message: Choose the container
+      source: {provider: containers, filter: "^dev_"}
+  script: /workspace/build.sh
+""",
+    )
+    seen: list[str] = []
+    sources = {
+        "containers": lambda source: (
+            DynamicOption("dev_root", "running, nhybot:base"),
+            DynamicOption("dev_root_sim", "exited, nhybot:base"),
+        )
+    }
+
+    plan = BuildProjectUseCase(RecordingBackend(), sources=sources).plan(
+        "native",
+        ResolutionRequest(
+            config,
+            interactive=True,
+            input_fn=lambda text: seen.append(text) or "1",
+        ),
+        environment={"USER": "root"},
+    )
+
+    assert seen == [
+        "  1) dev_root      running, nhybot:base\n"
+        "  2) dev_root_sim  exited, nhybot:base\n"
+        "Choose the container [dev_root]: "
+    ]
     assert plan.container == "dev_root"
 
 

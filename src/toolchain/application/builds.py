@@ -12,6 +12,7 @@ from ..builds.planner import BuildPlanner
 from ..builds.service import BuildService
 from ..config.loader import load_config
 from ..errors import SchemaValidationError
+from ..parameters.sources import DynamicSources
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from .definitions import find_definition
 from .parameters import resolve_template
@@ -19,8 +20,9 @@ from .requests import ResolutionRequest
 
 
 class BuildProjectUseCase:
-    def __init__(self, backend: BuildBackend) -> None:
+    def __init__(self, backend: BuildBackend, *, sources: DynamicSources | None = None) -> None:
         self.service = BuildService(backend)
+        self.sources = dict(sources or {})
 
     def plan(
         self,
@@ -59,6 +61,7 @@ class BuildProjectUseCase:
             f"builds.{build_name}",
             BuildSpec,
             renderer,
+            self.sources,
         )
         return BuildPlanner().create_plan(
             build_name,

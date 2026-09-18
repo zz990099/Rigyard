@@ -8,7 +8,7 @@ from typing import Any
 
 from ...application.images import BuildImageUseCase
 from ...application.requests import BuildImageRequest
-from ...providers.docker import DockerImageBackend
+from ...providers.docker import DockerImageBackend, docker_container_sources
 from ..common import parse_overrides
 from .parameters import add_resolution_arguments
 
@@ -29,7 +29,7 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         overrides = parse_overrides(args.sets)
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
-    use_case = BuildImageUseCase(DockerImageBackend())
+    use_case = BuildImageUseCase(DockerImageBackend(), sources=docker_container_sources())
     plan = use_case.plan(
         BuildImageRequest(
             config_path=args.config_path,

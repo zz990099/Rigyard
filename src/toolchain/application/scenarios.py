@@ -10,6 +10,7 @@ from ..config.loader import load_config
 from ..errors import SchemaValidationError
 from ..parameters.models import PromptValue
 from ..parameters.resolver import collect_prompts, materialize, materialize_as
+from ..parameters.sources import DynamicSources
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from ..scenarios.models import (
     ScenarioComposeSpec,
@@ -27,6 +28,9 @@ from .requests import ResolutionRequest
 
 
 class PlanScenarioUseCase:
+    def __init__(self, sources: DynamicSources | None = None) -> None:
+        self.sources = dict(sources or {})
+
     def plan(
         self,
         scene_name: str,
@@ -103,6 +107,7 @@ class PlanScenarioUseCase:
             {**profile_prompts, **compose_prompts, **instance_prompts, **group_prompts},
             request,
             renderer=renderer,
+            sources=self.sources,
         )
         selected_names = _select_instances(
             scene_name,
@@ -156,6 +161,7 @@ class PlanScenarioUseCase:
                 request.input_fn,
             ),
             renderer=renderer,
+            sources=self.sources,
         )
 
         planned: dict[str, ScenarioInstanceSpec] = {}

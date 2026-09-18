@@ -9,6 +9,7 @@ from typing import Any
 
 from ...application.requests import ResolutionRequest
 from ...application.scenarios import PlanScenarioUseCase
+from ...providers.docker import docker_container_sources
 from ...scenarios.models import ScenarioPlan
 from ...scenarios.service import ScenarioService
 from ..common import parse_overrides
@@ -76,7 +77,7 @@ def _plan(
         overrides = parse_overrides(args.sets)
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
-    return PlanScenarioUseCase().plan(
+    return PlanScenarioUseCase(sources=docker_container_sources()).plan(
         args.scene_name,
         args.profile_name,
         ResolutionRequest(

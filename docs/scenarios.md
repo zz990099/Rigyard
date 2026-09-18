@@ -53,6 +53,8 @@ robot-system:
 
 每个 instance 必须指定目标字段：无 `compose` 时用 `container` 指向已有容器名或 ID，有
 `compose` 时用 `service` 指向 Compose service 名。两者互斥，写错模式会直接报 schema 错误。
+`container` 同样可以写成带 `source` 的 `select` prompt，交互时由工具链列出可用容器供选择
+（见 README 运行时值一节）。
 instance 名会成为 tmux window 名，因此必须匹配 `[A-Za-z0-9][A-Za-z0-9_-]*`；`.` 和 `:`
 会与 tmux target 语法冲突。
 

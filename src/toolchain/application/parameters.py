@@ -22,6 +22,7 @@ from ..parameters.resolver import (
     flatten_values,
     materialize_as,
 )
+from ..parameters.sources import DynamicSources
 from ..parameters.templates import (
     StringTemplateRenderer,
     TemplateContext,
@@ -56,6 +57,9 @@ class InspectParametersUseCase:
 
 
 class ResolveParametersUseCase:
+    def __init__(self, sources: DynamicSources | None = None) -> None:
+        self.sources = dict(sources or {})
+
     def execute(
         self, request: ResolutionRequest, *, allow_missing: bool = False
     ) -> ResolvedContext:
@@ -68,7 +72,11 @@ class ResolveParametersUseCase:
             )
         )
         context = resolve_prompts(
-            config, request, allow_missing=allow_missing, renderer=renderer
+            config,
+            request,
+            allow_missing=allow_missing,
+            renderer=renderer,
+            sources=self.sources,
         )
         if not allow_missing:
             for name, template in config.images.items():
@@ -124,10 +132,15 @@ def resolve_prompts(
     prefix: str = "",
     allow_missing: bool = False,
     renderer: StringTemplateRenderer | None = None,
+    sources: DynamicSources | None = None,
 ) -> ResolvedContext:
     prompts = collect_prompts(template, prefix)
     values = load_values(request.values_path) if request.values_path else {}
-    return RuntimeValueResolver(prompts, render_default=default_display_renderer(renderer)).resolve(
+    return RuntimeValueResolver(
+        prompts,
+        render_default=default_display_renderer(renderer),
+        sources=sources,
+    ).resolve(
         values=values,
         overrides=request.overrides,
         interactive=request.interactive,
@@ -143,6 +156,7 @@ def resolve_template(
     prefix: str,
     target: type[ModelT],
     renderer: StringTemplateRenderer | None = None,
+    sources: DynamicSources | None = None,
 ) -> tuple[ModelT, ResolvedContext]:
     selected = collect_prompts(template, prefix)
     available = collect_prompts(root)
@@ -154,7 +168,9 @@ def resolve_template(
         unknown = sorted(unknown_values | unknown_overrides)
         raise ResolutionError(f"unknown runtime value(s): {', '.join(unknown)}")
     context = RuntimeValueResolver(
-        selected, render_default=default_display_renderer(renderer)
+        selected,
+        render_default=default_display_renderer(renderer),
+        sources=sources,
     ).resolve(
         values={key: value for key, value in flat_values.items() if key in selected},
         overrides={key: value for key, value in request.overrides.items() if key in selected},
@@ -170,6 +186,7 @@ def resolve_selected_prompts(
     request: ResolutionRequest,
     *,
     renderer: StringTemplateRenderer | None = None,
+    sources: DynamicSources | None = None,
 ) -> ResolvedContext:
     """Resolve an explicitly composed set of prompt paths from one config root."""
 
@@ -180,7 +197,9 @@ def resolve_selected_prompts(
     if unknown:
         raise ResolutionError(f"unknown runtime value(s): {', '.join(sorted(unknown))}")
     return RuntimeValueResolver(
-        selected, render_default=default_display_renderer(renderer)
+        selected,
+        render_default=default_display_renderer(renderer),
+        sources=sources,
     ).resolve(
         values={key: value for key, value in flat_values.items() if key in selected},
         overrides={key: value for key, value in request.overrides.items() if key in selected},

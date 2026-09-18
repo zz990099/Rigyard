@@ -40,6 +40,9 @@ native:
 字段含义：
 
 - `container`：必填，既有容器名称或 ID；工具链不会创建、启动或拉取容器。
+- `container` 也可以写成带 `source` 的 `select` prompt（见 README 运行时值一节），让菜单在
+  交互时列出可用容器供选择，例如
+  `prompt: {mode: select, message: …, source: {provider: docker-containers, filter: "^nhybot_dev_"}}`。
 - `script`：必填，容器内脚本路径。
 - `interpreter`：非空 argv，默认是 `[/bin/sh, -eu]`。
 - `workdir`：可选的容器内工作目录；省略时使用容器默认工作目录。

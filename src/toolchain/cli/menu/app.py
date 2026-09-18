@@ -13,7 +13,12 @@ from ...application.parameters import ValidateConfigUseCase
 from ...application.requests import BuildImageRequest, ResolutionRequest
 from ...application.scenarios import PlanScenarioUseCase
 from ...config.models import SourceFileInfo
-from ...providers.docker import DockerExecBuildBackend, DockerImageBackend
+from ...parameters.sources import DynamicSources
+from ...providers.docker import (
+    DockerExecBuildBackend,
+    DockerImageBackend,
+    docker_container_sources,
+)
 from ...providers.docker.container_backend import DockerContainerBackend
 from ...scenarios.executor import ScenarioExecutor
 from ...scenarios.service import ScenarioService
@@ -36,8 +41,10 @@ class MenuApp:
         container_backend_factory: BackendFactory | None = None,
         build_backend_factory: BackendFactory | None = None,
         scenario_executor_factory: ScenarioExecutorFactory | None = None,
+        sources: DynamicSources | None = None,
     ) -> None:
         self.io = io or MenuIO()
+        self.sources = dict(docker_container_sources() if sources is None else sources)
         self.backend_factory = backend_factory or DockerImageBackend
         self.container_backend_factory = container_backend_factory or (
             # Replacing an existing container stays an explicit "no" by default.
@@ -201,7 +208,9 @@ class MenuApp:
         selected = self.io.select("Create container", labels, back_label="Back")
         if selected is None:
             return
-        use_case = CreateContainerUseCase(self.container_backend_factory())
+        use_case = CreateContainerUseCase(
+            self.container_backend_factory(), sources=self.sources
+        )
         plan = use_case.plan(names[selected], self._request(session, group.path))
         for line in describe_container(plan):
             self.io.write(line)
@@ -224,7 +233,7 @@ class MenuApp:
         if selected is None:
             return
         image_name = image_names[selected]
-        use_case = BuildImageUseCase(self.backend_factory())
+        use_case = BuildImageUseCase(self.backend_factory(), sources=self.sources)
         plan = use_case.plan(
             BuildImageRequest(
                 config_path=session.config_path,
@@ -253,7 +262,7 @@ class MenuApp:
         selected = self.io.select("Build project", labels, back_label="Back")
         if selected is None:
             return
-        use_case = BuildProjectUseCase(self.build_backend_factory())
+        use_case = BuildProjectUseCase(self.build_backend_factory(), sources=self.sources)
         plan = use_case.plan(names[selected], self._request(session, group.path))
         for line in describe_build(plan):
             self.io.write(line)
@@ -320,7 +329,7 @@ class MenuApp:
         if selection is None:
             return
         group, scene_name, profile_name = selection
-        plan = PlanScenarioUseCase().plan(
+        plan = PlanScenarioUseCase(sources=self.sources).plan(
             scene_name,
             profile_name,
             self._request(session, group.path),
@@ -338,7 +347,7 @@ class MenuApp:
         if selection is None:
             return
         group, scene_name, profile_name = selection
-        plan = PlanScenarioUseCase().plan(
+        plan = PlanScenarioUseCase(sources=self.sources).plan(
             scene_name,
             profile_name,
             self._request(session, group.path, interactive=False),
@@ -360,7 +369,7 @@ class MenuApp:
             )
             return 2
         group, scene_name, profile_name = selection
-        plan = PlanScenarioUseCase().plan(
+        plan = PlanScenarioUseCase(sources=self.sources).plan(
             scene_name,
             profile_name,
             self._request(session, group.path, interactive=False),

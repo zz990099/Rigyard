@@ -8,7 +8,7 @@ from typing import Any
 
 from ...application.builds import BuildProjectUseCase
 from ...application.requests import ResolutionRequest
-from ...providers.docker import DockerExecBuildBackend
+from ...providers.docker import DockerExecBuildBackend, docker_container_sources
 from ..build_output import describe_build
 from ..common import parse_overrides
 from .parameters import add_resolution_arguments
@@ -28,7 +28,9 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         overrides = parse_overrides(args.sets)
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
-    use_case = BuildProjectUseCase(DockerExecBuildBackend())
+    use_case = BuildProjectUseCase(
+        DockerExecBuildBackend(), sources=docker_container_sources()
+    )
     plan = use_case.plan(
         args.build_name,
         ResolutionRequest(
