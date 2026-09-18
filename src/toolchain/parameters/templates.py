@@ -16,7 +16,7 @@ from ..errors import ResolutionError
 from .models import PromptValue
 
 ENVIRONMENT_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-ROOT_NAMES = frozenset({"WORKSPACE_ROOT", "PROJECT_ROOT", "TOOLCHAIN_ROOT"})
+ROOT_NAMES = frozenset({"WORKSPACE_ROOT", "TOOLCHAIN_ROOT"})
 SUPPORTED_DATE_DIRECTIVES = frozenset("aAwdbBmyYHIpMSfzZjUWcxXGuV%")
 
 
@@ -43,16 +43,12 @@ class TemplateContext:
         roots: dict[str, str] = {}
         if config_path is not None:
             toolchain_root = Path(config_path).resolve().parent
-            project_root = (
-                toolchain_root.parent if toolchain_root.name == ".toolchain" else toolchain_root
-            )
             roots = {
                 "WORKSPACE_ROOT": str(
                     Path.cwd().resolve()
                     if workspace_root is None
                     else Path(workspace_root).resolve()
                 ),
-                "PROJECT_ROOT": str(project_root),
                 "TOOLCHAIN_ROOT": str(toolchain_root),
             }
         base = cls(
@@ -63,15 +59,20 @@ class TemplateContext:
         )
         if not variables:
             return base
-        renderer = StringTemplateRenderer(base)
-        configured = {
-            name: renderer.render(value, f"variables.{name}") for name, value in variables.items()
-        }
+        configured = dict(roots)
+        for name, value in variables.items():
+            current = cls(
+                base.environment,
+                base.local_now,
+                base.utc_now,
+                MappingProxyType(dict(configured)),
+            )
+            configured[name] = StringTemplateRenderer(current).render(value, f"variables.{name}")
         return cls(
             base.environment,
             base.local_now,
             base.utc_now,
-            MappingProxyType({**roots, **configured}),
+            MappingProxyType(configured),
         )
 
 

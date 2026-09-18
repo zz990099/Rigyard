@@ -104,9 +104,10 @@ class ResolveParametersUseCase:
 
 def _validate_config_templates(config: ToolchainConfig, config_path: str | Path) -> None:
     base = TemplateContext.capture({}, config_path=config_path)
-    base_renderer = StringTemplateRenderer(base)
+    previous: list[str] = []
     for name, value in config.variables.items():
-        base_renderer.validate(value, f"variables.{name}")
+        StringTemplateRenderer(base, variable_names=previous).validate(value, f"variables.{name}")
+        previous.append(name)
     validate_template_syntax(
         config,
         renderer=StringTemplateRenderer(base, variable_names=config.variables),

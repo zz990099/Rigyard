@@ -48,8 +48,10 @@ flowchart LR
 字符串模板同样只物化所选操作子树。Application 在一次计划操作开始时冻结宿主环境和一个
 带时区的时间快照，并将同一 renderer 传给该操作的所有字段；Scenario 的多个 group 和 profile
 也共享同一个快照。renderer 支持 `env`、本地 `date`、UTC `utcdate` 和转义，不递归处理替换
-结果。它还提供按 manifest 位置和当前工作区推断的三个内置根变量；根级 `variables` 可定义
-容器侧等工具无法推断的路径，并以用户值覆盖同名内置变量。模板展开后再由严格 Spec 和
+结果。它还提供按 manifest 位置和当前工作区确定的 `TOOLCHAIN_ROOT`、`WORKSPACE_ROOT`；
+`PROJECT_ROOT` 不由工具推断。根级 `variables` 按声明顺序解析，可引用内置变量或此前声明的
+用户变量，用于定义工程根、容器侧路径等工具无法确定的语义，并以用户值覆盖同名内置变量。
+模板展开后再由严格 Spec 和
 Planner 完成类型及业务约束校验。
 
 build、镜像和容器都先生成完整计划。菜单展示计划并确认后才调用 backend；命令通过 argv 传给 runner，不经过 shell。

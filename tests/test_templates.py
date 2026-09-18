@@ -161,17 +161,22 @@ def test_root_templates_are_explicit_immutable_and_escaped(tmp_path: Path):
             config_path=config,
             workspace_root=tmp_path,
             now=NOW,
+            variables={'PROJECT_ROOT': '${TOOLCHAIN_ROOT}/..'},
         )
     )
     assert active.render('${WORKSPACE_ROOT}', 'mounts') == str(tmp_path)
-    assert active.render('${PROJECT_ROOT}', 'mounts') == str(config.parent.parent)
+    assert active.render('${PROJECT_ROOT}', 'mounts') == f'{config.parent}/..'
     assert active.render('${TOOLCHAIN_ROOT}', 'mounts') == str(config.parent)
     assert active.render('$${PROJECT_ROOT}', 'script') == '${PROJECT_ROOT}'
     with pytest.raises(TypeError):
         active.context.roots['WORKSPACE_ROOT'] = '/wrong'
-    validate_template_syntax(['${WORKSPACE_ROOT}', '${PROJECT_ROOT}', '${TOOLCHAIN_ROOT}'])
+    validate_template_syntax(['${WORKSPACE_ROOT}', '${TOOLCHAIN_ROOT}'])
     with pytest.raises(ResolutionError, match='requires a config path'):
-        renderer().render('${PROJECT_ROOT}', 'mounts')
+        renderer().render('${TOOLCHAIN_ROOT}', 'mounts')
+    with pytest.raises(ResolutionError, match='invalid template'):
+        StringTemplateRenderer(
+            TemplateContext.capture({}, config_path=config, now=NOW)
+        ).render('${PROJECT_ROOT}', 'mounts')
 
 
 def test_global_variables_override_builtins_and_define_custom_names(tmp_path: Path):
@@ -184,6 +189,8 @@ def test_global_variables_override_builtins_and_define_custom_names(tmp_path: Pa
             now=NOW,
             variables={
                 "WORKSPACE_ROOT": "/container-workspace",
+                "CONTAINER_WORKSPACE_CHILD": "${WORKSPACE_ROOT}/child",
+                "PROJECT_ROOT": "${TOOLCHAIN_ROOT}/..",
                 "CONTAINER_PROJECT_ROOT": "${PROJECT_ROOT}/container",
                 "CONTAINER_CACHE_ROOT": "${env:CONTAINER_BASE}/cache",
             },
@@ -191,9 +198,12 @@ def test_global_variables_override_builtins_and_define_custom_names(tmp_path: Pa
     )
 
     assert active.render("${WORKSPACE_ROOT}", "value") == "/container-workspace"
-    assert active.render("${PROJECT_ROOT}", "value") == str(config.parent.parent)
+    assert active.render("${CONTAINER_WORKSPACE_CHILD}", "value") == (
+        "/container-workspace/child"
+    )
+    assert active.render("${PROJECT_ROOT}", "value") == f"{config.parent}/.."
     assert active.render("${CONTAINER_PROJECT_ROOT}", "value") == (
-        f"{config.parent.parent}/container"
+        f"{config.parent}/../container"
     )
     assert active.render("${CONTAINER_CACHE_ROOT}", "value") == "/runtime/cache"
 
@@ -229,7 +239,7 @@ sources: {containers: containers.yaml}
     assert dict(plan.environment)["PROJECT_ROOT"] == "/container-workspace/project"
 
 
-def test_validate_rejects_global_variable_references_between_user_variables(tmp_path: Path):
+def test_validate_accepts_references_to_previous_user_variables(tmp_path: Path):
     config = write(
         tmp_path / "toolchain.yaml",
         """version: 3
@@ -237,6 +247,35 @@ metadata: {name: variables}
 variables:
   CONTAINER_ROOT: /workspace
   CONTAINER_PROJECT_ROOT: ${CONTAINER_ROOT}/project
+sources: {containers: containers.yaml}
+""",
+    )
+    write(tmp_path / "containers.yaml", "development: {image: ubuntu}\n")
+
+    ValidateConfigUseCase().execute(config)
+
+    active = StringTemplateRenderer(
+        TemplateContext.capture(
+            {},
+            config_path=config,
+            now=NOW,
+            variables={
+                "CONTAINER_ROOT": "/workspace",
+                "CONTAINER_PROJECT_ROOT": "${CONTAINER_ROOT}/project",
+            },
+        )
+    )
+    assert active.render("${CONTAINER_PROJECT_ROOT}", "value") == "/workspace/project"
+
+
+def test_validate_rejects_forward_global_variable_references(tmp_path: Path):
+    config = write(
+        tmp_path / "toolchain.yaml",
+        """version: 3
+metadata: {name: variables}
+variables:
+  CONTAINER_PROJECT_ROOT: ${CONTAINER_ROOT}/project
+  CONTAINER_ROOT: /workspace
 sources: {containers: containers.yaml}
 """,
     )
@@ -273,7 +312,9 @@ def test_container_roots_follow_workspace_binding(tmp_path: Path, monkeypatch, i
     config_dir = tmp_path / 'src' / 'robot' / '.toolchain'
     config = write(
         config_dir / 'toolchain.yaml',
-        'version: 3\nmetadata: {name: roots}\nsources: {containers: containers.yaml}\n',
+        'version: 3\nmetadata: {name: roots}\n'
+        'variables: {PROJECT_ROOT: "${TOOLCHAIN_ROOT}/.."}\n'
+        'sources: {containers: containers.yaml}\n',
     )
     write(
         config_dir / 'containers.yaml',
@@ -299,9 +340,14 @@ def test_container_roots_follow_workspace_binding(tmp_path: Path, monkeypatch, i
     assert dict(plan.environment)['CONFIG_ROOT'] == str(config_dir)
 
 
-def test_flat_config_layout_uses_manifest_directory_as_project_root(tmp_path: Path):
+def test_project_root_can_be_defined_explicitly_for_flat_config_layout(tmp_path: Path):
     active = StringTemplateRenderer(
-        TemplateContext.capture({}, config_path=tmp_path / 'toolchain.yaml', now=NOW)
+        TemplateContext.capture(
+            {},
+            config_path=tmp_path / 'toolchain.yaml',
+            now=NOW,
+            variables={'PROJECT_ROOT': '${TOOLCHAIN_ROOT}'},
+        )
     )
     assert active.render('${PROJECT_ROOT}', 'value') == str(tmp_path)
     assert active.render('${TOOLCHAIN_ROOT}', 'value') == str(tmp_path)

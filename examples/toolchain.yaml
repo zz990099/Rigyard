@@ -5,6 +5,7 @@ metadata:
   description: Example robot development toolchain
 
 variables:
+  PROJECT_ROOT: ${TOOLCHAIN_ROOT}
   CONTAINER_WORKSPACE_ROOT: /workspace
 
 sources:

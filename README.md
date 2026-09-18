@@ -63,6 +63,7 @@ metadata:
   description: Robot software development toolchain
 
 variables:
+  PROJECT_ROOT: ${TOOLCHAIN_ROOT}
   CONTAINER_WORKSPACE_ROOT: /workspace
   CONTAINER_PROJECT_ROOT: /workspace/project
 
@@ -227,7 +228,6 @@ development:
 | `${date:FORMAT}` | 按工具链进程的本地时区格式化命令开始时间 |
 | `${utcdate:FORMAT}` | 按 UTC 格式化同一个命令开始时间 |
 | `${WORKSPACE_ROOT}` | 当前工作区绝对路径，即运行 `toolchain init` 的目录 |
-| `${PROJECT_ROOT}` | 工程绝对路径：配置目录名为 `.toolchain` 时取父目录，否则取配置目录 |
 | `${TOOLCHAIN_ROOT}` | 实际 `toolchain.yaml` 所在配置目录的绝对路径 |
 | `${NAME}` | 读取根 manifest 的 `variables.NAME` |
 | `$${...}` | 输出字面量 `${...}`，不执行模板 |
@@ -236,25 +236,31 @@ development:
 `%S` 秒。同一条命令只采集一次时间，因此多个字段生成的时间戳一致。模板只展开一次：如果
 环境变量的内容本身是 `${date:%Y}`，不会继续递归展开。
 
-例如在 `/ros2_ws` 初始化并绑定 `src/xbot/.toolchain/toolchain.yaml` 后，三个参数分别为
-`/ros2_ws`、`/ros2_ws/src/xbot`、`/ros2_ws/src/xbot/.toolchain`。工作区仍按既有规则仅绑定
-当前目录，不查找父目录；直接使用 `--config` 或未初始化时，`WORKSPACE_ROOT` 取当前目录。
-路径参数是工具链内置值，不读取同名环境变量，也不要求工程是 Git 仓库。
+例如在 `/ros2_ws` 初始化并绑定 `src/xbot/.toolchain/toolchain.yaml` 后，内置参数分别为
+`WORKSPACE_ROOT=/ros2_ws` 和
+`TOOLCHAIN_ROOT=/ros2_ws/src/xbot/.toolchain`。工作区仍按既有规则仅绑定当前目录，不查找父目录；
+直接使用 `--config` 或未初始化时，`WORKSPACE_ROOT` 取当前目录。内置路径不读取同名环境变量，
+也不要求工程是 Git 仓库。工具链不再推断 `PROJECT_ROOT`，需要时应显式定义：
+
+```yaml
+variables:
+  PROJECT_ROOT: ${TOOLCHAIN_ROOT}/..
+```
 
 内置根变量描述的是工具链进程看到的宿主文件系统，不能推断 Docker 中的挂载位置。需要容器侧
 语义时，应在根 manifest 明确定义，例如：
 
 ```yaml
 variables:
+  PROJECT_ROOT: ${TOOLCHAIN_ROOT}/..
   CONTAINER_WORKSPACE_ROOT: /workspace
   CONTAINER_PROJECT_ROOT: /workspace/src/robot
-  # 用户值优先，因此也可以覆盖内置推断：
-  PROJECT_ROOT: /workspace/src/robot
 ```
 
 用户变量名匹配 `[A-Za-z_][A-Za-z0-9_]*`。同名用户值覆盖
-`${WORKSPACE_ROOT}`、`${PROJECT_ROOT}` 或 `${TOOLCHAIN_ROOT}` 的内置值。变量值本身可以引用
-内置根变量、`${env:...}` 和日期模板；用户变量之间不能互相引用，以避免声明顺序和循环依赖。
+`${WORKSPACE_ROOT}` 或 `${TOOLCHAIN_ROOT}` 的内置值。变量按 YAML 声明顺序解析，值可以引用
+内置变量、前面已经定义的用户变量、`${env:...}` 和日期模板；不允许前向引用，因此循环定义
+也会失败。
 
 ```yaml
 mounts:
