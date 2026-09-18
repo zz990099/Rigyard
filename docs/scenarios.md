@@ -6,7 +6,7 @@
 | 层级 | 含义 | tmux 映射 |
 | --- | --- | --- |
 | 场景 | 一次调试启动单元 | 一个 session |
-| instance | 一套运行在一个已有容器中的软件系统 | 一个 window |
+| instance | 一套运行在一个容器（已有容器或 Compose service）中的软件系统 | 一个 window |
 | group | 容器内的一个调试进程 | 一个 pane |
 
 ## 配置
@@ -47,8 +47,10 @@ robot-system:
       keep_alive: true
 ```
 
-每个 instance 必须指定一个已存在的 `container`。instance 名会成为 tmux window 名，因此必须
-匹配 `[A-Za-z0-9][A-Za-z0-9_-]*`；`.` 和 `:` 会与 tmux target 语法冲突。
+每个 instance 必须指定目标字段：无 `compose` 时用 `container` 指向已有容器名或 ID，有
+`compose` 时用 `service` 指向 Compose service 名。两者互斥，写错模式会直接报 schema 错误。
+instance 名会成为 tmux window 名，因此必须匹配 `[A-Za-z0-9][A-Za-z0-9_-]*`；`.` 和 `:`
+会与 tmux target 语法冲突。
 
 需要由 Compose 准备容器时，在场景级增加 `compose`：
 
@@ -62,17 +64,17 @@ robot-system:
       WORKSPACE: ${WORKSPACE_ROOT}
   instances:
     robot1:
-      container: robot
+      service: robot
       groups:
         drivers: {script: /workspace/scripts/scenarios/drivers.sh}
   profiles:
     development: {attach: true}
 ```
 
-两种模式都保留 `container` 字段：无 `compose` 时它是已有容器的名称或 ID；有 `compose` 时它是
-Compose service 名。启动后工具通过 `docker compose ps -q` 将 service 解析为容器 ID。每个
-service 必须恰好产生一个容器，因此当前不支持将同一个 instance 映射到多副本 service。
-`file` 相对于根 `toolchain.yaml` 解析，而不是相对于场景 source 文件。
+无 `compose` 时 `container` 是已有容器的名称或 ID；有 `compose` 时使用 `service`，由启动流程
+通过 `docker compose ps -q` 解析为容器 ID。每个 service 必须恰好产生一个容器，因此当前不
+支持将同一个 instance 映射到多副本 service。`file` 相对于根 `toolchain.yaml` 解析，而不是
+相对于场景 source 文件。
 
 `compose.environment` 用于 Compose 文件插值。值支持工具链的运行时值和字符串模板；例如上面的
 `${WORKSPACE_ROOT}` 会先由工具链解析为绝对路径，再以 `WORKSPACE` 环境变量传给
@@ -169,8 +171,8 @@ toolchain scene down robot-system development
 
 ## 参数解析与失败语义
 
-场景选择先解析 profile、instance/group 的 `enabled` 和目标 `container`，启动时再解析所选
-group 的脚本、命令和环境。被禁用或未选择的 instance/group 不会产生无关提示。
+场景选择先解析 profile、instance/group 的 `enabled` 和目标字段（`container` 或 `service`），
+启动时再解析所选 group 的脚本、命令和环境。被禁用或未选择的 instance/group 不会产生无关提示。
 
 启动前检查或 window 创建失败时会清理本次新建的 tmux 对象；节点启动后自行退出时保留 pane
 用于诊断。所有进程通过 argv runner 启动，容器内命令使用独立的 `docker exec`，不依赖 tmux

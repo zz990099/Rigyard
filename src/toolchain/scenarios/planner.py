@@ -48,7 +48,23 @@ class ScenarioPlanner:
         config_file = Path(config_path).resolve()
         for instance in planned:
             _validate_window_name(instance.name)
-            _validate_container_name(instance.container)
+            if compose is None:
+                if instance.container is None:
+                    raise ScenarioPlanError(
+                        f"scenario instance {instance.name!r} requires a container"
+                    )
+                _validate_container_name(instance.container)
+            else:
+                if instance.service is None:
+                    raise ScenarioPlanError(
+                        f"scenario instance {instance.name!r} requires a Compose service"
+                    )
+                if instance.container is not None:
+                    raise ScenarioPlanError(
+                        f"scenario instance {instance.name!r} must use service, not container, "
+                        "for Compose-managed scenarios"
+                    )
+                _validate_compose_service_name(instance.service)
         compose_plan = None
         if compose is not None:
             compose_file = _resolve_path(config_file.parent, compose.file)
@@ -100,7 +116,7 @@ def _instance_plan(name: str, instance: ScenarioInstanceSpec) -> ScenarioInstanc
     )
     if not groups:
         raise ScenarioPlanError(f"scenario instance {name!r} has no enabled groups")
-    return ScenarioInstancePlan(name, instance.container, groups)
+    return ScenarioInstancePlan(name, instance.container, groups, service=instance.service)
 
 
 def _runtime_name(config_file: Path, project_name: str, scene_name: str) -> str:
@@ -147,6 +163,11 @@ def _validate_window_name(value: str) -> None:
 def _validate_container_name(value: str) -> None:
     if not CONTAINER_NAME.fullmatch(value):
         raise ScenarioPlanError(f"invalid container name {value!r}")
+
+
+def _validate_compose_service_name(value: str) -> None:
+    if not CONTAINER_NAME.fullmatch(value):
+        raise ScenarioPlanError(f"invalid Compose service name {value!r}")
 
 
 def _validate_compose_project(value: str) -> None:

@@ -139,7 +139,7 @@ def test_two_instances_plan_onto_two_containers(tmp_path: Path):
     assert [instance.container for instance in plan.instances] == ["container-a", "container-b"]
 
 
-def test_compose_plan_keeps_container_as_service_reference(tmp_path: Path):
+def test_compose_plan_uses_service_reference(tmp_path: Path):
     config = project(
         tmp_path,
         """robot:
@@ -148,7 +148,7 @@ def test_compose_plan_keeps_container_as_service_reference(tmp_path: Path):
     project_name: robot-debug
     wait_timeout_seconds: 30
   instances:
-    robot1: {container: robot, groups: {drivers: {script: /a.sh}}}
+    robot1: {service: robot, groups: {drivers: {script: /a.sh}}}
   profiles:
     development: {attach: false}
 """,
@@ -161,7 +161,8 @@ def test_compose_plan_keeps_container_as_service_reference(tmp_path: Path):
 
     assert isinstance(plan, ScenarioPlan)
     assert plan.compose == ScenarioComposePlan(compose_file.resolve(), "robot-debug", 30)
-    assert plan.instances[0].container == "robot"
+    assert plan.instances[0].service == "robot"
+    assert plan.instances[0].container is None
 
 
 def test_compose_environment_resolves_toolchain_templates(
@@ -177,7 +178,7 @@ def test_compose_environment_resolves_toolchain_templates(
       WORKSPACE: ${WORKSPACE_ROOT}
       CONFIG_ROOT: ${TOOLCHAIN_ROOT}
   instances:
-    robot1: {container: robot, groups: {drivers: {script: /a.sh}}}
+    robot1: {service: robot, groups: {drivers: {script: /a.sh}}}
   profiles:
     development: {attach: false}
 """,
@@ -202,7 +203,7 @@ def test_compose_plan_generates_a_stable_project_name(tmp_path: Path):
         """robot:
   compose: {file: compose.yaml}
   instances:
-    robot1: {container: robot, groups: {drivers: {script: /a.sh}}}
+    robot1: {service: robot, groups: {drivers: {script: /a.sh}}}
   profiles:
     development: {attach: false}
 """,
@@ -229,7 +230,7 @@ def test_compose_plan_rejects_a_missing_file(tmp_path: Path):
         """robot:
   compose: {file: missing.yaml}
   instances:
-    robot1: {container: robot, groups: {drivers: {script: /a.sh}}}
+    robot1: {service: robot, groups: {drivers: {script: /a.sh}}}
   profiles:
     development: {attach: false}
 """,
@@ -296,6 +297,50 @@ def test_instance_container_supports_runtime_templates(tmp_path: Path):
     assert plan.instances[0].container == "dev_alice"
 
 
+def test_instance_service_supports_runtime_templates(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """robot:
+  compose: {file: compose.yaml}
+  instances:
+    robot1:
+      service: "${env:USER}-robot"
+      groups: {drivers: {script: /a.sh}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+    write(tmp_path / "compose.yaml", "services: {alice-robot: {image: robot}}\n")
+
+    plan = PlanScenarioUseCase().plan(
+        "robot",
+        "development",
+        ResolutionRequest(config, interactive=False),
+        environment={"USER": "alice"},
+    )
+
+    assert isinstance(plan, ScenarioPlan)
+    assert plan.instances[0].service == "alice-robot"
+    assert plan.instances[0].container is None
+
+
+def test_scenario_instance_rejects_both_targets(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """robot:
+  instances:
+    robot1:
+      container: robot-dev
+      service: robot
+      groups: {drivers: {script: /run.sh}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+    with pytest.raises(SchemaValidationError, match="exactly one"):
+        load_config(config)
+
+
 def test_scenario_instance_requires_container(tmp_path: Path):
     config = project(
         tmp_path,
@@ -335,7 +380,7 @@ def test_scenario_profile_rejects_removed_backend_fields(tmp_path: Path, legacy_
 @pytest.mark.parametrize(
     "legacy_field",
     (
-        "      service: robot\n",
+        "      supervisor: {priority: 10}\n",
         "      groups: {drivers: {script: /run.sh, supervisor: {priority: 10}}}\n",
     ),
 )
@@ -355,6 +400,35 @@ def test_scenario_rejects_removed_deployment_fields(tmp_path: Path, legacy_field
         + "  profiles: {development: {attach: false}}\n",
     )
     with pytest.raises(SchemaValidationError, match="Extra inputs are not permitted"):
+        load_config(config)
+
+
+def test_non_compose_scenario_rejects_service_target(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """robot:
+  instances:
+    robot1: {service: robot, groups: {drivers: {script: /run.sh}}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+    with pytest.raises(SchemaValidationError, match="uses service"):
+        load_config(config)
+
+
+def test_compose_scenario_rejects_container_target(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """robot:
+  compose: {file: compose.yaml}
+  instances:
+    robot1: {container: robot, groups: {drivers: {script: /run.sh}}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+    with pytest.raises(SchemaValidationError, match="uses container"):
         load_config(config)
 
 
@@ -448,10 +522,18 @@ def group(
 def instance(
     name: str = "robot1",
     *,
-    container: str = "robot-dev",
+    container: str | None = "robot-dev",
+    service: str | None = None,
     groups: tuple[ScenarioGroupPlan, ...] = (),
 ) -> ScenarioInstancePlan:
-    return ScenarioInstancePlan(name, container, groups or (group("drivers"),))
+    if service is not None:
+        container = None
+    return ScenarioInstancePlan(
+        name,
+        container,
+        groups or (group("drivers"),),
+        service=service,
+    )
 
 
 def scenario_plan(
@@ -768,8 +850,8 @@ def test_tmux_start_restarts_every_instance_container():
 def test_compose_start_resolves_services_before_creating_tmux_windows(tmp_path: Path):
     fake = FakeTmux(compose_services=("robot", "simulator"))
     plan = scenario_plan(
-        instance("robot1", container="robot"),
-        instance("sim", container="simulator"),
+        instance("robot1", service="robot"),
+        instance("sim", service="simulator"),
         compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 45),
     )
 
@@ -801,7 +883,7 @@ def test_compose_start_resolves_services_before_creating_tmux_windows(tmp_path: 
 def test_compose_commands_receive_resolved_environment(tmp_path: Path):
     fake = FakeTmux()
     plan = scenario_plan(
-        instance(container="robot"),
+        instance(service="robot"),
         compose=ScenarioComposePlan(
             tmp_path / "compose.yaml",
             "robot-debug",
@@ -832,7 +914,7 @@ def test_compose_commands_receive_resolved_environment(tmp_path: Path):
 def test_compose_start_rejects_unknown_services_before_up(tmp_path: Path):
     fake = FakeTmux(compose_services=("other",))
     plan = scenario_plan(
-        instance(container="robot"),
+        instance(service="robot"),
         compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60),
     )
 
@@ -846,7 +928,7 @@ def test_compose_start_rejects_unknown_services_before_up(tmp_path: Path):
 def test_compose_start_requires_one_container_per_service(tmp_path: Path):
     fake = FakeTmux(compose_containers={"robot": ("one", "two")})
     plan = scenario_plan(
-        instance(container="robot"),
+        instance(service="robot"),
         compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60),
     )
 
@@ -859,7 +941,7 @@ def test_compose_start_requires_one_container_per_service(tmp_path: Path):
 def test_compose_down_stops_tmux_then_removes_environment(tmp_path: Path):
     fake = FakeTmux(session=True, windows=("robot1",))
     plan = scenario_plan(
-        instance(container="robot"),
+        instance(service="robot"),
         compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60),
     )
 
@@ -886,7 +968,7 @@ def test_compose_down_rejects_existing_container_scenarios():
 
 def test_compose_down_rejects_partial_selection(tmp_path: Path):
     plan = scenario_plan(
-        instance(container="robot"),
+        instance(service="robot"),
         compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60),
         partial=True,
     )
@@ -1214,7 +1296,7 @@ def test_cli_dry_run_describes_compose_runtime(tmp_path: Path, capsys):
     wait_timeout_seconds: 20
     environment: {WORKSPACE: /workspace}
   instances:
-    robot1: {container: robot, groups: {drivers: {script: /a.sh}}}
+    robot1: {service: robot, groups: {drivers: {script: /a.sh}}}
   profiles:
     development: {attach: false}
 """,

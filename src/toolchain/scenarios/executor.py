@@ -311,8 +311,17 @@ class ScenarioExecutor:
             plan.compose.project_name,
         )
 
+    def _instance_service(self, instance: ScenarioInstancePlan) -> str:
+        if instance.service is None:
+            raise ScenarioPlanError(
+                f"scenario instance {instance.name!r} has no Compose service"
+            )
+        return instance.service
+
     def _compose_services(self, plan: ScenarioPlan) -> tuple[str, ...]:
-        return tuple(dict.fromkeys(instance.container for instance in plan.instances))
+        return tuple(
+            dict.fromkeys(self._instance_service(instance) for instance in plan.instances)
+        )
 
     def _compose_environment(self, plan: ScenarioPlan) -> dict[str, str]:
         if plan.compose is None:
@@ -365,14 +374,24 @@ class ScenarioExecutor:
         return replace(
             plan,
             instances=tuple(
-                replace(instance, container=containers[instance.container])
+                replace(
+                    instance,
+                    container=containers[self._instance_service(instance)],
+                )
                 for instance in plan.instances
             ),
         )
 
+    def _instance_container(self, instance: ScenarioInstancePlan) -> str:
+        if instance.container is None:
+            raise ScenarioExecutionError(
+                f"scenario instance {instance.name!r} has no container target"
+            )
+        return instance.container
+
     def _restart_containers(self, plan: ScenarioPlan) -> None:
         for instance in plan.instances:
-            container = instance.container
+            container = self._instance_container(instance)
             running = self._container_running(container)
             if plan.restart_container == "never":
                 continue
@@ -392,7 +411,10 @@ class ScenarioExecutor:
             self._wait_container_running(container)
 
     def _check_containers(self, plan: ScenarioPlan) -> None:
-        for container in dict.fromkeys(instance.container for instance in plan.instances):
+        containers = (
+            self._instance_container(instance) for instance in plan.instances
+        )
+        for container in dict.fromkeys(containers):
             if not self._container_running(container):
                 raise ScenarioExecutionError(f"container {container!r} is not running")
 
@@ -526,7 +548,7 @@ class ScenarioExecutor:
         if group.workdir is not None:
             docker.append(f"--workdir={group.workdir}")
         docker.extend(f"--env={key}={value}" for key, value in group.environment)
-        docker.append(instance.container)
+        docker.append(self._instance_container(instance))
         if interactive_shell:
             docker.extend((group.interpreter[0], "-i"))
         else:

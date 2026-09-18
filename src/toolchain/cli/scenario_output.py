@@ -32,8 +32,12 @@ def describe_scenario(plan: ScenarioPlan) -> tuple[str, ...]:
         )
     lines.extend(
         f"Window {instance.name}: "
-        + ("service=" if plan.compose is not None else "container=")
-        + f"{instance.container} -> "
+        + (
+            f"service={instance.service}"
+            if plan.compose is not None
+            else f"container={instance.container}"
+        )
+        + " -> "
         + ", ".join(group.name for group in instance.groups)
         for instance in plan.instances
     )

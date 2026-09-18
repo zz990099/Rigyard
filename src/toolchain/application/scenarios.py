@@ -51,6 +51,7 @@ class PlanScenarioUseCase:
                 f"unknown scenario {scene_name!r}; configured scenarios: {available}"
             )
         scenario = config.scenarios[scene_name]
+        compose_managed = scenario.compose is not None
         if profile_name not in scenario.profiles:
             available = ", ".join(sorted(scenario.profiles)) or "none"
             raise SchemaValidationError(
@@ -117,7 +118,10 @@ class PlanScenarioUseCase:
         for name in selected_names:
             instance = scenario.instances[name]
             prefix = f"{instances_prefix}.{name}"
-            selected.update(collect_prompts(instance.container, f"{prefix}.container"))
+            if compose_managed:
+                selected.update(collect_prompts(instance.service, f"{prefix}.service"))
+            else:
+                selected.update(collect_prompts(instance.container, f"{prefix}.container"))
             if resolve_group_runtime:
                 selected.update(collect_prompts(instance.enabled, f"{prefix}.enabled"))
                 for group_name in enabled_groups[name]:
@@ -155,10 +159,28 @@ class PlanScenarioUseCase:
                     groups[group_name] = ScenarioGroupSpec(script=":")
             if not groups:
                 raise SchemaValidationError(f"scenario instance {name!r} has no enabled groups")
-            planned[name] = ScenarioInstanceSpec(
-                container=materialize(template.container, f"{prefix}.container", context, renderer),
-                groups=groups,
-            )
+            if compose_managed:
+                if template.service is None:
+                    raise SchemaValidationError(
+                        f"scenario instance {name!r} requires service"
+                    )
+                planned[name] = ScenarioInstanceSpec(
+                    service=materialize(
+                        template.service, f"{prefix}.service", context, renderer
+                    ),
+                    groups=groups,
+                )
+            else:
+                if template.container is None:
+                    raise SchemaValidationError(
+                        f"scenario instance {name!r} requires container"
+                    )
+                planned[name] = ScenarioInstanceSpec(
+                    container=materialize(
+                        template.container, f"{prefix}.container", context, renderer
+                    ),
+                    groups=groups,
+                )
 
         profile = materialize_as(
             profile_template,

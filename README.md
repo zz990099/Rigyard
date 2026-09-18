@@ -156,7 +156,7 @@ robot-system:
       attach: true
 ```
 
-`container` 属于 instance 且为必填字段，目标容器需提前创建；
+非 Compose 场景中 `container` 属于 instance 且为必填字段，目标容器需提前创建；
 `restart_container` 决定启动前如何重启它，默认开启 mouse 与 pane 边框组名；进程退出（包括
 `Ctrl+C`）后 pane 默认会落回容器内的交互式 shell 继续操作（`keep_alive: false` 可关闭）。
 每个 group 用
@@ -164,8 +164,9 @@ robot-system:
 同一套 tmux 启动流程。默认启动全部 `enabled` 的 instance，可用 `--instance NAME` 只启动其中几个；只解析
 被选中 instance 中启用 group 的字段，被禁用 instance / group 的其他参数不会被询问。
 
-场景级可选 `compose.file`。配置后，`container` 表示 Compose service 名，`scene start` 先执行
-`docker compose up -d --wait` 并解析对应容器；未配置时仍表示已有容器名或 ID。
+场景级可选 `compose.file`。配置后，instance 改用 `service` 表示 Compose service 名，
+`scene start` 先执行 `docker compose up -d --wait` 并解析对应容器；未配置时仍使用
+`container` 表示已有容器名或 ID。
 `compose.environment` 可把 `${WORKSPACE_ROOT}` 等工具链模板解析后作为 Compose 插值变量传入。
 `scene stop` 只停止 tmux 并保留容器，`scene down` 才停止 tmux 并执行 Compose down。
 

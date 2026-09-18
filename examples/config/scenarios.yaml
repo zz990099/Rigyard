@@ -44,7 +44,7 @@ robot-system:
       stop_grace_seconds: 5
 
 # The same tmux workflow can let Docker Compose prepare the containers first.
-# Here `container` is the Compose service name rather than an existing container name.
+# Compose-managed instances use `service`; non-Compose instances use `container`.
 robot-system-compose:
   description: Example robot system whose development container is managed by Compose
   compose:
@@ -55,7 +55,7 @@ robot-system-compose:
       WORKSPACE: ${WORKSPACE_ROOT}
   instances:
     robot:
-      container: robot
+      service: robot
       groups:
         drivers:
           script: /workspace/scripts/scenarios/drivers.sh

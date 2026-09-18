@@ -83,14 +83,21 @@ class ScenarioGroupTemplate(BaseModel):
 
 
 class ScenarioInstanceTemplate(BaseModel):
-    """One software system: one container, one tmux window, several group panes."""
+    """One software system: one container or Compose service, one tmux window, several panes."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     description: str | None = None
     enabled: RuntimeBool = True
-    container: RuntimeText
+    container: RuntimeText | None = None
+    service: RuntimeText | None = None
     groups: dict[str, ScenarioGroupTemplate] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def exactly_one_target(self) -> ScenarioInstanceTemplate:
+        if (self.container is None) == (self.service is None):
+            raise ValueError("scenario instance requires exactly one of container or service")
+        return self
 
     @field_validator("groups")
     @classmethod
@@ -154,6 +161,22 @@ class ScenarioTemplate(BaseModel):
         _validate_named_mapping(values, "scenario profile")
         return values
 
+    @model_validator(mode="after")
+    def targets_match_compose_mode(self) -> ScenarioTemplate:
+        for name, instance in self.instances.items():
+            if self.compose is None:
+                if instance.service is not None:
+                    raise ValueError(
+                        f"scenario instance {name!r} uses service but scenario has no compose; "
+                        "use container instead"
+                    )
+            elif instance.container is not None:
+                raise ValueError(
+                    f"scenario instance {name!r} uses container for a Compose-managed scenario; "
+                    "use service instead"
+                )
+        return self
+
 
 class ScenarioGroupSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -201,8 +224,15 @@ class ScenarioInstanceSpec(BaseModel):
 
     description: str | None = None
     enabled: bool = True
-    container: str
+    container: str | None = None
+    service: str | None = None
     groups: dict[str, ScenarioGroupSpec] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def exactly_one_target(self) -> ScenarioInstanceSpec:
+        if (self.container is None) == (self.service is None):
+            raise ValueError("scenario instance requires exactly one of container or service")
+        return self
 
 
 class ScenarioProfileSpec(BaseModel):
@@ -241,8 +271,9 @@ class ScenarioGroupPlan:
 @dataclass(frozen=True)
 class ScenarioInstancePlan:
     name: str
-    container: str
+    container: str | None
     groups: tuple[ScenarioGroupPlan, ...]
+    service: str | None = None
 
 
 @dataclass(frozen=True)
