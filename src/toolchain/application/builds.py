@@ -63,8 +63,6 @@ class BuildProjectUseCase:
         return BuildPlanner().create_plan(
             build_name,
             spec,
-            request.config_path,
-            host_environment,
         )
 
     def execute(self, plan: BuildPlan) -> BuildResult:

@@ -29,7 +29,7 @@ flowchart TD
 - `builds`、`images` 与 `containers` 定义模板、严格 Spec、不可变计划和后端协议；`scenarios` 使用唯一的 tmux executor。
 - `application` 选择配置并协调解析与计划。
 - `cli` 和一次性 `cli.menu` 共用应用 use case。
-- `providers.docker`、`providers.host` 与 scenario executor 只接受已经验证的计划。
+- `providers.docker` 与 scenario executor 只接受已经验证的计划。
 - `execution` 提供共享的 argv subprocess runner，任何 provider 都不调用隐式 shell。
 
 运行流程为：
@@ -64,9 +64,9 @@ Scenario executor 在宿主机为每个 instance 创建 window、为每个 group
 
 ## 工程编译
 
-`BuildTemplate` 描述工程脚本、解释器 argv、工作目录、环境覆盖和可选超时。运行时参数解析后生成 `BuildSpec`，`BuildPlanner` 再将相对路径按根 manifest 目录解析，并冻结完整宿主环境形成 `BuildPlan`。
+`BuildTemplate` 描述目标容器、工程脚本、解释器 argv、工作目录、setup、环境覆盖和可选超时。运行时参数解析后生成 `BuildSpec`，`BuildPlanner` 将容器内路径与参数冻结成 `docker exec` 形式的 `BuildPlan`。
 
-`HostBuildBackend` 将脚本标准输入、输出和错误直接连接当前终端，适合长时间编译和 CI 日志。工具链不识别具体构建系统；native、交叉编译或其他构建方式只是不同的命名 build。脚本失败、超时和解释器不可用会转换成稳定的工具链错误码。
+`DockerExecBuildBackend` 在宿主机校验目标容器已存在且正在运行，再通过 `docker exec` 在容器内执行脚本，并将标准输入、输出和错误连接当前终端。工具链不识别具体构建系统；native、交叉编译或其他构建方式只是不同的命名 build。脚本失败、超时和解释器不可用会转换成稳定的工具链错误码。
 
 ## 容器生命周期
 

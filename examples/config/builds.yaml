@@ -1,10 +1,12 @@
 description: Example builds
 
 native:
-  description: Example host build
-  script: scripts/build-native.sh
+  description: Example container build
+  container: robot-development
+  script: ${CONTAINER_WORKSPACE_ROOT}/scripts/build-native.sh
   interpreter: [/bin/bash, -euo, pipefail]
-  workdir: .
+  workdir: ${CONTAINER_WORKSPACE_ROOT}
+  setup: [/opt/ros/humble/setup.bash]
   environment:
     BUILD_TYPE:
       default: Release

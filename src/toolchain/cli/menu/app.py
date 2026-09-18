@@ -13,9 +13,8 @@ from ...application.parameters import ValidateConfigUseCase
 from ...application.requests import BuildImageRequest, ResolutionRequest
 from ...application.scenarios import PlanScenarioUseCase
 from ...config.models import SourceFileInfo
-from ...providers.docker import DockerImageBackend
+from ...providers.docker import DockerExecBuildBackend, DockerImageBackend
 from ...providers.docker.container_backend import DockerContainerBackend
-from ...providers.host import HostBuildBackend
 from ...scenarios.executor import ScenarioExecutor
 from ...scenarios.service import ScenarioService
 from ..build_output import describe_build
@@ -43,7 +42,7 @@ class MenuApp:
         self.container_backend_factory = container_backend_factory or (
             lambda: DockerContainerBackend(confirm_replace=self.io.confirm)
         )
-        self.build_backend_factory = build_backend_factory or HostBuildBackend
+        self.build_backend_factory = build_backend_factory or DockerExecBuildBackend
         self.scenario_executor_factory = scenario_executor_factory or ScenarioExecutor
         self.registry = MenuRegistry(
             (

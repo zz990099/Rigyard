@@ -1,5 +1,8 @@
 # 工程编译
 
+toolchain 只在宿主机执行，工程编译统一通过 `docker exec` 进入既有容器执行。工具链不再提供
+宿主机直接运行编译脚本的模式。
+
 编译配置位于 manifest 指定的独立 source 中：
 
 ```yaml
@@ -16,9 +19,14 @@ source 文件根层级可用保留字段 `description` 作为菜单分组名。�
 ```yaml
 native:
   description: Native build
-  script: scripts/build-native.sh
+  container: nhybot_dev_${env:USER}_temp
+  script: ${CONTAINER_TOOLCHAIN_ROOT}/scripts/build-native.sh
   interpreter: [/bin/bash, -euo, pipefail]
-  workdir: .
+  workdir: ${CONTAINER_WORKSPACE_ROOT}
+  setup:
+    - /opt/ros/humble/setup.bash
+    - install/setup.bash
+  user: root                    # 可选
   environment:
     BUILD_TYPE:
       default: Release
@@ -31,11 +39,17 @@ native:
 
 字段含义：
 
-- `script`：必填，工程维护的脚本；路径相对于根 `toolchain.yaml`。
+- `container`：必填，既有容器名称或 ID；工具链不会创建、启动或拉取容器。
+- `script`：必填，容器内脚本路径。
 - `interpreter`：非空 argv，默认是 `[/bin/sh, -eu]`。
-- `workdir`：脚本工作目录，默认是 manifest 所在目录。
-- `environment`：在继承的宿主环境上增加或覆盖的变量。
+- `workdir`：可选的容器内工作目录；省略时使用容器默认工作目录。
+- `user`：可选的容器内用户。
+- `setup`：可选的容器内 setup 脚本列表，按顺序 source 后再执行 `script`。
+- `environment`：容器内环境变量覆盖；不会继承宿主机环境。
 - `timeout_seconds`：可选，范围为 1 到 86400 秒；缺省时不限制。
+
+容器必须已经存在且正在运行。不存在或已停止时，`toolchain build` 会直接报错，不会自动处理
+容器生命周期。
 
 所有业务字段均可使用内联运行时 prompt。只有选中的 build 会进行参数求值：
 
@@ -46,4 +60,14 @@ toolchain build native --non-interactive \
 toolchain build native --dry-run
 ```
 
-`--dry-run` 完成配置校验、参数解析和计划生成，但不启动脚本。预览只显示环境覆盖的变量名，不显示变量值。正常执行时不会启动隐式 shell，最终 argv 是 `interpreter + script`；需要 Bash 语义时必须在 `interpreter` 中明确指定 Bash。
+`--dry-run` 完成配置校验、参数解析和计划生成，但不调用 Docker。预览会显示容器、工作目录、
+完整 `docker exec` 命令、setup 和环境覆盖变量名。实际执行时容器内命令等价于：
+
+```text
+. /opt/ros/humble/setup.bash && \
+. install/setup.bash && \
+exec /bin/bash -euo pipefail /ros2_ws/src/nhybot/.toolchain/scripts/build-native.sh
+```
+
+`timeout_seconds` 控制宿主机上的 `docker exec` client；它不保证能可靠终止容器内已启动的
+子进程。需要严格超时语义时，应在 build script 内部使用容器内的 `timeout` 工具。

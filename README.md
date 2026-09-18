@@ -20,11 +20,13 @@ pip install -e .
 
 ```bash
 toolchain                              # 一次性交互菜单
+toolchain container create development
 toolchain build native
 toolchain scene start robot-system development
 toolchain image build development
-toolchain container create development
 ```
+
+`build` 只会在既有且正在运行的容器内执行，不会自动创建容器。
 
 指定其他工程清单：
 
@@ -84,14 +86,18 @@ source 路径相对于根 `toolchain.yaml`。`sources.images / containers / buil
 指定来源。至少需要配置一个 source。`variables` 是可选的全局字符串变量，所有领域 source
 都可以引用。
 
-编译文件是名称到编译定义的 mapping。工具链不理解 colcon、catkin、CMake 等具体构建系统，只通过明确的解释器 argv 执行工程脚本：
+编译文件是名称到编译定义的 mapping。toolchain 只在宿主机执行，工程编译统一通过 `docker exec`
+进入既有容器运行；工具链不理解 colcon、catkin、CMake 等具体构建系统，只通过明确的解释器 argv
+执行工程脚本：
 
 ```yaml
 native:
-  description: Native release build
-  script: scripts/build-native.sh
+  description: Native container build
+  container: nhybot_dev_${env:USER}_temp
+  script: ${CONTAINER_TOOLCHAIN_ROOT}/scripts/build-native.sh
   interpreter: [/bin/bash, -euo, pipefail]
-  workdir: .
+  workdir: ${CONTAINER_WORKSPACE_ROOT}
+  setup: [/opt/ros/humble/setup.bash]
   environment:
     BUILD_TYPE:
       default: Release
@@ -101,7 +107,8 @@ native:
         options: [Debug, Release]
 ```
 
-`script` 和 `workdir` 均相对于根 `toolchain.yaml`。编译脚本直接连接当前终端，不调用隐式宿主 shell；脚本的控制流和具体编译命令由工程维护。
+`container` 必须指向既有、正在运行的容器；`script`、`workdir`、`setup` 都使用容器内路径。
+工具链不会创建或启动容器，也不会继承宿主机环境变量。脚本的控制流和具体编译命令由工程维护。
 
 镜像文件是名称到镜像定义的 mapping：
 

@@ -94,4 +94,6 @@ toolchain container create development \
   --non-interactive
 ```
 
+`build` 会在既有且正在运行的容器内执行，CI 中需先创建并启动目标容器。
+
 `inspect` 显示所有运行时路径、交互模式和环境变量名；`resolve` 解析全部路径并物化所有业务模型，适合作为部署前检查。
