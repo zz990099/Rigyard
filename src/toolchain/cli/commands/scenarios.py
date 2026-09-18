@@ -50,7 +50,12 @@ def register_scenario_commands(commands: Any) -> None:
 def _operation(actions: Any, name: str, help_text: str) -> argparse.ArgumentParser:
     command = actions.add_parser(name, help=help_text)
     command.add_argument("scene_name", help="scenario configuration name under scenarios")
-    command.add_argument("profile_name", help="profile name under the selected scenario")
+    command.add_argument(
+        "profile_name",
+        nargs="?",
+        default=None,
+        help="profile name under the selected scenario (default: the only profile)",
+    )
     command.add_argument(
         "--instance",
         dest="instances",

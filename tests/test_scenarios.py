@@ -455,6 +455,72 @@ def test_tmux_instance_name_must_be_a_target_safe_window_name(tmp_path: Path):
         )
 
 
+def test_plan_defaults_to_the_only_configured_profile(tmp_path: Path):
+    config = project(tmp_path, scenario_yaml())
+
+    plan = PlanScenarioUseCase().plan(
+        "robot", None, ResolutionRequest(config, interactive=False)
+    )
+
+    assert plan.profile_name == "development"
+
+
+def test_plan_requires_a_profile_when_several_are_configured(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """robot:
+  instances:
+    robot1: {container: robot-dev, groups: {drivers: {script: /a.sh}}}
+  profiles:
+    development: {attach: false}
+    headless: {attach: false}
+""",
+    )
+
+    with pytest.raises(SchemaValidationError, match="needs a profile"):
+        PlanScenarioUseCase().plan(
+            "robot", None, ResolutionRequest(config, interactive=False)
+        )
+
+
+def test_cli_scene_start_defaults_to_the_only_profile(tmp_path: Path, capsys):
+    config = project(tmp_path, scenario_yaml())
+
+    assert (
+        run(
+            [
+                "--config",
+                str(config),
+                "scene",
+                "start",
+                "robot",
+                "--dry-run",
+                "--non-interactive",
+            ]
+        )
+        == 0
+    )
+
+    assert "Profile: development" in capsys.readouterr().out
+
+
+def test_cli_scene_reports_an_ambiguous_profile_choice(tmp_path: Path, capsys):
+    config = project(
+        tmp_path,
+        """robot:
+  instances:
+    robot1: {container: robot-dev, groups: {drivers: {script: /a.sh}}}
+  profiles:
+    development: {attach: false}
+    headless: {attach: false}
+""",
+    )
+
+    assert run(["--config", str(config), "scene", "stop", "robot", "--non-interactive"]) == 2
+
+    assert "needs a profile" in capsys.readouterr().err
+
+
 def test_management_plan_resolves_instance_container(tmp_path: Path):
     config = project(
         tmp_path,

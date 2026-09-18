@@ -18,6 +18,7 @@ from ..scenarios.models import (
     ScenarioInstanceTemplate,
     ScenarioPlan,
     ScenarioProfileSpec,
+    ScenarioTemplate,
 )
 from ..scenarios.planner import ScenarioPlanner
 from .definitions import find_definition
@@ -29,7 +30,7 @@ class PlanScenarioUseCase:
     def plan(
         self,
         scene_name: str,
-        profile_name: str,
+        profile_name: str | None,
         request: ResolutionRequest,
         *,
         resolve_group_runtime: bool = True,
@@ -64,6 +65,7 @@ class PlanScenarioUseCase:
                 f"unknown scenario {scene_name!r}; configured scenarios: {available}"
             )
         compose_managed = scenario.compose is not None
+        profile_name = _select_profile_name(scene_name, scenario, profile_name)
         if profile_name not in scenario.profiles:
             available = ", ".join(sorted(scenario.profiles)) or "none"
             raise SchemaValidationError(
@@ -262,3 +264,21 @@ def _select_instances(
 def _enabled(value: object, context: Mapping[str, object], path: str) -> bool:
     resolved = context[path] if isinstance(value, PromptValue) else value
     return bool(resolved)
+
+
+def _select_profile_name(
+    scene_name: str,
+    scenario: ScenarioTemplate,
+    profile_name: str | None,
+) -> str:
+    """Use the only configured profile when the caller did not name one."""
+
+    if profile_name is not None:
+        return profile_name
+    profiles = list(scenario.profiles)
+    if len(profiles) == 1:
+        return profiles[0]
+    available = ", ".join(sorted(profiles)) or "none"
+    raise SchemaValidationError(
+        f"scenario {scene_name!r} needs a profile; configured profiles: {available}"
+    )
