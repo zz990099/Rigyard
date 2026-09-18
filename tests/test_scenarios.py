@@ -164,6 +164,38 @@ def test_compose_plan_keeps_container_as_service_reference(tmp_path: Path):
     assert plan.instances[0].container == "robot"
 
 
+def test_compose_environment_resolves_toolchain_templates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.chdir(tmp_path)
+    config = project(
+        tmp_path,
+        """robot:
+  compose:
+    file: compose.yaml
+    environment:
+      WORKSPACE: ${WORKSPACE_ROOT}
+      CONFIG_ROOT: ${TOOLCHAIN_ROOT}
+  instances:
+    robot1: {container: robot, groups: {drivers: {script: /a.sh}}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+    write(tmp_path / "compose.yaml", "services: {robot: {image: robot}}\n")
+
+    plan = PlanScenarioUseCase().plan(
+        "robot", "development", ResolutionRequest(config, interactive=False)
+    )
+
+    assert isinstance(plan, ScenarioPlan)
+    assert plan.compose is not None
+    assert plan.compose.environment == (
+        ("CONFIG_ROOT", str(tmp_path)),
+        ("WORKSPACE", str(tmp_path)),
+    )
+
+
 def test_compose_plan_generates_a_stable_project_name(tmp_path: Path):
     config = project(
         tmp_path,
@@ -766,6 +798,37 @@ def test_compose_start_resolves_services_before_creating_tmux_windows(tmp_path: 
     assert not any(command[:2] == ("docker", "restart") for command in fake.commands)
 
 
+def test_compose_commands_receive_resolved_environment(tmp_path: Path):
+    fake = FakeTmux()
+    plan = scenario_plan(
+        instance(container="robot"),
+        compose=ScenarioComposePlan(
+            tmp_path / "compose.yaml",
+            "robot-debug",
+            60,
+            (("WORKSPACE", "/resolved/workspace"),),
+        ),
+    )
+
+    executor(
+        fake,
+        environment={"PATH": "/usr/bin", "WORKSPACE": "/host/workspace", "HOST_ONLY": "yes"},
+    ).start(plan)
+
+    compose_calls = [
+        (command, kwargs)
+        for command, kwargs in fake.calls
+        if command[:2] == ("docker", "compose") and command[2] != "version"
+    ]
+    assert compose_calls
+    for _, kwargs in compose_calls:
+        assert kwargs["environment"] == {
+            "PATH": "/usr/bin",
+            "WORKSPACE": "/resolved/workspace",
+            "HOST_ONLY": "yes",
+        }
+
+
 def test_compose_start_rejects_unknown_services_before_up(tmp_path: Path):
     fake = FakeTmux(compose_services=("other",))
     plan = scenario_plan(
@@ -1145,7 +1208,11 @@ def test_cli_dry_run_describes_compose_runtime(tmp_path: Path, capsys):
     config = project(
         tmp_path,
         """robot:
-  compose: {file: compose.yaml, project_name: robot-debug, wait_timeout_seconds: 20}
+  compose:
+    file: compose.yaml
+    project_name: robot-debug
+    wait_timeout_seconds: 20
+    environment: {WORKSPACE: /workspace}
   instances:
     robot1: {container: robot, groups: {drivers: {script: /a.sh}}}
   profiles:
@@ -1175,7 +1242,9 @@ def test_cli_dry_run_describes_compose_runtime(tmp_path: Path, capsys):
     assert f"Compose file: {compose_file.resolve()}" in output
     assert "Compose project: robot-debug" in output
     assert "Compose wait timeout: 20s" in output
+    assert "Compose environment keys: WORKSPACE" in output
     assert "Window robot1: service=robot -> drivers" in output
+    assert "/workspace" not in output
     assert "Container restart:" not in output
 
 

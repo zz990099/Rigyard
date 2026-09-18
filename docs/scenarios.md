@@ -58,6 +58,8 @@ robot-system:
     file: deploy/compose.development.yaml
     project_name: robot-system-debug  # 可省略，工具会生成稳定名称
     wait_timeout_seconds: 60
+    environment:
+      WORKSPACE: ${WORKSPACE_ROOT}
   instances:
     robot1:
       container: robot
@@ -71,6 +73,20 @@ robot-system:
 Compose service 名。启动后工具通过 `docker compose ps -q` 将 service 解析为容器 ID。每个
 service 必须恰好产生一个容器，因此当前不支持将同一个 instance 映射到多副本 service。
 `file` 相对于根 `toolchain.yaml` 解析，而不是相对于场景 source 文件。
+
+`compose.environment` 用于 Compose 文件插值。值支持工具链的运行时值和字符串模板；例如上面的
+`${WORKSPACE_ROOT}` 会先由工具链解析为绝对路径，再以 `WORKSPACE` 环境变量传给
+`docker compose`。Compose 文件可这样使用：
+
+```yaml
+services:
+  robot:
+    volumes:
+      - "${WORKSPACE}:/workspace"
+```
+
+场景配置的变量会覆盖同名宿主环境变量，未覆盖的宿主环境仍会保留。变量会一致地传给
+`config`、`up`、`ps` 和 `down`，但 dry-run 只展示变量名，不展示值。
 
 每个 group 用 `script` 或 `command` 描述容器内要运行的进程，二者只能选一个：
 

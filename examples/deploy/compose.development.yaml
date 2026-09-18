@@ -3,5 +3,5 @@ services:
     image: example/robot-development:latest
     command: [sleep, infinity]
     volumes:
-      - ../:/workspace
+      - "${WORKSPACE}:/workspace"
     working_dir: /workspace

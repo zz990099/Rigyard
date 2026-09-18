@@ -56,7 +56,7 @@ build、镜像和容器都先生成完整计划。菜单展示计划并确认后
 
 Scenario 分三层：场景选择调试 profile，instance 代表一套运行在容器中的软件系统（一个容器对应一个 tmux window），group 代表容器内的一个调试进程（一个 pane）。Application 先解析 profile、instance 与 group 的 enablement，再只组合被选中 instance 中启用 group 的 prompts，三级都保持惰性。
 
-Scenario executor 在宿主机为每个 instance 创建 window、为每个 group 创建 pane，并运行 `docker exec -it`。默认先关闭同名 session 中本场景的窗口，再按 profile 的 `restart_container` 策略处理已有目标容器。场景也可引用一个 Compose 文件：此时 executor 用稳定 project name 执行 `up`，将 instance 的 `container` service 引用解析为唯一容器 ID；显式 `scene down` 负责清理整个 project。tmux 仍是唯一进程入口，Compose 只负责开发容器生命周期，Scenario 不承担生产部署编排职责。
+Scenario executor 在宿主机为每个 instance 创建 window、为每个 group 创建 pane，并运行 `docker exec -it`。默认先关闭同名 session 中本场景的窗口，再按 profile 的 `restart_container` 策略处理已有目标容器。场景也可引用一个 Compose 文件：此时 executor 用稳定 project name 执行 `up`，将 instance 的 `container` service 引用解析为唯一容器 ID；场景级 Compose environment 在模板解析后覆盖同名宿主环境，并用于 Compose 文件插值；显式 `scene down` 负责清理整个 project。tmux 仍是唯一进程入口，Compose 只负责开发容器生命周期，Scenario 不承担生产部署编排职责。
 
 ## 工程编译
 

@@ -119,6 +119,15 @@ class ScenarioComposeTemplate(BaseModel):
     file: RuntimePath
     project_name: RuntimeText | None = None
     wait_timeout_seconds: RuntimeInteger = 60
+    environment: dict[str, RuntimeText] = Field(default_factory=dict)
+
+    @field_validator("environment")
+    @classmethod
+    def valid_environment(cls, values: dict[str, RuntimeText]) -> dict[str, RuntimeText]:
+        invalid = sorted(name for name in values if not ENVIRONMENT_NAME.fullmatch(name))
+        if invalid:
+            raise ValueError(f"invalid Compose environment variable name(s): {', '.join(invalid)}")
+        return values
 
 
 class ScenarioTemplate(BaseModel):
@@ -214,6 +223,7 @@ class ScenarioComposeSpec(BaseModel):
     file: Path
     project_name: str | None = None
     wait_timeout_seconds: int = Field(default=60, ge=1, le=3600)
+    environment: dict[str, str] = Field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -240,6 +250,7 @@ class ScenarioComposePlan:
     file: Path
     project_name: str
     wait_timeout_seconds: int
+    environment: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)

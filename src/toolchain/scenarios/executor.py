@@ -158,7 +158,11 @@ class ScenarioExecutor:
         self._require_docker()
         self._require_compose()
         self.stop(plan)
-        self._checked((*self._compose_base(plan), "down"), "Docker Compose down failed")
+        self._checked(
+            (*self._compose_base(plan), "down"),
+            "Docker Compose down failed",
+            environment=self._compose_environment(plan),
+        )
         return ScenarioResult(plan.scene_name, plan.profile_name, "down")
 
     def stop(self, plan: ScenarioPlan) -> ScenarioResult:
@@ -310,11 +314,17 @@ class ScenarioExecutor:
     def _compose_services(self, plan: ScenarioPlan) -> tuple[str, ...]:
         return tuple(dict.fromkeys(instance.container for instance in plan.instances))
 
+    def _compose_environment(self, plan: ScenarioPlan) -> dict[str, str]:
+        if plan.compose is None:
+            raise ScenarioPlanError("scenario is not managed by Docker Compose")
+        return {**self.environment, **dict(plan.compose.environment)}
+
     def _preflight_compose(self, plan: ScenarioPlan) -> None:
         self._require_compose()
         result = self._checked(
             (*self._compose_base(plan), "config", "--services"),
             "cannot validate Compose services",
+            environment=self._compose_environment(plan),
         )
         available = set(result.stdout.splitlines())
         missing = set(self._compose_services(plan)) - available
@@ -337,12 +347,14 @@ class ScenarioExecutor:
                 *services,
             ),
             "Docker Compose up failed",
+            environment=self._compose_environment(plan),
         )
         containers: dict[str, str] = {}
         for service in services:
             result = self._checked(
                 (*base, "ps", "-q", service),
                 f"cannot locate Compose service {service!r}",
+                environment=self._compose_environment(plan),
             )
             ids = result.stdout.split()
             if len(ids) != 1:
@@ -620,9 +632,10 @@ class ScenarioExecutor:
         message: str,
         *,
         capture: bool = True,
+        environment: Mapping[str, str] | None = None,
     ) -> CommandResult:
         try:
-            result = self.runner.run(command, capture=capture)
+            result = self.runner.run(command, capture=capture, environment=environment)
         except OSError as exc:
             raise BackendUnavailableError(f"{message}: {exc}") from exc
         if result.returncode:

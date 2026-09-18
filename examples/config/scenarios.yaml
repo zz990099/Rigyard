@@ -51,6 +51,8 @@ robot-system-compose:
     file: deploy/compose.development.yaml
     project_name: robot-system-debug
     wait_timeout_seconds: 60
+    environment:
+      WORKSPACE: ${WORKSPACE_ROOT}
   instances:
     robot:
       container: robot

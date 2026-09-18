@@ -159,8 +159,9 @@ robot-system:
 被选中 instance 中启用 group 的字段，被禁用 instance / group 的其他参数不会被询问。
 
 场景级可选 `compose.file`。配置后，`container` 表示 Compose service 名，`scene start` 先执行
-`docker compose up -d --wait` 并解析对应容器；未配置时仍表示已有容器名或 ID。`scene stop`
-只停止 tmux 并保留容器，`scene down` 才停止 tmux 并执行 Compose down。
+`docker compose up -d --wait` 并解析对应容器；未配置时仍表示已有容器名或 ID。
+`compose.environment` 可把 `${WORKSPACE_ROOT}` 等工具链模板解析后作为 Compose 插值变量传入。
+`scene stop` 只停止 tmux 并保留容器，`scene down` 才停止 tmux 并执行 Compose down。
 
 ## 运行时值
 

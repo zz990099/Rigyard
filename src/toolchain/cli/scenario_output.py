@@ -26,6 +26,8 @@ def describe_scenario(plan: ScenarioPlan) -> tuple[str, ...]:
                 f"Compose file: {plan.compose.file}",
                 f"Compose project: {plan.compose.project_name}",
                 f"Compose wait timeout: {plan.compose.wait_timeout_seconds}s",
+                "Compose environment keys: "
+                + (", ".join(key for key, _ in plan.compose.environment) or "none"),
             )
         )
     lines.extend(

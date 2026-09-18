@@ -62,7 +62,9 @@ class ScenarioPlanner:
                 compose_file,
                 compose_project,
                 compose.wait_timeout_seconds,
+                tuple(sorted(compose.environment.items())),
             )
+            _validate_compose_environment(compose_plan.environment)
         session = profile.session or _runtime_name(config_file, project_name, scene_name)
         _validate_tmux_name(session)
         return ScenarioPlan(
@@ -150,6 +152,18 @@ def _validate_container_name(value: str) -> None:
 def _validate_compose_project(value: str) -> None:
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,62}", value):
         raise ScenarioPlanError(f"invalid Compose project name {value!r}")
+
+
+def _validate_compose_environment(values: tuple[tuple[str, str], ...]) -> None:
+    invalid = sorted(
+        name for name, _ in values if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)
+    )
+    if invalid:
+        raise ScenarioPlanError(
+            "invalid Compose environment variable name(s): " + ", ".join(invalid)
+        )
+    if any("\x00" in value for _, value in values):
+        raise ScenarioPlanError("Compose environment values must not contain NUL bytes")
 
 
 def _validate_group_text(group: ScenarioGroupPlan) -> None:
