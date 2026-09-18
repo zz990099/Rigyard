@@ -40,7 +40,10 @@ class MenuApp:
         self.io = io or MenuIO()
         self.backend_factory = backend_factory or DockerImageBackend
         self.container_backend_factory = container_backend_factory or (
-            lambda: DockerContainerBackend(confirm_replace=self.io.confirm)
+            # Replacing an existing container stays an explicit "no" by default.
+            lambda: DockerContainerBackend(
+                confirm_replace=lambda message: self.io.confirm(message, default=False)
+            )
         )
         self.build_backend_factory = build_backend_factory or DockerExecBuildBackend
         self.scenario_executor_factory = scenario_executor_factory or ScenarioExecutor
@@ -202,7 +205,7 @@ class MenuApp:
         plan = use_case.plan(names[selected], self._request(session, group.path))
         for line in describe_container(plan):
             self.io.write(line)
-        if not self.io.confirm("Create and start this container now?"):
+        if not self.io.confirm("Create and start this container now?", default=True):
             self.io.write("Container creation cancelled.")
             return
         result = use_case.execute(plan)
@@ -235,7 +238,7 @@ class MenuApp:
         self.io.write(f"Image: {plan.final_tag}; layers: {len(plan.steps)}")
         if plan.tag_alias is not None:
             self.io.write(f"Alias: {plan.tag_alias}")
-        if not self.io.confirm(f"Build {image_name} now?"):
+        if not self.io.confirm(f"Build {image_name} now?", default=True):
             self.io.write("Build cancelled.")
             return
         result = use_case.execute(plan)
@@ -254,7 +257,7 @@ class MenuApp:
         plan = use_case.plan(names[selected], self._request(session, group.path))
         for line in describe_build(plan):
             self.io.write(line)
-        if not self.io.confirm("Run this build now?"):
+        if not self.io.confirm("Run this build now?", default=True):
             self.io.write("Build cancelled.")
             return
         result = use_case.execute(plan)
@@ -324,7 +327,7 @@ class MenuApp:
         )
         for line in describe_scenario(plan):
             self.io.write(line)
-        if not self.io.confirm("Start this scenario now?"):
+        if not self.io.confirm("Start this scenario now?", default=True):
             self.io.write("Scenario start cancelled.")
             return
         result = ScenarioService(self.scenario_executor_factory()).start(plan)
@@ -343,7 +346,7 @@ class MenuApp:
         )
         for line in describe_scenario_target(plan):
             self.io.write(line)
-        if not self.io.confirm("Stop this scenario now?"):
+        if not self.io.confirm("Stop this scenario now?", default=True):
             self.io.write("Scenario stop cancelled.")
             return
         result = ScenarioService(self.scenario_executor_factory()).stop(plan)
@@ -365,7 +368,9 @@ class MenuApp:
         )
         for line in describe_scenario_target(plan):
             self.io.write(line)
-        if not self.io.confirm("Down this scenario and remove its Compose environment now?"):
+        if not self.io.confirm(
+            "Down this scenario and remove its Compose environment now?", default=True
+        ):
             self.io.write("Scenario down cancelled.")
             return None
         result = ScenarioService(self.scenario_executor_factory()).down(plan)

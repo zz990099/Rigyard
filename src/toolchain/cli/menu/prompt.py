@@ -54,11 +54,14 @@ class MenuIO:
                     return choice - 1
             self.write(f"Invalid selection: {raw!r}")
 
-    def confirm(self, prompt: str) -> bool:
+    def confirm(self, prompt: str, *, default: bool = False) -> bool:
+        hint = "Y/n" if default else "y/N"
         while True:
-            value = self.ask(f"{prompt} [y/N]: ").strip().lower()
-            if not value or value in {"n", "no"}:
-                return False
+            value = self.ask(f"{prompt} [{hint}]: ").strip().lower()
+            if not value:
+                return default
             if value in {"y", "yes"}:
                 return True
+            if value in {"n", "no"}:
+                return False
             self.write("Enter y or n.")

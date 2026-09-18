@@ -208,3 +208,57 @@ def test_invalid_selection_and_interrupt(tmp_path: Path):
     assert "Invalid selection" in output.getvalue()
     output = TTYBuffer()
     assert MenuApp(MenuIO(InterruptingTTY(), output)).run(config) == 130
+
+
+def test_confirm_uses_the_requested_default():
+    output = TTYBuffer()
+    io = MenuIO(TTYBuffer("\n\n"), output)
+
+    assert io.confirm("Proceed?") is False
+    assert io.confirm("Proceed?", default=True) is True
+
+    rendered = output.getvalue()
+    assert "Proceed? [y/N]: " in rendered
+    assert "Proceed? [Y/n]: " in rendered
+
+
+def test_menu_final_confirmation_defaults_to_yes(tmp_path: Path):
+    config = project(
+        tmp_path,
+        images="""development:
+  base: ubuntu:22.04
+  tag: example/development:latest
+  layers: [{name: system, dockerfile: system.Dockerfile}]
+""",
+    )
+    write(tmp_path / "system.Dockerfile", "RUN echo system\n")
+
+    class FakeBackend:
+        def __init__(self):
+            self.steps = []
+
+        def check_available(self):
+            pass
+
+        def build_step(self, step):
+            self.steps.append(step)
+            return BuildStepResult(step.index, step.layer_name, step.output_tag, ("fake",))
+
+    backend = FakeBackend()
+    output = TTYBuffer()
+    app = MenuApp(MenuIO(TTYBuffer("1\n1\n\n"), output), backend_factory=lambda: backend)
+
+    assert app.run(config) == 0
+
+    assert len(backend.steps) == 1                     # 空回车 = 默认 Y，直接执行
+    assert "Build development now? [Y/n]: " in output.getvalue()
+
+
+def test_menu_container_replace_confirmation_stays_no_by_default():
+    output = TTYBuffer()
+    app = MenuApp(MenuIO(TTYBuffer("\n"), output))
+
+    backend = app.container_backend_factory()
+
+    assert backend.confirm_replace("Container 'dev' already exists. Remove it?") is False
+    assert "Remove it? [y/N]: " in output.getvalue()
