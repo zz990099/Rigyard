@@ -1,6 +1,6 @@
 # Configuration overview
 
-Rigyard uses schema version 3. The root `rigyard.yaml` is a manifest containing project metadata, global variables, and paths to domain-specific source files. Images, containers, builds, and scenarios live in separate source files.
+Rigyard uses schema version 3. The root `rigyard.yaml` is a manifest containing project metadata, global variables, and paths to domain-specific source files. Images, containers, builds, tests, and scenarios live in separate source files.
 
 ```yaml
 version: 3
@@ -17,6 +17,7 @@ sources:
   images: [config/images.yaml]
   containers: [config/containers.yaml]
   builds: [config/builds.yaml]
+  tests: [config/tests.yaml]
   scenarios: [config/scenarios.yaml]
 ```
 
@@ -30,6 +31,7 @@ At least one source kind is required. Each source can be one path or a non-empty
 | Image source | Mapping from image names to definitions | [Images](../features/images.md) |
 | Container source | Mapping from container names to definitions | [Containers](../features/containers.md) |
 | Build source | Mapping from build names to definitions | [Project builds](../features/builds.md) |
+| Test source | Mapping from test names to definitions | [Tests](../features/tests.md) |
 | Scenario source | Mapping from scenario names to definitions | [Scenarios](../features/scenarios.md) |
 
 A source may use the reserved `description` key as its menu group label:
@@ -64,7 +66,7 @@ Unless a feature guide says otherwise, relative host paths are resolved from the
 - Container lifecycle hook scripts
 - Compose files
 
-The `script`, `workdir`, and `setup` fields in builds and scenarios are container paths and are not resolved against the host configuration directory.
+The `script`, `workdir`, and `setup` fields in builds, tests, and scenarios are container paths and are not resolved against the host configuration directory.
 
 ## Evaluation order
 

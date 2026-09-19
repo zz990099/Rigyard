@@ -11,12 +11,14 @@ from .models import (
     RigyardSources,
     ScenarioDefinitions,
     SourceFileInfo,
+    TestDefinitions,
 )
 
 __all__ = [
     "SCHEMA_VERSION",
     "BuildDefinitions",
     "ScenarioDefinitions",
+    "TestDefinitions",
     "SourceFileInfo",
     "RigyardBranding",
     "RigyardConfig",

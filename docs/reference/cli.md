@@ -34,6 +34,8 @@ rigyard resolve [--values FILE] [--set PATH=VALUE] \
 rigyard image build NAME [resolution options]
 rigyard container create NAME [--dry-run] [resolution options]
 rigyard build NAME [--dry-run] [resolution options]
+rigyard test run NAME [--dry-run] [resolution options]
+rigyard test report NAME [--dry-run] [resolution options]
 rigyard scene ACTION SCENE [PROFILE] [scene options] [resolution options]
 ```
 
@@ -46,7 +48,7 @@ Common resolution options:
 | `--set PATH=VALUE` | Override one runtime value; repeatable |
 | `--non-interactive` | Disable prompts and fail on missing values |
 
-`image build` executes directly and currently has no `--dry-run`. Container creation, project builds, and scenario start support plan previews.
+`image build` executes directly and currently has no `--dry-run`. Container creation, project builds, both test actions, and scenario start support plan previews. Test commands stream user-defined stdout and stderr unchanged; Rigyard does not parse or format test results.
 
 Scenario actions:
 
@@ -82,7 +84,7 @@ The wrapper locates the bound configuration relative to itself and invokes the s
 
 ## Interactive menu
 
-The menu offers Build image, Create container, Build project, and Scene actions for Start, Stop, and Down. The process exits after one successful, failed, or cancelled action. Menu and direct CLI paths use the same application use cases.
+The menu offers Build image, Create container, Build project, Test actions for Run and Show results, and Scene actions for Start, Stop, and Down. The process exits after one successful, failed, or cancelled action. Menu and direct CLI paths use the same application use cases.
 
 Plan confirmation defaults to `[Y/n]`. Removing and recreating an existing container is the only confirmation that defaults to `[y/N]`.
 

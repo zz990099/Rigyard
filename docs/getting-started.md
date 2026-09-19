@@ -18,7 +18,7 @@ From the repository root, run:
 rigyard --config examples/rigyard.yaml validate
 ```
 
-The root manifest references separate image, container, build, and scenario sources. `validate` reads every source and checks YAML, field types, and template syntax without invoking Docker.
+The root manifest references separate image, container, build, test, and scenario sources. `validate` reads every source and checks YAML, field types, and template syntax without invoking Docker.
 
 ## 3. Inspect runtime values
 
@@ -41,6 +41,8 @@ These commands complete selection, runtime value resolution, and planning withou
 ```bash
 rigyard --config examples/rigyard.yaml container create development --dry-run
 rigyard --config examples/rigyard.yaml build native --dry-run
+rigyard --config examples/rigyard.yaml test run unit --dry-run
+rigyard --config examples/rigyard.yaml test report unit --dry-run
 rigyard --config examples/rigyard.yaml scene start robot-system development --dry-run
 ```
 

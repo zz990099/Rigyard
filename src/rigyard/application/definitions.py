@@ -66,4 +66,6 @@ def _legacy_mapping(config: RigyardConfig, kind: str) -> dict[str, Any]:
         return config.containers
     if kind == "builds":
         return config.builds
+    if kind == "tests":
+        return config.tests
     return config.scenarios

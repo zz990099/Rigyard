@@ -27,6 +27,7 @@ A PromptValue contains optional `default` and required `prompt` fields. See [Run
 | `sources.images` | path, path list, or null | `null` |
 | `sources.containers` | path, path list, or null | `null` |
 | `sources.builds` | path, path list, or null | `null` |
+| `sources.tests` | path, path list, or null | `null` |
 | `sources.scenarios` | path, path list, or null | `null` |
 
 At least one source kind is required. See the [root manifest guide](../configuration/manifest.md).
@@ -86,6 +87,25 @@ Hook fields are `name`, `script`, `interpreter`, `user`, `workdir`, `environment
 ```
 
 `container` and `script` are required. See [Build fields](../features/builds.md#fields).
+
+## Test source
+
+```text
+<test>.description
+<test>.container
+<test>.workdir
+<test>.user
+<test>.setup = []
+<test>.environment = {}
+<test>.run.script
+<test>.run.interpreter = [/bin/sh, -eu]
+<test>.run.timeout_seconds
+<test>.report.script
+<test>.report.interpreter = [/bin/sh, -eu]
+<test>.report.timeout_seconds
+```
+
+`container`, `run`, and `report` are required. Each action requires `script`. See [Test fields](../features/tests.md#fields).
 
 ## Scenario source
 

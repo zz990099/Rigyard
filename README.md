@@ -1,12 +1,13 @@
 # Rigyard
 
-Rigyard is a configuration-driven CLI for containerized robotics development. A single project manifest organizes layered image builds, development containers, project builds inside containers, and multi-process debugging scenarios managed by tmux.
+Rigyard is a configuration-driven CLI for containerized robotics development. A single project manifest organizes layered image builds, development containers, project builds and tests inside containers, and multi-process debugging scenarios managed by tmux.
 
 ## Features
 
 - Build layered images from ordered Dockerfile fragments.
 - Create reproducible development containers and run lifecycle hooks.
 - Run project build scripts inside existing containers.
+- Run user-defined test and test-result commands inside existing containers.
 - Start tmux debugging scenarios in existing containers or Docker Compose services.
 - Reuse configuration with global variables, string templates, and interactive runtime values.
 - Use the same application behavior through direct commands or a branded one-shot interactive menu.
@@ -55,6 +56,7 @@ sources:
   images: [config/images.yaml]
   containers: [config/containers.yaml]
   builds: [config/builds.yaml]
+  tests: [config/tests.yaml]
   scenarios: [config/scenarios.yaml]
 ```
 
@@ -65,6 +67,8 @@ rigyard validate
 rigyard image build development
 rigyard container create development
 rigyard build native
+rigyard test run unit
+rigyard test report unit
 rigyard scene start robot-system development
 ```
 
@@ -92,8 +96,9 @@ Configuration: /workspace/robot-development/rigyard.yaml
 2) Create container
 3) Build project
 4) Scene…
+5) Test…
 0) Exit
-Select [0-4]:
+Select [0-5]:
 ```
 
 Custom terminal logos are configured with `branding.logo`; see the [root manifest guide](https://github.com/zz990099/Rigyard/blob/main/docs/configuration/manifest.md#terminal-logo).
@@ -116,6 +121,7 @@ rigyard init -f path/to/rigyard.yaml --alias xxxbot
 - [Images](https://github.com/zz990099/Rigyard/blob/main/docs/features/images.md)
 - [Containers](https://github.com/zz990099/Rigyard/blob/main/docs/features/containers.md)
 - [Project builds](https://github.com/zz990099/Rigyard/blob/main/docs/features/builds.md)
+- [Tests](https://github.com/zz990099/Rigyard/blob/main/docs/features/tests.md)
 - [Scenarios](https://github.com/zz990099/Rigyard/blob/main/docs/features/scenarios.md)
 - [CLI reference](https://github.com/zz990099/Rigyard/blob/main/docs/reference/cli.md)
 - [Configuration schema reference](https://github.com/zz990099/Rigyard/blob/main/docs/reference/configuration-schema.md)

@@ -1,6 +1,6 @@
 # Rigyard documentation
 
-Rigyard represents image builds, containers, project builds, and multi-process debugging scenarios as version-controlled YAML. It runs on the host and executes explicit plans through Docker and tmux; it does not interpret build systems such as colcon, CMake, or ROS launch.
+Rigyard represents image builds, containers, project builds, tests, and multi-process debugging scenarios as version-controlled YAML. It runs on the host and executes explicit plans through Docker and tmux; it does not interpret build or test systems such as colcon, CMake, pytest, or ROS launch.
 
 ## Start here
 
@@ -22,6 +22,7 @@ Rigyard represents image builds, containers, project builds, and multi-process d
 - [Images](features/images.md)
 - [Containers](features/containers.md)
 - [Project builds](features/builds.md)
+- [Tests](features/tests.md)
 - [Scenarios](features/scenarios.md)
 
 ## Project maintenance

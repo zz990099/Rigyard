@@ -34,6 +34,7 @@ from ..scenarios.models import (
     ScenarioInstanceSpec,
     ScenarioProfileSpec,
 )
+from ..tests.models import TestSpec
 from .requests import ResolutionRequest
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -92,6 +93,8 @@ class ResolveParametersUseCase:
                 materialize_as(template, f"containers.{name}", context, ContainerSpec, renderer)
             for name, template in config.builds.items():
                 materialize_as(template, f"builds.{name}", context, BuildSpec, renderer)
+            for name, template in config.tests.items():
+                materialize_as(template, f"tests.{name}", context, TestSpec, renderer)
             for scene_name, scenario in config.scenarios.items():
                 if scenario.compose is not None:
                     materialize_as(

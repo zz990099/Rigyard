@@ -15,5 +15,7 @@ sources:
     - config/containers.yaml
   builds:
     - config/builds.yaml
+  tests:
+    - config/tests.yaml
   scenarios:
     - config/scenarios.yaml

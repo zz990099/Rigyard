@@ -13,6 +13,7 @@ from ..builds.models import BuildTemplate
 from ..containers.models import ContainerTemplate
 from ..images.models import IMAGE_NAME, ImageTemplate
 from ..scenarios.models import ScenarioTemplate
+from ..tests.models import TestTemplate
 
 SCHEMA_VERSION = 3
 VARIABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -88,9 +89,10 @@ class RigyardSources(BaseModel):
     images: Path | tuple[Path, ...] | None = None
     containers: Path | tuple[Path, ...] | None = None
     builds: Path | tuple[Path, ...] | None = None
+    tests: Path | tuple[Path, ...] | None = None
     scenarios: Path | tuple[Path, ...] | None = None
 
-    @field_validator("images", "containers", "builds", "scenarios")
+    @field_validator("images", "containers", "builds", "tests", "scenarios")
     @classmethod
     def source_list_is_not_empty(
         cls, value: Path | tuple[Path, ...] | None
@@ -102,7 +104,8 @@ class RigyardSources(BaseModel):
     @model_validator(mode="after")
     def at_least_one_source(self) -> RigyardSources:
         if all(
-            source is None for source in (self.images, self.containers, self.builds, self.scenarios)
+            source is None
+            for source in (self.images, self.containers, self.builds, self.tests, self.scenarios)
         ):
             raise ValueError("at least one configuration source is required")
         return self
@@ -183,6 +186,18 @@ class BuildDefinitions(RootModel[dict[str, BuildTemplate]]):
         return value
 
 
+class TestDefinitions(RootModel[dict[str, TestTemplate]]):
+    model_config = ConfigDict(frozen=True)
+
+    @field_validator("root")
+    @classmethod
+    def valid_names(cls, value: dict[str, TestTemplate]) -> dict[str, TestTemplate]:
+        invalid = _invalid_names(value)
+        if invalid:
+            raise ValueError(f"invalid test name(s): {', '.join(invalid)}")
+        return value
+
+
 class ScenarioDefinitions(RootModel[dict[str, ScenarioTemplate]]):
     model_config = ConfigDict(frozen=True)
 
@@ -208,6 +223,7 @@ class RigyardConfig(BaseModel):
     images: dict[str, ImageTemplate] = Field(default_factory=dict)
     containers: dict[str, ContainerTemplate] = Field(default_factory=dict)
     builds: dict[str, BuildTemplate] = Field(default_factory=dict)
+    tests: dict[str, TestTemplate] = Field(default_factory=dict)
     scenarios: dict[str, ScenarioTemplate] = Field(default_factory=dict)
     source_files: dict[str, tuple[SourceFileInfo, ...]] = Field(default_factory=dict)
     duplicate_names: dict[str, dict[str, tuple[Path, ...]]] = Field(default_factory=dict)
@@ -244,6 +260,14 @@ class RigyardConfig(BaseModel):
         invalid = _invalid_names(value)
         if invalid:
             raise ValueError(f"invalid build name(s): {', '.join(invalid)}")
+        return value
+
+    @field_validator("tests")
+    @classmethod
+    def valid_test_names(cls, value: dict[str, TestTemplate]) -> dict[str, TestTemplate]:
+        invalid = _invalid_names(value)
+        if invalid:
+            raise ValueError(f"invalid test name(s): {', '.join(invalid)}")
         return value
 
     @field_validator("scenarios")

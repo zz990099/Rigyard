@@ -12,20 +12,24 @@ from ...application.images import BuildImageUseCase
 from ...application.parameters import ValidateConfigUseCase
 from ...application.requests import BuildImageRequest, ResolutionRequest
 from ...application.scenarios import PlanScenarioUseCase
+from ...application.tests import ExecuteTestUseCase
 from ...config.models import SourceFileInfo
 from ...parameters.sources import DynamicSources
 from ...providers.docker import (
     DockerExecBuildBackend,
+    DockerExecTestBackend,
     DockerImageBackend,
     docker_container_sources,
 )
 from ...providers.docker.container_backend import DockerContainerBackend
 from ...scenarios.executor import ScenarioExecutor
 from ...scenarios.service import ScenarioService
+from ...tests.models import TestAction
 from ..branding import DEFAULT_LOGO
 from ..build_output import describe_build
 from ..container_output import describe_container
 from ..scenario_output import describe_scenario, describe_scenario_target
+from ..test_output import describe_test
 from .model import MenuAction, MenuRegistry
 from .prompt import MenuIO
 from .session import MenuSession
@@ -41,6 +45,7 @@ class MenuApp:
         backend_factory: BackendFactory | None = None,
         container_backend_factory: BackendFactory | None = None,
         build_backend_factory: BackendFactory | None = None,
+        test_backend_factory: BackendFactory | None = None,
         scenario_executor_factory: ScenarioExecutorFactory | None = None,
         sources: DynamicSources | None = None,
     ) -> None:
@@ -54,6 +59,7 @@ class MenuApp:
             )
         )
         self.build_backend_factory = build_backend_factory or DockerExecBuildBackend
+        self.test_backend_factory = test_backend_factory or DockerExecTestBackend
         self.scenario_executor_factory = scenario_executor_factory or ScenarioExecutor
         self.registry = MenuRegistry(
             (
@@ -84,6 +90,13 @@ class MenuApp:
                     self._scene_menu,
                     enabled=lambda session: bool(session.config.scenarios),
                     disabled_reason="no scenarios configured",
+                ),
+                MenuAction(
+                    "test.menu",
+                    "Test…",
+                    self._test_menu,
+                    enabled=lambda session: bool(session.config.tests),
+                    disabled_reason="no tests configured",
                 ),
             )
         )
@@ -286,6 +299,47 @@ class MenuApp:
             return
         result = use_case.execute(plan)
         self.io.write_note(f"Build {result.build_name!r} completed", "success")
+
+    def _test_menu(self, session: MenuSession) -> int | None:
+        actions: tuple[tuple[str, TestAction], ...] = (
+            ("Run tests", "run"),
+            ("Show test results", "report"),
+        )
+        selected = self.io.select(
+            "Test", [label for label, _ in actions], back_label="Back"
+        )
+        if selected is None:
+            return None
+        return self._execute_test(session, actions[selected][1])
+
+    def _execute_test(self, session: MenuSession, action: TestAction) -> None:
+        title = "Run tests" if action == "run" else "Show test results"
+        group = self._select_source_group(session, "tests", title)
+        if group is None:
+            return
+        names = list(group.names)
+        labels = [self._definition_label(group, name) for name in names]
+        selected = self.io.select(title, labels, back_label="Back")
+        if selected is None:
+            return
+        use_case = ExecuteTestUseCase(
+            self.test_backend_factory(),
+            sources=self.sources,
+            formatter=self.io.style.render,
+        )
+        plan = use_case.plan(
+            names[selected], action, self._request(session, group.path)
+        )
+        for line in describe_test(plan):
+            self.io.write_field(line)
+        prompt = "Run these tests now?" if action == "run" else "Show test results now?"
+        if not self.io.confirm(prompt, default=True):
+            self.io.write_note("Test command cancelled.", "muted")
+            return
+        result = use_case.execute(plan)
+        self.io.write_note(
+            f"Test {result.test_name!r} {result.action} command completed", "success"
+        )
 
     def _scene_menu(self, session: MenuSession) -> int | None:
         actions: tuple[tuple[str, Callable[[MenuSession], int | None]], ...] = (

@@ -8,6 +8,8 @@ This file records notable user-facing changes. Once releases begin, the project 
 
 - Structured user documentation for configuration, templates, runtime values, and core features.
 - Project-local command aliases through `rigyard init --alias NAME`.
+- User-defined test run and result-reporting commands through `rigyard test run` and
+  `rigyard test report`.
 
 ### Changed
 
