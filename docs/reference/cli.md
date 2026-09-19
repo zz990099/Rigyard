@@ -67,17 +67,19 @@ Scenario actions:
 ## Workspace initialization
 
 ```bash
-rigyard init -f PATH [--force] [--alias NAME]
+rigyard init -f PATH [--force] [--alias NAME | --no-alias]
 ```
 
 The command validates the configuration and writes `.rigyard/context.yaml` in the current directory. Resolution order is explicit `--config`, current-directory binding, then current-directory `rigyard.yaml`. Parent directories are not searched.
 
 When the manifest is inside the workspace, the binding records a relative path so the same checkout can use different host and container mount roots. Rebinding the same configuration is idempotent; changing it requires `--force`.
 
-`--alias NAME` creates an executable wrapper in the workspace root:
+The optional `workspace.command_alias` manifest field creates an executable wrapper in the
+workspace root. `--alias NAME` overrides that value, while `--no-alias` disables it for one
+initialization:
 
 ```bash
-rigyard init -f src/robot/.rigyard/rigyard.yaml --alias robot
+rigyard init -f src/robot/.rigyard/rigyard.yaml
 ./robot build native
 ```
 

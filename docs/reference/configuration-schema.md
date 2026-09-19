@@ -22,7 +22,9 @@ A PromptValue contains optional `default` and required `prompt` fields. See [Run
 | `version` | integer; must be 3 | required |
 | `metadata.name` | string | required |
 | `metadata.description` | string/null | `null` |
+| `workspace.command_alias` | string/null | `null` |
 | `branding.logo` | UTF-8 multiline string/null | built-in Rigyard logo |
+| `branding.logo_file` | path/null | built-in Rigyard logo |
 | `variables` | string mapping | `{}` |
 | `sources.images` | path, path list, or null | `null` |
 | `sources.containers` | path, path list, or null | `null` |
@@ -32,6 +34,7 @@ A PromptValue contains optional `default` and required `prompt` fields. See [Run
 | `sources.scenarios` | path, path list, or null | `null` |
 
 At least one source kind is required. See the [root manifest guide](../configuration/manifest.md).
+`branding.logo` and `branding.logo_file` are mutually exclusive.
 
 ## Image source
 

@@ -4,9 +4,16 @@ metadata:
   name: robot-development
   description: Example Rigyard project for robot development
 
+workspace:
+  command_alias: robot
+
 variables:
   PROJECT_ROOT: ${RIGYARD_ROOT}
+  BRANDING_ROOT: ${PROJECT_ROOT}/branding
   CONTAINER_WORKSPACE_ROOT: /workspace
+
+branding:
+  logo_file: ${BRANDING_ROOT}/logo.txt
 
 sources:
   images:

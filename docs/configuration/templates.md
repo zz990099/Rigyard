@@ -82,6 +82,11 @@ A command captures time once, so timestamps remain consistent across all fields 
 
 Templates recursively process selected operation values in strings, paths, lists, tuples, mapping values, resolved PromptValues, and static prompt options.
 
+`branding.logo_file` is resolved eagerly because Rigyard must load the terminal asset with the root
+configuration. It supports the same expressions, including variables declared earlier in
+`variables`. If its path uses `${env:NAME}`, that environment variable must exist even during
+`rigyard validate`.
+
 Templates do not process mapping keys, resource names, prompt messages, dynamic source settings, or expressions produced by an earlier replacement. For example, if `VALUE='${date:%Y}'`, `${env:VALUE}` remains the literal string `${date:%Y}`.
 
 ## Two forms of environment lookup
@@ -108,5 +113,5 @@ environment:
 - Nested expressions such as `${env:${NAME}}` are not supported.
 - Unknown template kinds are rejected.
 - Expressions must be closed, and results cannot contain NUL bytes.
-- `rigyard validate` checks syntax without reading `${env:NAME}`.
+- Except for the eagerly loaded `branding.logo_file`, `rigyard validate` checks syntax without reading `${env:NAME}`.
 - A missing environment value fails only when the selected configuration is resolved.

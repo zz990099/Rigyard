@@ -49,9 +49,16 @@ version: 3
 metadata:
   name: robot-development
 
+workspace:
+  command_alias: robot
+
 variables:
   PROJECT_ROOT: ${RIGYARD_ROOT}
+  BRANDING_ROOT: ${PROJECT_ROOT}/branding
   CONTAINER_WORKSPACE_ROOT: /workspace
+
+branding:
+  logo_file: ${BRANDING_ROOT}/logo.txt
 
 sources:
   images: [config/images.yaml]
@@ -105,14 +112,14 @@ Configuration: /workspace/robot-development/rigyard.yaml
 Select [0-6]:
 ```
 
-Custom terminal logos are configured with `branding.logo`; see the [root manifest guide](https://github.com/zz990099/Rigyard/blob/main/docs/configuration/manifest.md#terminal-logo).
+Custom terminal logos can be inline or loaded from a templated path; see the [root manifest guide](https://github.com/zz990099/Rigyard/blob/main/docs/configuration/manifest.md#terminal-logo).
 
 When the manifest lives elsewhere, pass it explicitly or bind the current workspace:
 
 ```bash
 rigyard --config path/to/rigyard.yaml validate
-rigyard init -f path/to/rigyard.yaml --alias xxxbot
-./xxxbot build native
+rigyard init -f path/to/rigyard.yaml
+./robot build native
 ```
 
 ## Documentation
@@ -132,7 +139,7 @@ rigyard init -f path/to/rigyard.yaml --alias xxxbot
 - [Configuration schema reference](https://github.com/zz990099/Rigyard/blob/main/docs/reference/configuration-schema.md)
 - [Exit codes](https://github.com/zz990099/Rigyard/blob/main/docs/reference/exit-codes.md)
 
-Complete examples are available in [`examples/`](https://github.com/zz990099/Rigyard/tree/main/examples).
+Start with the [`minimal`](https://github.com/zz990099/Rigyard/tree/main/examples/minimal) example or browse the complete [`robot-development`](https://github.com/zz990099/Rigyard/tree/main/examples/robot-development) reference project.
 
 ## License
 

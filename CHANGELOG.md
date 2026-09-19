@@ -12,10 +12,13 @@ This file records notable user-facing changes. Once releases begin, the project 
   `rigyard test report`.
 - Constrained project-specific container tasks through `rigyard task run` and the fixed
   configuration-driven Tasks menu.
+- Manifest-configured workspace command aliases with CLI override and opt-out controls.
+- Terminal logos loaded from external UTF-8 files through templated paths.
 
 ### Changed
 
 - Reduced the README to a PyPI-friendly overview and quick start.
+- Split repository examples into a minimal introduction and a full robot-development reference.
 - Standardized all project documentation and internal comments on English.
 - Renamed the project, distribution, Python package, CLI, configuration contract, workspace state,
   generated identifiers, examples, and documentation from Toolchain to Rigyard.

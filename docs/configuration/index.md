@@ -1,6 +1,6 @@
 # Configuration overview
 
-Rigyard uses schema version 3. The root `rigyard.yaml` is a manifest containing project metadata, global variables, and paths to domain-specific source files. Images, containers, builds, tests, custom tasks, and scenarios live in separate source files.
+Rigyard uses schema version 3. The root `rigyard.yaml` is a manifest containing project metadata, workspace and branding defaults, global variables, and paths to domain-specific source files. Images, containers, builds, tests, custom tasks, and scenarios live in separate source files.
 
 ```yaml
 version: 3
@@ -28,7 +28,7 @@ At least one source kind is required. Each source can be one path or a non-empty
 
 | File | Top-level content | Guide |
 | --- | --- | --- |
-| `rigyard.yaml` | `version`, `metadata`, `variables`, and `sources` | [Root manifest](manifest.md) |
+| `rigyard.yaml` | `version`, `metadata`, `workspace`, `branding`, `variables`, and `sources` | [Root manifest](manifest.md) |
 | Image source | Mapping from image names to definitions | [Images](../features/images.md) |
 | Container source | Mapping from container names to definitions | [Containers](../features/containers.md) |
 | Build source | Mapping from build names to definitions | [Project builds](../features/builds.md) |
@@ -63,6 +63,7 @@ Workspace bindings apply only to the current directory. Parent directories are n
 Unless a feature guide says otherwise, relative host paths are resolved from the directory containing the root manifest:
 
 - Source file paths
+- External terminal logo files after template expansion
 - Image contexts and Dockerfile fragments
 - Container bind-mount sources
 - Container lifecycle hook scripts
@@ -82,7 +83,7 @@ An operation follows these steps:
 6. Create an immutable plan; `--dry-run` stops here where supported.
 7. Invoke Docker or tmux.
 
-Unselected resources do not prompt for runtime values or read host environment variables referenced by templates.
+Unselected resources do not prompt for runtime values or read host environment variables referenced by templates. `branding.logo_file` is the exception: its templated path is resolved and read when the root configuration is loaded.
 
 ## Validation and diagnostics
 
