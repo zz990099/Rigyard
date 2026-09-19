@@ -9,7 +9,7 @@ Rigyard is a configuration-driven CLI for containerized robotics development. A 
 - Run project build scripts inside existing containers.
 - Start tmux debugging scenarios in existing containers or Docker Compose services.
 - Reuse configuration with global variables, string templates, and interactive runtime values.
-- Use the same application behavior through direct commands or a one-shot interactive menu.
+- Use the same application behavior through direct commands or a branded one-shot interactive menu.
 
 ## Requirements
 
@@ -35,7 +35,7 @@ source .venv/bin/activate
 pip install .
 ```
 
-See the [contribution guide](https://github.com/zz990099/toolchain/blob/main/CONTRIBUTING.md) for development installation and checks.
+See the [contribution guide](https://github.com/zz990099/Rigyard/blob/main/CONTRIBUTING.md) for development installation and checks.
 
 ## Quick start
 
@@ -74,6 +74,30 @@ Run `rigyard` without a subcommand to open the one-shot interactive menu:
 rigyard
 ```
 
+With the built-in logo and the example sources configured, the menu looks like this (colours omitted):
+
+```text
+$ rigyard
+  ____  _                       _
+ |  _ \(_) __ _ _   _  __ _ _ __ __| |
+ | |_) | |/ _` | | | |/ _` | '__/ _` |
+ |  _ <| | (_| | |_| | (_| | | | (_| |
+ |_| \_\_|\__, |\__,_|\__,_|_|  \__,_|
+           |___/
+
+Project: robot-development
+Configuration: /workspace/robot-development/rigyard.yaml
+
+1) Build image
+2) Create container
+3) Build project
+4) Scene…
+0) Exit
+Select [0-4]:
+```
+
+Custom terminal logos are configured with `branding.logo`; see the [root manifest guide](https://github.com/zz990099/Rigyard/blob/main/docs/configuration/manifest.md#terminal-logo).
+
 When the manifest lives elsewhere, pass it explicitly or bind the current workspace:
 
 ```bash
@@ -84,21 +108,21 @@ rigyard init -f path/to/rigyard.yaml --alias xxxbot
 
 ## Documentation
 
-- [Getting started](https://github.com/zz990099/toolchain/blob/main/docs/getting-started.md)
-- [Installation and requirements](https://github.com/zz990099/toolchain/blob/main/docs/installation.md)
-- [Configuration overview](https://github.com/zz990099/toolchain/blob/main/docs/configuration/index.md)
-- [Global variables and string templates](https://github.com/zz990099/toolchain/blob/main/docs/configuration/templates.md)
-- [Runtime values](https://github.com/zz990099/toolchain/blob/main/docs/configuration/runtime-values.md)
-- [Images](https://github.com/zz990099/toolchain/blob/main/docs/features/images.md)
-- [Containers](https://github.com/zz990099/toolchain/blob/main/docs/features/containers.md)
-- [Project builds](https://github.com/zz990099/toolchain/blob/main/docs/features/builds.md)
-- [Scenarios](https://github.com/zz990099/toolchain/blob/main/docs/features/scenarios.md)
-- [CLI reference](https://github.com/zz990099/toolchain/blob/main/docs/reference/cli.md)
-- [Configuration schema reference](https://github.com/zz990099/toolchain/blob/main/docs/reference/configuration-schema.md)
-- [Exit codes](https://github.com/zz990099/toolchain/blob/main/docs/reference/exit-codes.md)
+- [Getting started](https://github.com/zz990099/Rigyard/blob/main/docs/getting-started.md)
+- [Installation and requirements](https://github.com/zz990099/Rigyard/blob/main/docs/installation.md)
+- [Configuration overview](https://github.com/zz990099/Rigyard/blob/main/docs/configuration/index.md)
+- [Global variables and string templates](https://github.com/zz990099/Rigyard/blob/main/docs/configuration/templates.md)
+- [Runtime values](https://github.com/zz990099/Rigyard/blob/main/docs/configuration/runtime-values.md)
+- [Images](https://github.com/zz990099/Rigyard/blob/main/docs/features/images.md)
+- [Containers](https://github.com/zz990099/Rigyard/blob/main/docs/features/containers.md)
+- [Project builds](https://github.com/zz990099/Rigyard/blob/main/docs/features/builds.md)
+- [Scenarios](https://github.com/zz990099/Rigyard/blob/main/docs/features/scenarios.md)
+- [CLI reference](https://github.com/zz990099/Rigyard/blob/main/docs/reference/cli.md)
+- [Configuration schema reference](https://github.com/zz990099/Rigyard/blob/main/docs/reference/configuration-schema.md)
+- [Exit codes](https://github.com/zz990099/Rigyard/blob/main/docs/reference/exit-codes.md)
 
-Complete examples are available in [`examples/`](https://github.com/zz990099/toolchain/tree/main/examples).
+Complete examples are available in [`examples/`](https://github.com/zz990099/Rigyard/tree/main/examples).
 
 ## License
 
-[MIT](https://github.com/zz990099/toolchain/blob/main/LICENSE)
+[MIT](https://github.com/zz990099/Rigyard/blob/main/LICENSE)

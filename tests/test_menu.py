@@ -293,6 +293,6 @@ def test_menu_colours_titles_options_and_plan_fields(tmp_path: Path):
 
     rendered = output.getvalue()
     # Headings, option numbers, field names, and values use distinct style roles.
-    assert "\x1b[1;36mRigyard" in rendered
+    assert "\x1b[1;36m  ____  _" in rendered
     assert "\x1b[36m1)\x1b[0m Build image" in rendered
     assert "\x1b[2mImage\x1b[0m: \x1b[1mexample/development:latest; layers: 1\x1b[0m" in rendered

@@ -210,6 +210,7 @@ def load_config(path: str | Path) -> RigyardConfig:
     return RigyardConfig(
         version=manifest.version,
         metadata=manifest.metadata,
+        branding=manifest.branding,
         sources=manifest.sources,
         variables=manifest.variables,
         images=images,

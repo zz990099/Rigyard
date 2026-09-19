@@ -22,6 +22,7 @@ from ...providers.docker import (
 from ...providers.docker.container_backend import DockerContainerBackend
 from ...scenarios.executor import ScenarioExecutor
 from ...scenarios.service import ScenarioService
+from ..branding import DEFAULT_LOGO
 from ..build_output import describe_build
 from ..container_output import describe_container
 from ..scenario_output import describe_scenario, describe_scenario_target
@@ -98,7 +99,9 @@ class MenuApp:
         session = MenuSession(config_file, config, values_file)
 
         try:
-            self.io.write(self.io.style.render("title", "Rigyard"))
+            logo = session.config.branding.logo or DEFAULT_LOGO
+            self.io.write(self.io.style.render("title", logo))
+            self.io.write()
             self.io.write_field(f"Project: {session.config.metadata.name}")
             self.io.write_field(f"Configuration: {session.config_path}")
             labels = [self._action_label(action, session) for action in self.registry.actions]

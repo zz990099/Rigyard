@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -15,10 +16,24 @@ from ..scenarios.models import ScenarioTemplate
 
 SCHEMA_VERSION = 3
 VARIABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+MAX_LOGO_BYTES = 8 * 1024
+MAX_LOGO_LINES = 12
+MAX_LOGO_COLUMNS = 100
 
 
 def _invalid_names(values: dict[str, object]) -> list[str]:
     return sorted(name for name in values if not IMAGE_NAME.fullmatch(name))
+
+
+def _display_width(value: str) -> int:
+    return sum(
+        0
+        if unicodedata.combining(character)
+        else 2
+        if unicodedata.east_asian_width(character) in {"F", "W"}
+        else 1
+        for character in value
+    )
 
 
 class RigyardMetadata(BaseModel):
@@ -33,6 +48,38 @@ class RigyardMetadata(BaseModel):
         if not value.strip():
             raise ValueError("metadata.name must not be empty")
         return value
+
+
+class RigyardBranding(BaseModel):
+    """Optional terminal branding for the interactive menu."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    logo: str | None = None
+
+    @field_validator("logo")
+    @classmethod
+    def valid_terminal_logo(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        logo = value.rstrip("\r\n")
+        if not logo.strip():
+            raise ValueError("branding.logo must not be empty")
+        if len(logo.encode("utf-8")) > MAX_LOGO_BYTES:
+            raise ValueError(f"branding.logo must not exceed {MAX_LOGO_BYTES} UTF-8 bytes")
+        if any(
+            character != "\n" and unicodedata.category(character).startswith("C")
+            for character in logo
+        ):
+            raise ValueError("branding.logo must not contain control characters")
+        lines = logo.split("\n")
+        if len(lines) > MAX_LOGO_LINES:
+            raise ValueError(f"branding.logo must not exceed {MAX_LOGO_LINES} lines")
+        if any(_display_width(line) > MAX_LOGO_COLUMNS for line in lines):
+            raise ValueError(
+                f"branding.logo lines must not exceed {MAX_LOGO_COLUMNS} display columns"
+            )
+        return logo
 
 
 class RigyardSources(BaseModel):
@@ -75,6 +122,7 @@ class RigyardManifest(BaseModel):
 
     version: int
     metadata: RigyardMetadata
+    branding: RigyardBranding = Field(default_factory=RigyardBranding)
     sources: RigyardSources
     variables: dict[str, str] = Field(default_factory=dict)
 
@@ -154,6 +202,7 @@ class RigyardConfig(BaseModel):
 
     version: int
     metadata: RigyardMetadata
+    branding: RigyardBranding = Field(default_factory=RigyardBranding)
     sources: RigyardSources
     variables: dict[str, str] = Field(default_factory=dict)
     images: dict[str, ImageTemplate] = Field(default_factory=dict)

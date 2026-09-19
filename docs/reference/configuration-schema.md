@@ -22,6 +22,7 @@ A PromptValue contains optional `default` and required `prompt` fields. See [Run
 | `version` | integer; must be 3 | required |
 | `metadata.name` | string | required |
 | `metadata.description` | string/null | `null` |
+| `branding.logo` | UTF-8 multiline string/null | built-in Rigyard logo |
 | `variables` | string mapping | `{}` |
 | `sources.images` | path, path list, or null | `null` |
 | `sources.containers` | path, path list, or null | `null` |

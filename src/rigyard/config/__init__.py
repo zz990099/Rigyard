@@ -4,6 +4,7 @@ from .loader import load_config, load_values
 from .models import (
     SCHEMA_VERSION,
     BuildDefinitions,
+    RigyardBranding,
     RigyardConfig,
     RigyardManifest,
     RigyardMetadata,
@@ -17,6 +18,7 @@ __all__ = [
     "BuildDefinitions",
     "ScenarioDefinitions",
     "SourceFileInfo",
+    "RigyardBranding",
     "RigyardConfig",
     "RigyardManifest",
     "RigyardMetadata",
