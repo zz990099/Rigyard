@@ -18,6 +18,7 @@ from ..tests.models import TestTemplate
 
 SCHEMA_VERSION = 3
 VARIABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+COMMAND_ALIAS_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,62}$")
 MAX_LOGO_BYTES = 8 * 1024
 MAX_LOGO_LINES = 12
 MAX_LOGO_COLUMNS = 100
@@ -49,6 +50,26 @@ class RigyardMetadata(BaseModel):
     def name_is_not_empty(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("metadata.name must not be empty")
+        return value
+
+
+class RigyardWorkspace(BaseModel):
+    """Optional defaults applied by ``rigyard init``."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    command_alias: str | None = None
+
+    @field_validator("command_alias")
+    @classmethod
+    def valid_command_alias(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not COMMAND_ALIAS_NAME.fullmatch(value) or value == "rigyard":
+            raise ValueError(
+                "workspace.command_alias must be a non-reserved name containing "
+                "letters, digits, '_' or '-'"
+            )
         return value
 
 
@@ -153,6 +174,7 @@ class RigyardManifest(BaseModel):
 
     version: int
     metadata: RigyardMetadata
+    workspace: RigyardWorkspace = Field(default_factory=RigyardWorkspace)
     branding: RigyardBrandingSource = Field(default_factory=RigyardBrandingSource)
     sources: RigyardSources
     variables: dict[str, str] = Field(default_factory=dict)
@@ -257,6 +279,7 @@ class RigyardConfig(BaseModel):
 
     version: int
     metadata: RigyardMetadata
+    workspace: RigyardWorkspace = Field(default_factory=RigyardWorkspace)
     branding: RigyardBranding = Field(default_factory=RigyardBranding)
     sources: RigyardSources
     variables: dict[str, str] = Field(default_factory=dict)

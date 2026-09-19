@@ -28,16 +28,27 @@ def register_workspace_commands(commands: Any) -> None:
         action="store_true",
         help="replace an existing workspace binding or command alias",
     )
-    initialize.add_argument(
+    alias_options = initialize.add_mutually_exclusive_group()
+    alias_options.add_argument(
         "--alias",
         metavar="NAME",
-        help="create a project-local command that uses this configuration",
+        help="override the project-local command alias configured by the manifest",
+    )
+    alias_options.add_argument(
+        "--no-alias",
+        action="store_true",
+        help="do not create the command alias configured by the manifest",
     )
     initialize.set_defaults(handler=_initialize)
 
 
 def _initialize(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
-    result = initialize_workspace(args.init_config_path, force=args.force, alias=args.alias)
+    result = initialize_workspace(
+        args.init_config_path,
+        force=args.force,
+        alias=args.alias,
+        use_config_alias=not args.no_alias,
+    )
     state = "Initialized" if result.changed else "Already initialized"
     fields = [
         f"{state} Rigyard workspace: {result.root}",

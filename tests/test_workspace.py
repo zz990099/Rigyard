@@ -26,6 +26,16 @@ sources: {{images: images.yaml}}
     return manifest
 
 
+def project_with_alias(root: Path, alias: str) -> Path:
+    manifest = project(root)
+    text = manifest.read_text(encoding="utf-8")
+    manifest.write_text(
+        text.replace("sources:", f"workspace: {{command_alias: {alias}}}\nsources:"),
+        encoding="utf-8",
+    )
+    return manifest
+
+
 def test_init_records_relative_manifest_and_bare_command_uses_it(
     tmp_path: Path, monkeypatch, capsys
 ):
@@ -145,6 +155,52 @@ def test_init_alias_creates_an_executable_project_command(tmp_path: Path, monkey
         "build",
         "native",
     ]
+
+
+def test_init_uses_manifest_command_alias_by_default(tmp_path: Path, monkeypatch, capsys):
+    workspace = tmp_path / "workspace"
+    manifest = project_with_alias(workspace, "robot")
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(manifest)]) == 0
+
+    assert (workspace / "robot").is_file()
+    assert "Created command alias: ./robot" in capsys.readouterr().out
+
+
+def test_cli_alias_overrides_manifest_command_alias(tmp_path: Path, monkeypatch):
+    workspace = tmp_path / "workspace"
+    manifest = project_with_alias(workspace, "configured")
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(manifest), "--alias", "explicit"]) == 0
+
+    assert (workspace / "explicit").is_file()
+    assert not (workspace / "configured").exists()
+
+
+def test_no_alias_disables_manifest_command_alias(tmp_path: Path, monkeypatch):
+    workspace = tmp_path / "workspace"
+    manifest = project_with_alias(workspace, "robot")
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(manifest), "--no-alias"]) == 0
+
+    assert not (workspace / "robot").exists()
+    assert (workspace / ".rigyard/context.yaml").is_file()
+
+
+def test_manifest_command_alias_is_validated_before_workspace_write(
+    tmp_path: Path, monkeypatch, capsys
+):
+    workspace = tmp_path / "workspace"
+    manifest = project_with_alias(workspace, "rigyard")
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(manifest)]) == 2
+
+    assert "workspace.command_alias" in capsys.readouterr().err
+    assert not (workspace / ".rigyard/context.yaml").exists()
 
 
 def test_init_alias_is_idempotent_and_protects_existing_files(tmp_path: Path, monkeypatch, capsys):

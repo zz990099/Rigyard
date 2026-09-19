@@ -9,6 +9,7 @@ from .models import (
     RigyardManifest,
     RigyardMetadata,
     RigyardSources,
+    RigyardWorkspace,
     ScenarioDefinitions,
     SourceFileInfo,
     TaskDefinitions,
@@ -27,6 +28,7 @@ __all__ = [
     "RigyardManifest",
     "RigyardMetadata",
     "RigyardSources",
+    "RigyardWorkspace",
     "load_config",
     "load_values",
 ]
