@@ -34,6 +34,7 @@ from ..scenarios.models import (
     ScenarioInstanceSpec,
     ScenarioProfileSpec,
 )
+from ..tasks.models import TaskSpec
 from ..tests.models import TestSpec
 from .requests import ResolutionRequest
 
@@ -95,6 +96,8 @@ class ResolveParametersUseCase:
                 materialize_as(template, f"builds.{name}", context, BuildSpec, renderer)
             for name, template in config.tests.items():
                 materialize_as(template, f"tests.{name}", context, TestSpec, renderer)
+            for name, template in config.tasks.items():
+                materialize_as(template, f"tasks.{name}", context, TaskSpec, renderer)
             for scene_name, scenario in config.scenarios.items():
                 if scenario.compose is not None:
                     materialize_as(

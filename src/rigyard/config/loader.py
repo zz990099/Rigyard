@@ -19,6 +19,7 @@ from .models import (
     RigyardManifest,
     ScenarioDefinitions,
     SourceFileInfo,
+    TaskDefinitions,
     TestDefinitions,
 )
 
@@ -208,6 +209,9 @@ def load_config(path: str | Path) -> RigyardConfig:
     tests, test_files, test_duplicates = _load_optional_source_group(
         manifest_path, manifest.sources.tests, TestDefinitions, label="test source"
     )
+    tasks, task_files, task_duplicates = _load_optional_source_group(
+        manifest_path, manifest.sources.tasks, TaskDefinitions, label="task source"
+    )
     scenarios, scenario_files, scenario_duplicates = _load_optional_source_group(
         manifest_path, manifest.sources.scenarios, ScenarioDefinitions, label="scenario source"
     )
@@ -221,12 +225,14 @@ def load_config(path: str | Path) -> RigyardConfig:
         containers=containers,
         builds=builds,
         tests=tests,
+        tasks=tasks,
         scenarios=scenarios,
         source_files={
             "images": image_files,
             "containers": container_files,
             "builds": build_files,
             "tests": test_files,
+            "tasks": task_files,
             "scenarios": scenario_files,
         },
         duplicate_names={
@@ -234,6 +240,7 @@ def load_config(path: str | Path) -> RigyardConfig:
             "containers": container_duplicates,
             "builds": build_duplicates,
             "tests": test_duplicates,
+            "tasks": task_duplicates,
             "scenarios": scenario_duplicates,
         },
     )

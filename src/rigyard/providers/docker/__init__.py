@@ -4,6 +4,7 @@ from .build_backend import DockerExecBuildBackend
 from .container_backend import DockerContainerBackend
 from .containers import docker_container_sources, docker_containers_source
 from .image_backend import DockerImageBackend
+from .task_backend import DockerExecTaskBackend
 from .test_backend import DockerExecTestBackend
 
 __all__ = [
@@ -11,6 +12,7 @@ __all__ = [
     "DockerExecBuildBackend",
     "DockerImageBackend",
     "DockerExecTestBackend",
+    "DockerExecTaskBackend",
     "docker_container_sources",
     "docker_containers_source",
 ]

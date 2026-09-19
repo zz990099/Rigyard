@@ -10,6 +10,8 @@ This file records notable user-facing changes. Once releases begin, the project 
 - Project-local command aliases through `rigyard init --alias NAME`.
 - User-defined test run and result-reporting commands through `rigyard test run` and
   `rigyard test report`.
+- Constrained project-specific container tasks through `rigyard task run` and the fixed
+  configuration-driven Tasks menu.
 
 ### Changed
 

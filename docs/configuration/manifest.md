@@ -18,6 +18,7 @@ sources:
   containers: [config/containers.yaml]
   builds: config/builds.yaml
   tests: config/tests.yaml
+  tasks: config/tasks.yaml
   scenarios: config/scenarios.yaml
 ```
 
@@ -37,6 +38,7 @@ sources:
 | `sources.containers` | path or path list | no | Container sources |
 | `sources.builds` | path or path list | no | Build sources |
 | `sources.tests` | path or path list | no | Test sources |
+| `sources.tasks` | path or path list | no | Custom task sources |
 | `sources.scenarios` | path or path list | no | Scenario sources |
 
 Source lists cannot be empty. All source paths are relative to the root manifest. Configuration files must be UTF-8 YAML.
@@ -63,7 +65,7 @@ The logo is shown only by the interactive menu. Commands, help output, redirecte
 
 ## Definition names
 
-Image, container, build, test, scenario, layer, profile, and group names match:
+Image, container, build, test, task, scenario, layer, profile, and group names match:
 
 ```text
 [A-Za-z][A-Za-z0-9_.-]*

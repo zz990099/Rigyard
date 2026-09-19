@@ -28,6 +28,7 @@ A PromptValue contains optional `default` and required `prompt` fields. See [Run
 | `sources.containers` | path, path list, or null | `null` |
 | `sources.builds` | path, path list, or null | `null` |
 | `sources.tests` | path, path list, or null | `null` |
+| `sources.tasks` | path, path list, or null | `null` |
 | `sources.scenarios` | path, path list, or null | `null` |
 
 At least one source kind is required. See the [root manifest guide](../configuration/manifest.md).
@@ -106,6 +107,25 @@ Hook fields are `name`, `script`, `interpreter`, `user`, `workdir`, `environment
 ```
 
 `container`, `run`, and `report` are required. Each action requires `script`. See [Test fields](../features/tests.md#fields).
+
+## Custom task source
+
+```text
+<task>.description
+<task>.container
+<task>.script
+<task>.interpreter = [/bin/sh, -eu]
+<task>.workdir
+<task>.user
+<task>.setup = []
+<task>.environment = {}
+<task>.timeout_seconds
+<task>.menu.enabled = true
+<task>.menu.label
+<task>.menu.confirm = true
+```
+
+`container` and `script` are required. The optional `menu` mapping exposes the task under the fixed Tasks menu. See [Custom task fields](../features/tasks.md#fields).
 
 ## Scenario source
 

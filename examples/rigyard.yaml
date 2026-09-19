@@ -17,5 +17,7 @@ sources:
     - config/builds.yaml
   tests:
     - config/tests.yaml
+  tasks:
+    - config/tasks.yaml
   scenarios:
     - config/scenarios.yaml

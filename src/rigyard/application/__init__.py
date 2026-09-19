@@ -10,6 +10,7 @@ from .parameters import (
 )
 from .requests import BuildImageRequest, ResolutionRequest
 from .scenarios import PlanScenarioUseCase
+from .tasks import ExecuteTaskUseCase
 from .tests import ExecuteTestUseCase
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "BuildProjectUseCase",
     "CreateContainerUseCase",
     "ExecuteTestUseCase",
+    "ExecuteTaskUseCase",
     "InspectParametersUseCase",
     "PlanScenarioUseCase",
     "ResolutionRequest",

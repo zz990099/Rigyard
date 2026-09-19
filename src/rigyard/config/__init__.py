@@ -11,6 +11,7 @@ from .models import (
     RigyardSources,
     ScenarioDefinitions,
     SourceFileInfo,
+    TaskDefinitions,
     TestDefinitions,
 )
 
@@ -19,6 +20,7 @@ __all__ = [
     "BuildDefinitions",
     "ScenarioDefinitions",
     "TestDefinitions",
+    "TaskDefinitions",
     "SourceFileInfo",
     "RigyardBranding",
     "RigyardConfig",

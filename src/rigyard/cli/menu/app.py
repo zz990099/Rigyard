@@ -12,11 +12,13 @@ from ...application.images import BuildImageUseCase
 from ...application.parameters import ValidateConfigUseCase
 from ...application.requests import BuildImageRequest, ResolutionRequest
 from ...application.scenarios import PlanScenarioUseCase
+from ...application.tasks import ExecuteTaskUseCase
 from ...application.tests import ExecuteTestUseCase
 from ...config.models import SourceFileInfo
 from ...parameters.sources import DynamicSources
 from ...providers.docker import (
     DockerExecBuildBackend,
+    DockerExecTaskBackend,
     DockerExecTestBackend,
     DockerImageBackend,
     docker_container_sources,
@@ -29,6 +31,7 @@ from ..branding import DEFAULT_LOGO
 from ..build_output import describe_build
 from ..container_output import describe_container
 from ..scenario_output import describe_scenario, describe_scenario_target
+from ..task_output import describe_task
 from ..test_output import describe_test
 from .model import MenuAction, MenuRegistry
 from .prompt import MenuIO
@@ -46,6 +49,7 @@ class MenuApp:
         container_backend_factory: BackendFactory | None = None,
         build_backend_factory: BackendFactory | None = None,
         test_backend_factory: BackendFactory | None = None,
+        task_backend_factory: BackendFactory | None = None,
         scenario_executor_factory: ScenarioExecutorFactory | None = None,
         sources: DynamicSources | None = None,
     ) -> None:
@@ -60,6 +64,7 @@ class MenuApp:
         )
         self.build_backend_factory = build_backend_factory or DockerExecBuildBackend
         self.test_backend_factory = test_backend_factory or DockerExecTestBackend
+        self.task_backend_factory = task_backend_factory or DockerExecTaskBackend
         self.scenario_executor_factory = scenario_executor_factory or ScenarioExecutor
         self.registry = MenuRegistry(
             (
@@ -97,6 +102,13 @@ class MenuApp:
                     self._test_menu,
                     enabled=lambda session: bool(session.config.tests),
                     disabled_reason="no tests configured",
+                ),
+                MenuAction(
+                    "task.menu",
+                    "Tasks…",
+                    self._task_menu,
+                    enabled=self._has_menu_tasks,
+                    disabled_reason="no menu tasks configured",
                 ),
             )
         )
@@ -340,6 +352,49 @@ class MenuApp:
         self.io.write_note(
             f"Test {result.test_name!r} {result.action} command completed", "success"
         )
+
+    @staticmethod
+    def _is_menu_task(group: SourceFileInfo, name: str) -> bool:
+        menu = group.definitions[name].menu
+        return menu is not None and menu.enabled
+
+    def _has_menu_tasks(self, session: MenuSession) -> bool:
+        return bool(
+            self._source_groups(session, "tasks", requirement=self._is_menu_task)
+        )
+
+    def _task_menu(self, session: MenuSession) -> None:
+        group = self._select_source_group(
+            session, "tasks", "Tasks", requirement=self._is_menu_task
+        )
+        if group is None:
+            return
+        names = [name for name in group.names if self._is_menu_task(group, name)]
+        labels = [
+            group.definitions[name].menu.label
+            or self._definition_label(group, name)
+            for name in names
+        ]
+        selected = self.io.select("Tasks", labels, back_label="Back")
+        if selected is None:
+            return
+        task_name = names[selected]
+        template = group.definitions[task_name]
+        use_case = ExecuteTaskUseCase(
+            self.task_backend_factory(),
+            sources=self.sources,
+            formatter=self.io.style.render,
+        )
+        plan = use_case.plan(task_name, self._request(session, group.path))
+        for line in describe_task(plan):
+            self.io.write_field(line)
+        if template.menu.confirm and not self.io.confirm(
+            "Run this task now?", default=True
+        ):
+            self.io.write_note("Task cancelled.", "muted")
+            return
+        result = use_case.execute(plan)
+        self.io.write_note(f"Task {result.task_name!r} completed", "success")
 
     def _scene_menu(self, session: MenuSession) -> int | None:
         actions: tuple[tuple[str, Callable[[MenuSession], int | None]], ...] = (

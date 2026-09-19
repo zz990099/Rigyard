@@ -90,6 +90,12 @@ class TestExecutionError(RigyardError):
     exit_code = 4
 
 
+class TaskExecutionError(RigyardError):
+    """A configured custom task failed."""
+
+    exit_code = 4
+
+
 class ScenarioPlanError(RigyardError):
     """A scenario cannot be converted into a backend execution plan."""
 
