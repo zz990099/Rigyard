@@ -78,12 +78,12 @@ With the built-in logo and the example sources configured, the menu looks like t
 
 ```text
 $ rigyard
-  ____  _                       _
- |  _ \(_) __ _ _   _  __ _ _ __ __| |
- | |_) | |/ _` | | | |/ _` | '__/ _` |
- |  _ <| | (_| | |_| | (_| | | | (_| |
- |_| \_\_|\__, |\__,_|\__,_|_|  \__,_|
-           |___/
+██████╗ ██╗ ██████╗ ██╗   ██╗ █████╗ ██████╗ ██████╗
+██╔══██╗██║██╔════╝ ╚██╗ ██╔╝██╔══██╗██╔══██╗██╔══██╗
+██████╔╝██║██║  ███╗ ╚████╔╝ ███████║██████╔╝██║  ██║
+██╔══██╗██║██║   ██║  ╚██╔╝  ██╔══██║██╔══██╗██║  ██║
+██║  ██║██║╚██████╔╝   ██║   ██║  ██║██║  ██║██████╔╝
+╚═╝  ╚═╝╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝
 
 Project: robot-development
 Configuration: /workspace/robot-development/rigyard.yaml
@@ -126,3 +126,7 @@ Complete examples are available in [`examples/`](https://github.com/zz990099/Rig
 ## License
 
 [MIT](https://github.com/zz990099/Rigyard/blob/main/LICENSE)
+
+---
+
+Powered by **Codex** — AI-assisted development and documentation.
