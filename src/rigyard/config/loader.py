@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, TypeVar
@@ -11,10 +12,12 @@ from pydantic import BaseModel, ValidationError
 from yaml.nodes import MappingNode, Node, SequenceNode
 
 from ..errors import ConfigIOError, SchemaValidationError, SourceLocation
+from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from .models import (
     BuildDefinitions,
     ContainerDefinitions,
     ImageDefinitions,
+    RigyardBranding,
     RigyardConfig,
     RigyardManifest,
     ScenarioDefinitions,
@@ -116,6 +119,36 @@ def _source_paths(
     return (_source_path(manifest_path, configured),)
 
 
+def _load_branding(manifest_path: Path, manifest: RigyardManifest) -> RigyardBranding:
+    configured = manifest.branding
+    if configured.logo_file is None:
+        return RigyardBranding(logo=configured.logo)
+
+    renderer = StringTemplateRenderer(
+        TemplateContext.capture(
+            os.environ,
+            config_path=manifest_path,
+            variables=manifest.variables,
+        )
+    )
+    rendered = renderer.render(str(configured.logo_file), "branding.logo_file")
+    logo_path = Path(rendered).expanduser()
+    if not logo_path.is_absolute():
+        logo_path = manifest_path.parent / logo_path
+    logo_path = logo_path.resolve()
+    try:
+        logo = logo_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ConfigIOError(str(exc), SourceLocation(logo_path)) from exc
+    return _validate_data(
+        logo_path,
+        {"logo": logo},
+        {},
+        RigyardBranding,
+        label="branding logo",
+    )
+
+
 def _source_description(
     path: Path,
     data: Any,
@@ -194,6 +227,7 @@ def _load_optional_source_group(
 def load_config(path: str | Path) -> RigyardConfig:
     manifest_path = Path(path).resolve()
     manifest = _validate_file(manifest_path, RigyardManifest, label="manifest")
+    branding = _load_branding(manifest_path, manifest)
     images, image_files, image_duplicates = _load_optional_source_group(
         manifest_path, manifest.sources.images, ImageDefinitions, label="image source"
     )
@@ -218,7 +252,7 @@ def load_config(path: str | Path) -> RigyardConfig:
     return RigyardConfig(
         version=manifest.version,
         metadata=manifest.metadata,
-        branding=manifest.branding,
+        branding=branding,
         sources=manifest.sources,
         variables=manifest.variables,
         images=images,

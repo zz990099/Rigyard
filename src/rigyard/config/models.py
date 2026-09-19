@@ -53,7 +53,7 @@ class RigyardMetadata(BaseModel):
 
 
 class RigyardBranding(BaseModel):
-    """Optional terminal branding for the interactive menu."""
+    """Resolved terminal branding used by the interactive menu."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -82,6 +82,25 @@ class RigyardBranding(BaseModel):
                 f"branding.logo lines must not exceed {MAX_LOGO_COLUMNS} display columns"
             )
         return logo
+
+
+class RigyardBrandingSource(RigyardBranding):
+    """Terminal branding as declared in the root manifest."""
+
+    logo_file: Path | None = None
+
+    @field_validator("logo_file", mode="before")
+    @classmethod
+    def logo_file_is_not_empty(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            raise ValueError("branding.logo_file must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def one_logo_source(self) -> RigyardBrandingSource:
+        if self.logo is not None and self.logo_file is not None:
+            raise ValueError("branding.logo and branding.logo_file are mutually exclusive")
+        return self
 
 
 class RigyardSources(BaseModel):
@@ -134,7 +153,7 @@ class RigyardManifest(BaseModel):
 
     version: int
     metadata: RigyardMetadata
-    branding: RigyardBranding = Field(default_factory=RigyardBranding)
+    branding: RigyardBrandingSource = Field(default_factory=RigyardBrandingSource)
     sources: RigyardSources
     variables: dict[str, str] = Field(default_factory=dict)
 
