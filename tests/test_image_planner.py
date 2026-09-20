@@ -38,6 +38,83 @@ def test_plan_chains_layers_and_stringifies_build_args(tmp_path: Path):
         second.build_args["MODE"] = "changed"
 
 
+def test_network_inherits_from_image_and_can_be_overridden_per_layer(tmp_path: Path):
+    config = make_project(tmp_path)
+    spec = ImageSpec.model_validate(
+        {
+            "base": "ubuntu:22.04",
+            "tag": "example/development:latest",
+            "network": "default",
+            "layers": [
+                {"name": "system", "dockerfile": "system.Dockerfile"},
+                {"name": "app", "dockerfile": "app.Dockerfile", "network": "none"},
+            ],
+        }
+    )
+    first, second = ImageBuildPlanner().create_plan("development", spec, config).steps
+    assert first.network == "default"
+    assert second.network == "none"
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_build_proxy_is_applied_atomically_to_every_layer(tmp_path: Path, enabled: bool):
+    config = make_project(tmp_path)
+    spec = ImageSpec.model_validate(
+        {
+            "base": "ubuntu:22.04",
+            "tag": "example/development:latest",
+            "build_proxy": {
+                "enabled": enabled,
+                "network": "host",
+                "build_args": {
+                    "http_proxy": "http://127.0.0.1:7897",
+                    "https_proxy": "http://127.0.0.1:7897",
+                },
+            },
+            "layers": [
+                {"name": "system", "dockerfile": "system.Dockerfile"},
+                {"name": "app", "dockerfile": "app.Dockerfile"},
+            ],
+        }
+    )
+    steps = ImageBuildPlanner().create_plan("development", spec, config).steps
+    for step in steps:
+        assert step.network == ("host" if enabled else None)
+        assert dict(step.build_args) == (
+            {
+                "http_proxy": "http://127.0.0.1:7897",
+                "https_proxy": "http://127.0.0.1:7897",
+            }
+            if enabled
+            else {}
+        )
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"network": "none"},
+        {"build_args": {"HTTP_PROXY": "http://other:8080"}},
+        {"layers": [{"name": "system", "dockerfile": "system.Dockerfile", "network": "none"}]},
+    ],
+)
+def test_enabled_build_proxy_rejects_conflicting_options(tmp_path: Path, overrides: dict):
+    config = make_project(tmp_path)
+    data = {
+        "base": "ubuntu:22.04",
+        "tag": "example/development:latest",
+        "build_proxy": {
+            "enabled": True,
+            "network": "host",
+            "build_args": {"http_proxy": "http://127.0.0.1:7897"},
+        },
+        "layers": [{"name": "system", "dockerfile": "system.Dockerfile"}],
+        **overrides,
+    }
+    with pytest.raises(ImagePlanError, match="conflict"):
+        ImageBuildPlanner().create_plan("development", ImageSpec.model_validate(data), config)
+
+
 @pytest.mark.parametrize(
     ("value", "field"),
     [

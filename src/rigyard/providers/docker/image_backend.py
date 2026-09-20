@@ -37,6 +37,8 @@ class DockerImageBackend:
 
     def build_step(self, step: ImageBuildStep) -> BuildStepResult:
         command: list[str] = ["docker", "build", "--file", "-", "--tag", step.output_tag]
+        if step.network is not None:
+            command.extend(("--network", step.network))
         for name, value in step.build_args.items():
             command.extend(("--build-arg", f"{name}={value}"))
         command.append(str(step.context))

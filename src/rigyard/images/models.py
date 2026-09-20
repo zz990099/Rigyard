@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -18,6 +18,13 @@ IMAGE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*$")
 Scalar = str | int | float | bool
 RuntimeString = PromptValue | str
 RuntimeScalar = PromptValue | Scalar
+NetworkMode = Literal["default", "none", "host"]
+ProxyNetworkMode = Literal["default", "host"]
+RuntimeNetworkMode = PromptValue | NetworkMode
+RuntimeProxyNetworkMode = PromptValue | ProxyNetworkMode
+PROXY_BUILD_ARG_NAMES = frozenset(
+    {"http_proxy", "https_proxy", "ftp_proxy", "no_proxy", "all_proxy"}
+)
 
 
 def _validate_build_arg_names(values: Mapping[str, Any]) -> None:
@@ -26,10 +33,37 @@ def _validate_build_arg_names(values: Mapping[str, Any]) -> None:
         raise ValueError(f"invalid build argument name(s): {', '.join(invalid)}")
 
 
+def _validate_proxy_build_args(values: Mapping[str, Any]) -> None:
+    _validate_build_arg_names(values)
+    unsupported = sorted(name for name in values if name.lower() not in PROXY_BUILD_ARG_NAMES)
+    if unsupported:
+        raise ValueError(f"unsupported proxy build argument name(s): {', '.join(unsupported)}")
+    normalized = [name.lower() for name in values]
+    duplicates = sorted({name for name in normalized if normalized.count(name) > 1})
+    if duplicates:
+        raise ValueError(
+            f"duplicate proxy build argument name(s), ignoring case: {', '.join(duplicates)}"
+        )
+
+
+class ImageBuildProxyTemplate(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    enabled: PromptValue | bool = True
+    network: RuntimeProxyNetworkMode = "host"
+    build_args: dict[str, RuntimeScalar] = Field(min_length=1)
+
+    @field_validator("build_args")
+    @classmethod
+    def valid_build_args(cls, value: dict[str, RuntimeScalar]) -> dict[str, RuntimeScalar]:
+        _validate_proxy_build_args(value)
+        return value
+
+
 class ImageLayerTemplate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     name: str
     dockerfile: Path | PromptValue
+    network: RuntimeNetworkMode | None = None
     build_args: dict[str, RuntimeScalar] = Field(default_factory=dict)
 
     @field_validator("name")
@@ -53,6 +87,8 @@ class ImageTemplate(BaseModel):
     context: Path | PromptValue = Path(".")
     tag: RuntimeString
     tag_alias: RuntimeString | None = None
+    network: RuntimeNetworkMode | None = None
+    build_proxy: ImageBuildProxyTemplate | None = None
     layers: tuple[ImageLayerTemplate, ...] = Field(min_length=1)
     build_args: dict[str, RuntimeScalar] = Field(default_factory=dict)
 
@@ -75,7 +111,21 @@ class ImageLayerSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     name: str
     dockerfile: Path
+    network: NetworkMode | None = None
     build_args: dict[str, Scalar] = Field(default_factory=dict)
+
+
+class ImageBuildProxySpec(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    enabled: bool = True
+    network: ProxyNetworkMode = "host"
+    build_args: dict[str, Scalar] = Field(min_length=1)
+
+    @field_validator("build_args")
+    @classmethod
+    def valid_build_args(cls, value: dict[str, Scalar]) -> dict[str, Scalar]:
+        _validate_proxy_build_args(value)
+        return value
 
 
 class ImageSpec(BaseModel):
@@ -85,6 +135,8 @@ class ImageSpec(BaseModel):
     context: Path = Path(".")
     tag: str
     tag_alias: str | None = None
+    network: NetworkMode | None = None
+    build_proxy: ImageBuildProxySpec | None = None
     layers: tuple[ImageLayerSpec, ...] = Field(min_length=1)
     build_args: dict[str, Scalar] = Field(default_factory=dict)
 
@@ -98,6 +150,7 @@ class ImageBuildStep:
     context: Path
     dockerfile_fragment: str
     build_args: Mapping[str, str]
+    network: NetworkMode | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "build_args", MappingProxyType(dict(self.build_args)))

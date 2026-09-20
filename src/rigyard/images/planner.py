@@ -7,7 +7,14 @@ import re
 from pathlib import Path
 
 from ..errors import ImageConfigError, ImagePlanError, SourceLocation
-from .models import ImageBuildPlan, ImageBuildStep, ImageSpec
+from .models import (
+    ImageBuildPlan,
+    ImageBuildStep,
+    ImageSpec,
+    NetworkMode,
+    ProxyNetworkMode,
+    Scalar,
+)
 
 FROM_INSTRUCTION = re.compile(r"^\s*FROM(?:\s|$)", re.IGNORECASE | re.MULTILINE)
 PARSER_DIRECTIVE = re.compile(r"^\s*#\s*(?:syntax|escape)\s*=", re.IGNORECASE | re.MULTILINE)
@@ -46,6 +53,16 @@ class ImageBuildPlanner:
             layer_path = _resolve_path(project_dir, layer.dockerfile)
             fragment = _read_fragment(layer_path, image_name, layer.name)
             sources = {**spec.build_args, **layer.build_args}
+            network = layer.network if layer.network is not None else spec.network
+            if spec.build_proxy is not None and spec.build_proxy.enabled:
+                network = _apply_build_proxy(
+                    image_name,
+                    layer.name,
+                    network,
+                    sources,
+                    spec.build_proxy.network,
+                    spec.build_proxy.build_args,
+                )
             build_args = {
                 name: str(value).lower() if isinstance(value, bool) else str(value)
                 for name, value in sorted(sources.items())
@@ -63,6 +80,7 @@ class ImageBuildPlanner:
                     output_tag=output_tag,
                     context=build_context,
                     dockerfile_fragment=fragment,
+                    network=network,
                     build_args=build_args,
                 )
             )
@@ -71,6 +89,33 @@ class ImageBuildPlanner:
         return ImageBuildPlan(
             image_name=image_name, final_tag=final_tag, steps=tuple(steps), tag_alias=spec.tag_alias
         )
+
+
+def _apply_build_proxy(
+    image_name: str,
+    layer_name: str,
+    network: NetworkMode | None,
+    build_args: dict[str, Scalar],
+    proxy_network: ProxyNetworkMode,
+    proxy_build_args: dict[str, Scalar],
+) -> NetworkMode:
+    if network is not None and network != proxy_network:
+        raise ImagePlanError(
+            f"images.{image_name} effective network {network!r} for layer {layer_name!r} "
+            f"conflicts with enabled build_proxy.network {proxy_network!r}"
+        )
+
+    existing = {name.lower(): name for name in build_args}
+    collisions = sorted(
+        existing[name.lower()] for name in proxy_build_args if name.lower() in existing
+    )
+    if collisions:
+        raise ImagePlanError(
+            f"images.{image_name}.layers.{layer_name} build arguments conflict with enabled "
+            f"build_proxy: {', '.join(collisions)}"
+        )
+    build_args.update(proxy_build_args)
+    return proxy_network
 
 
 def _resolve_path(project_dir: Path, configured: Path) -> Path:

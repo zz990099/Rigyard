@@ -18,7 +18,7 @@ class FakeRunner:
         return next(self.results)
 
 
-def step() -> ImageBuildStep:
+def step(network=None) -> ImageBuildStep:
     return ImageBuildStep(
         index=1,
         layer_name="system",
@@ -27,6 +27,7 @@ def step() -> ImageBuildStep:
         context=Path("/project"),
         dockerfile_fragment="RUN echo ok\n",
         build_args={"MODE": "release", "ZERO": "0"},
+        network=network,
     )
 
 
@@ -53,6 +54,12 @@ def test_backend_checks_daemon_and_builds_without_shell() -> None:
     )
     assert build_call[1] == "FROM ubuntu:22.04\n\nRUN echo ok\n"
     assert result.output_tag == "example/test:latest"
+
+
+def test_backend_adds_configured_build_network() -> None:
+    runner = FakeRunner([CommandResult(0)])
+    DockerImageBackend(runner).build_step(step("host"))
+    assert runner.calls[0][0][6:8] == ("--network", "host")
 
 
 def test_unavailable_daemon_has_backend_error() -> None:

@@ -27,6 +27,14 @@ sources: {images: config/images.yaml}
       message: Select base
       options: [ubuntu:22.04, ubuntu:24.04]
   tag: example/development:latest
+  network: host
+  build_proxy:
+    enabled:
+      default: true
+      prompt: {mode: confirm, message: "Use host proxy?"}
+    build_args:
+      http_proxy: http://127.0.0.1:7897
+      https_proxy: http://127.0.0.1:7897
   build_args:
     MODE:
       default: release
@@ -38,6 +46,9 @@ sources: {images: config/images.yaml}
     )
     image = load_config(manifest).images["development"]
     assert isinstance(image.base, PromptValue)
+    assert image.network == "host"
+    assert image.build_proxy is not None
+    assert isinstance(image.build_proxy.enabled, PromptValue)
     assert isinstance(image.build_args["MODE"], PromptValue)
 
 
@@ -60,6 +71,31 @@ sources: {images: config/images.yaml}
             "layers": [{"name": "one", "dockerfile": "one"}],
         },
         {"base": 22, "tag": "test", "layers": [{"name": "one", "dockerfile": "one"}]},
+        {
+            "base": "ubuntu",
+            "tag": "test",
+            "network": "bridge",
+            "layers": [{"name": "one", "dockerfile": "one"}],
+        },
+        {
+            "base": "ubuntu",
+            "tag": "test",
+            "build_proxy": {
+                "build_args": {"MODE": "debug"},
+            },
+            "layers": [{"name": "one", "dockerfile": "one"}],
+        },
+        {
+            "base": "ubuntu",
+            "tag": "test",
+            "build_proxy": {
+                "build_args": {
+                    "HTTP_PROXY": "http://localhost:7897",
+                    "http_proxy": "http://localhost:7897",
+                },
+            },
+            "layers": [{"name": "one", "dockerfile": "one"}],
+        },
     ],
 )
 def test_invalid_image_templates_are_rejected(image):

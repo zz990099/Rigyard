@@ -16,6 +16,7 @@ This file records notable user-facing changes. Once releases begin, the project 
 - Terminal logos loaded from external UTF-8 files through templated paths.
 - Safe, project-aware alias removal through `rigyard alias remove`.
 - Prompt-local `${INPUT}` composition and explicit list append semantics for runtime values.
+- Image build network modes, per-layer overrides, and an atomic interactive host-proxy group.
 
 ### Changed
 

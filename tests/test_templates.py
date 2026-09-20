@@ -403,3 +403,48 @@ def test_image_alias_supports_templates_and_prompt_defaults(tmp_path):
     )
     assert plan.final_tag == 'example:dev_20260916'
     assert plan.tag_alias == 'example:dev_x86_64'
+
+
+def test_image_build_proxy_confirm_controls_the_complete_proxy_configuration(tmp_path):
+    from rigyard.application.images import BuildImageUseCase
+    from rigyard.application.requests import BuildImageRequest
+
+    config = write(
+        tmp_path / 'rigyard.yaml',
+        'version: 3\nmetadata: {name: proxy}\nsources: {images: images.yaml}\n',
+    )
+    write(tmp_path / 'layer.Dockerfile', 'RUN true\n')
+    write(tmp_path / 'images.yaml', '''development:
+  base: ubuntu
+  tag: example:proxy
+  build_proxy:
+    enabled:
+      default: true
+      prompt: {mode: confirm, message: "Use host proxy?"}
+    network: host
+    build_args:
+      http_proxy: http://127.0.0.1:7897
+      https_proxy: http://127.0.0.1:7897
+  layers:
+    - {name: system, dockerfile: layer.Dockerfile}
+''')
+    enabled = BuildImageUseCase(None).plan(
+        BuildImageRequest(config, 'development', interactive=False), environment={}, now=NOW,
+    ).steps[0]
+    disabled = BuildImageUseCase(None).plan(
+        BuildImageRequest(
+            config,
+            'development',
+            interactive=False,
+            overrides={'images.development.build_proxy.enabled': False},
+        ),
+        environment={},
+        now=NOW,
+    ).steps[0]
+    assert enabled.network == 'host'
+    assert dict(enabled.build_args) == {
+        'http_proxy': 'http://127.0.0.1:7897',
+        'https_proxy': 'http://127.0.0.1:7897',
+    }
+    assert disabled.network is None
+    assert dict(disabled.build_args) == {}
