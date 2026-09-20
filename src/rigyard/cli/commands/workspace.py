@@ -56,6 +56,11 @@ def _initialize(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
     ]
     if result.alias_path is not None:
         alias_state = "Created" if result.alias_changed else "Already available"
-        fields.append(f"{alias_state} command alias: ./{result.alias_path.name}")
+        fields.extend(
+            (
+                f"{alias_state} environment command alias: {result.alias_path}",
+                f"Available while this Python environment is active: {result.alias_path.name}",
+            )
+        )
     print_fields(args.style, fields)
     return 0
