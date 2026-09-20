@@ -1,7 +1,7 @@
 """Inline runtime-value acquisition and resolution."""
 
 from .context import ResolvedContext, ResolvedValue, ValueSource
-from .models import PromptMode, PromptSpec, PromptValue
+from .models import PromptMerge, PromptMode, PromptSpec, PromptValue
 from .resolver import RuntimeValueResolver, collect_prompts
 from .sources import DynamicOption, DynamicOptionsProvider, DynamicSources, PromptSource
 from .templates import StringTemplateRenderer, TemplateContext, validate_template_syntax
@@ -11,6 +11,7 @@ __all__ = [
     "DynamicOptionsProvider",
     "DynamicSources",
     "PromptMode",
+    "PromptMerge",
     "PromptSource",
     "PromptSpec",
     "PromptValue",

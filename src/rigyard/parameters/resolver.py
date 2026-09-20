@@ -12,7 +12,7 @@ from pydantic import BaseModel, ValidationError
 
 from ..errors import MissingValueError, ResolutionError, RigyardError
 from .context import ResolvedContext, ResolvedValue, ValueSource
-from .models import PromptMode, PromptValue
+from .models import PromptMerge, PromptMode, PromptValue
 from .prompt import Formatter, InputFunction, prompt_for_value
 from .sources import DynamicOption, DynamicSources
 from .templates import StringTemplateRenderer, TemplateContext
@@ -126,6 +126,9 @@ class RuntimeValueResolver:
                 "mode": value.prompt.mode.value,
                 "message": value.prompt.message,
                 "repeat": value.prompt.repeat,
+                "merge": value.prompt.merge.value,
+                "input_template": value.prompt.input_template,
+                "has_base": "base" in value.model_fields_set,
                 "options": list(value.prompt.options) if value.prompt.options else None,
                 "source": value.prompt.source.model_dump() if value.prompt.source else None,
                 "has_default": value.has_default,
@@ -179,10 +182,34 @@ class RuntimeValueResolver:
                 resolved[path] = ResolvedValue(prompt.default, ValueSource.DEFAULT)
             else:
                 missing.append(path)
+            if path in resolved:
+                selected = resolved[path]
+                resolved[path] = ResolvedValue(
+                    self._compose_input(path, prompt, selected.value), selected.source
+                )
 
         if missing and not allow_missing:
             raise MissingValueError(missing)
         return ResolvedContext(resolved)
+
+    def _compose_input(self, path: str, value: PromptValue, raw: Any) -> Any:
+        prompt = value.prompt
+        composed = raw
+        if prompt.input_template is not None:
+            if isinstance(raw, Mapping):
+                raise ResolutionError(
+                    f"invalid input template value for {path}: expected a scalar or list"
+                )
+            if isinstance(raw, (list, tuple)):
+                composed = [
+                    prompt.input_template.replace("${INPUT}", str(item)) for item in raw
+                ]
+            else:
+                composed = prompt.input_template.replace("${INPUT}", str(raw))
+        if prompt.merge == PromptMerge.APPEND:
+            additions = list(composed) if isinstance(composed, (list, tuple)) else [composed]
+            return [*value.base, *additions]
+        return composed
 
     def _normalize(self, path: str, value: PromptValue, raw: Any) -> Any:
         prompt = value.prompt

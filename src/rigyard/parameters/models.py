@@ -16,6 +16,11 @@ class PromptMode(str, Enum):
     SELECT = "select"
 
 
+class PromptMerge(str, Enum):
+    REPLACE = "replace"
+    APPEND = "append"
+
+
 class PromptSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -25,6 +30,8 @@ class PromptSpec(BaseModel):
     source: PromptSource | None = None
     repeat: bool = False
     item_hint: str | None = None
+    merge: PromptMerge = PromptMerge.REPLACE
+    input_template: str | None = None
 
     @model_validator(mode="after")
     def validate_mode_options(self) -> PromptSpec:
@@ -41,6 +48,15 @@ class PromptSpec(BaseModel):
             raise ValueError("options and source are only valid for select prompts")
         if self.repeat and self.mode != PromptMode.INPUT:
             raise ValueError("repeat is only valid for input prompts")
+        if self.merge != PromptMerge.REPLACE and self.mode != PromptMode.INPUT:
+            raise ValueError("merge is only configurable for input prompts")
+        if self.input_template is not None:
+            if self.mode != PromptMode.INPUT:
+                raise ValueError("input_template is only valid for input prompts")
+            if "$${INPUT}" in self.input_template:
+                raise ValueError("input_template cannot escape the ${INPUT} placeholder")
+            if self.input_template.count("${INPUT}") != 1:
+                raise ValueError("input_template must contain ${INPUT} exactly once")
         return self
 
 
@@ -49,11 +65,20 @@ class PromptValue(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    base: Any = None
     default: Any = None
     prompt: PromptSpec
 
     @model_validator(mode="after")
     def default_matches_prompt(self) -> PromptValue:
+        has_base = "base" in self.model_fields_set
+        if self.prompt.merge == PromptMerge.APPEND:
+            if not has_base:
+                raise ValueError("append prompts require a base list")
+            if not isinstance(self.base, (list, tuple)):
+                raise ValueError("append prompt base must be a list")
+        elif has_base:
+            raise ValueError("base is only valid when prompt.merge is append")
         if "default" not in self.model_fields_set:
             return self
         if self.prompt.mode == PromptMode.CONFIRM and not isinstance(self.default, bool):

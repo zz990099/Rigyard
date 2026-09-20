@@ -221,10 +221,15 @@ def validate_template_syntax(
         variable_names=variable_names,
     )
     if isinstance(node, PromptValue):
+        if "base" in node.model_fields_set:
+            _validate_value(node.base, f"{prefix}.base", active)
         if node.has_default:
             _validate_value(node.default, prefix, active)
         if node.prompt.options is not None:
             _validate_value(node.prompt.options, f"{prefix}.prompt.options", active)
+        if node.prompt.input_template is not None:
+            escaped = node.prompt.input_template.replace("${INPUT}", "$${INPUT}")
+            active.validate(escaped, f"{prefix}.prompt.input_template")
         return
     if isinstance(node, BaseModel):
         for name in type(node).model_fields:

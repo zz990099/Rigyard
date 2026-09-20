@@ -305,6 +305,34 @@ sources: {containers: containers.yaml}
     ValidateConfigUseCase().execute(config)
 
 
+def test_validate_checks_global_expressions_inside_input_templates(tmp_path: Path):
+    config = write(
+        tmp_path / "rigyard.yaml",
+        """version: 3
+metadata: {name: input-template}
+sources: {containers: containers.yaml}
+""",
+    )
+    source = write(
+        tmp_path / "containers.yaml",
+        """development:
+  image: ubuntu
+  name:
+    default: dev
+    prompt:
+      mode: input
+      message: Name
+      input_template: ${INPUT}_${env:USER}
+""",
+    )
+
+    ValidateConfigUseCase().execute(config)
+
+    source.write_text(source.read_text().replace("${env:USER}", "${unknown:value}"))
+    with pytest.raises(ResolutionError, match="prompt.input_template"):
+        ValidateConfigUseCase().execute(config)
+
+
 @pytest.mark.parametrize('initialized', [False, True])
 def test_container_roots_follow_workspace_binding(tmp_path: Path, monkeypatch, initialized):
     from rigyard.workspace import initialize_workspace, resolve_config_path

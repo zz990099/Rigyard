@@ -39,6 +39,59 @@ def test_prompt_schema_validates_modes_and_defaults():
             PromptValue.model_validate(data)
 
 
+def test_input_composition_schema_is_explicit_and_rejects_ambiguous_forms():
+    appended = PromptValue.model_validate(
+        {
+            "base": ["fixed"],
+            "default": "host",
+            "prompt": {
+                "mode": "input",
+                "message": "Path",
+                "merge": "append",
+                "input_template": "${INPUT}:/target",
+            },
+        }
+    )
+    assert appended.base == ["fixed"]
+    assert appended.prompt.merge.value == "append"
+
+    invalid = (
+        {
+            "default": "host",
+            "prompt": {"mode": "input", "message": "x", "merge": "append"},
+        },
+        {
+            "base": "fixed",
+            "prompt": {"mode": "input", "message": "x", "merge": "append"},
+        },
+        {
+            "base": ["fixed"],
+            "prompt": {"mode": "input", "message": "x"},
+        },
+        {
+            "prompt": {"mode": "input", "message": "x", "input_template": "no marker"},
+        },
+        {
+            "prompt": {
+                "mode": "input",
+                "message": "x",
+                "input_template": "${INPUT}-${INPUT}",
+            },
+        },
+        {
+            "prompt": {
+                "mode": "select",
+                "message": "x",
+                "options": ["a"],
+                "input_template": "${INPUT}",
+            },
+        },
+    )
+    for data in invalid:
+        with pytest.raises(ValidationError):
+            PromptValue.model_validate(data)
+
+
 def test_prompts_are_discovered_by_configuration_path():
     config = RigyardConfig.model_validate(
         {
@@ -84,6 +137,81 @@ def test_nested_values_environment_and_override_precedence():
     )
     assert context["containers.dev.name"] == "override"
     assert context.resolved("containers.dev.name").source.value == "cli"
+
+
+def test_input_template_applies_to_default_interactive_and_explicit_sources():
+    configured = PromptValue.model_validate(
+        {
+            "default": "default",
+            "prompt": {
+                "mode": "input",
+                "message": "Name",
+                "input_template": "${INPUT}_dev",
+            },
+        }
+    )
+    resolver = RuntimeValueResolver({"name": configured})
+
+    assert resolver.resolve(interactive=False)["name"] == "default_dev"
+    assert resolver.resolve(input_fn=lambda _: "interactive")["name"] == "interactive_dev"
+    assert resolver.resolve(values={"name": "values"}, interactive=False)["name"] == "values_dev"
+    assert resolver.resolve(
+        environ={environment_name("name"): "environment"}, interactive=False
+    )["name"] == "environment_dev"
+    assert resolver.resolve(overrides={"name": "cli"}, interactive=False)["name"] == "cli_dev"
+
+
+def test_append_preserves_base_and_templates_scalar_or_repeated_input():
+    scalar = PromptValue.model_validate(
+        {
+            "base": ["fixed:/workspace"],
+            "default": "~/sysroot",
+            "prompt": {
+                "mode": "input",
+                "message": "Sysroot",
+                "merge": "append",
+                "input_template": "${INPUT}:/opt/sysroot",
+            },
+        }
+    )
+    repeated = PromptValue.model_validate(
+        {
+            "base": ["fixed"],
+            "default": ["one"],
+            "prompt": {
+                "mode": "input",
+                "message": "Item",
+                "repeat": True,
+                "merge": "append",
+                "input_template": "prefix-${INPUT}",
+            },
+        }
+    )
+
+    assert RuntimeValueResolver({"mounts": scalar}).resolve(interactive=False)["mounts"] == [
+        "fixed:/workspace",
+        "~/sysroot:/opt/sysroot",
+    ]
+    assert RuntimeValueResolver({"items": repeated}).resolve(
+        values={"items": ["two", "three"]}, interactive=False
+    )["items"] == ["fixed", "prefix-two", "prefix-three"]
+
+
+def test_input_template_rejects_mapping_values():
+    configured = PromptValue.model_validate(
+        {
+            "prompt": {
+                "mode": "input",
+                "message": "Value",
+                "input_template": "${INPUT}-suffix",
+            }
+        }
+    )
+
+    with pytest.raises(ResolutionError, match="expected a scalar or list"):
+        RuntimeValueResolver({"value": configured}).resolve(
+            overrides={"value": {"nested": True}}, interactive=False
+        )
 
 
 def test_explicit_sources_are_normalized_by_interaction_mode():

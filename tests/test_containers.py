@@ -190,6 +190,54 @@ def test_use_case_resolves_selected_inline_values(tmp_path):
     assert plan.container_name == "chosen" and plan.privileged is True
 
 
+def test_container_composes_name_and_appends_a_templated_mount(tmp_path):
+    config = tmp_path / "rigyard.yaml"
+    config.write_text(
+        """version: 3
+metadata: {name: composed-container}
+sources: {containers: containers.yaml}
+"""
+    )
+    (tmp_path / "containers.yaml").write_text(
+        """cross-aarch64:
+  image: ubuntu:24.04
+  name:
+    default: nhybot_cross
+    prompt:
+      mode: input
+      message: Container prefix
+      input_template: ${INPUT}_dev
+  mounts:
+    base:
+      - ${RIGYARD_ROOT}:/workspace
+    default: ~/sysroots/aarch64
+    prompt:
+      mode: input
+      message: Sysroot path
+      merge: append
+      input_template: ${INPUT}:/opt/sysroots/aarch64
+"""
+    )
+
+    plan = CreateContainerUseCase(FakeBackend()).plan(
+        "cross-aarch64",
+        ResolutionRequest(
+            config,
+            overrides={
+                "containers.cross-aarch64.name": "selected",
+                "containers.cross-aarch64.mounts": "/data/sysroot",
+            },
+            interactive=False,
+        ),
+    )
+
+    assert plan.container_name == "selected_dev"
+    assert [(mount.source, mount.target) for mount in plan.mounts] == [
+        (str(tmp_path), "/workspace"),
+        ("/data/sysroot", "/opt/sysroots/aarch64"),
+    ]
+
+
 def test_cli_uses_default_project_config_and_path_overrides(tmp_path, monkeypatch, capsys):
     write_config(tmp_path)
     monkeypatch.chdir(tmp_path)
