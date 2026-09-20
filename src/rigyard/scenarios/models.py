@@ -20,6 +20,8 @@ RuntimeList = PromptValue | tuple[str, ...]
 RuntimeInteger = PromptValue | int
 RuntimePath = PromptValue | Path
 RestartPolicy = Literal["always", "if_not_running", "never"]
+StartupMode = Literal["parallel", "sequential"]
+RuntimeStartupMode = PromptValue | StartupMode
 
 
 def _validate_process_source(
@@ -82,6 +84,15 @@ class ScenarioGroupTemplate(BaseModel):
         return self
 
 
+class ScenarioStartupTemplate(BaseModel):
+    """Ordered launch policy for sibling tmux objects."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    mode: RuntimeStartupMode = "parallel"
+    interval_seconds: RuntimeInteger = 0
+
+
 class ScenarioInstanceTemplate(BaseModel):
     """One software system: one container or Compose service, one tmux window, several panes."""
 
@@ -91,6 +102,7 @@ class ScenarioInstanceTemplate(BaseModel):
     enabled: RuntimeBool = True
     container: RuntimeText | None = None
     service: RuntimeText | None = None
+    startup: ScenarioStartupTemplate = ScenarioStartupTemplate()
     groups: dict[str, ScenarioGroupTemplate] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -142,6 +154,7 @@ class ScenarioTemplate(BaseModel):
 
     description: str | None = None
     compose: ScenarioComposeTemplate | None = None
+    startup: ScenarioStartupTemplate = ScenarioStartupTemplate()
     instances: dict[str, ScenarioInstanceTemplate] = Field(min_length=1)
     profiles: dict[str, ScenarioProfileTemplate] = Field(min_length=1)
 
@@ -219,6 +232,13 @@ class ScenarioGroupSpec(BaseModel):
         return self
 
 
+class ScenarioStartupSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    mode: StartupMode = "parallel"
+    interval_seconds: int = Field(default=0, ge=0, le=3600)
+
+
 class ScenarioInstanceSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -226,6 +246,7 @@ class ScenarioInstanceSpec(BaseModel):
     enabled: bool = True
     container: str | None = None
     service: str | None = None
+    startup: ScenarioStartupSpec = ScenarioStartupSpec()
     groups: dict[str, ScenarioGroupSpec] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -269,11 +290,18 @@ class ScenarioGroupPlan:
 
 
 @dataclass(frozen=True)
+class ScenarioStartupPlan:
+    mode: StartupMode = "parallel"
+    interval_seconds: int = 0
+
+
+@dataclass(frozen=True)
 class ScenarioInstancePlan:
     name: str
     container: str | None
     groups: tuple[ScenarioGroupPlan, ...]
     service: str | None = None
+    startup: ScenarioStartupPlan = ScenarioStartupPlan()
 
 
 @dataclass(frozen=True)
@@ -298,6 +326,7 @@ class ScenarioPlan:
     mouse: bool = True
     keep_alive: bool = True
     partial: bool = False
+    startup: ScenarioStartupPlan = ScenarioStartupPlan()
 
 
 @dataclass(frozen=True)

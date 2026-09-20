@@ -15,6 +15,7 @@ from .models import (
     ScenarioInstancePlan,
     ScenarioPlan,
     ScenarioResult,
+    ScenarioStartupPlan,
 )
 from .process import (
     container_session_argv,
@@ -120,7 +121,9 @@ class ScenarioExecutor:
                         f"tmux window {instance.name!r} has {len(panes)} pane(s) "
                         f"but {len(instance.groups)} group(s)"
                     )
-                for group, (_, pane_index) in zip(instance.groups, panes, strict=True):
+                for group_index, (group, (_, pane_index)) in enumerate(
+                    zip(instance.groups, panes, strict=True)
+                ):
                     target = f"{window}.{pane_index}"
                     self._checked(
                         (
@@ -149,10 +152,12 @@ class ScenarioExecutor:
                         ("tmux", "select-pane", "-t", target, "-T", group.name),
                         f"cannot title tmux pane {group.name!r}",
                     )
+                    self._wait_for_next(instance.startup, group_index, len(instance.groups))
                 self._checked(
                     ("tmux", "select-layout", "-t", window, "tiled"),
                     f"cannot lay out tmux window {instance.name!r}",
                 )
+                self._wait_for_next(runtime_plan.startup, index, len(runtime_plan.instances))
         except Exception:
             if created:
                 self._clean_up(runtime_plan, created_session)
@@ -585,6 +590,19 @@ class ScenarioExecutor:
             ("tmux", "set-option", "-t", plan.session, "mouse", "on" if plan.mouse else "off"),
             "cannot configure tmux mouse mode",
         )
+
+    def _wait_for_next(
+        self,
+        startup: ScenarioStartupPlan,
+        index: int,
+        count: int,
+    ) -> None:
+        if (
+            startup.mode == "sequential"
+            and startup.interval_seconds > 0
+            and index + 1 < count
+        ):
+            self.sleep_fn(startup.interval_seconds)
 
     def _configure_window(self, window: str) -> None:
         for command, message in (

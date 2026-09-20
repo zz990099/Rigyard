@@ -13,10 +13,16 @@ Scenarios start development and debugging processes in Docker containers. Rigyar
 ```yaml
 robot-system:
   description: Robot development stack
+  startup:
+    mode: sequential
+    interval_seconds: 5
   instances:
     robot1:
       description: Primary robot
       container: robot-development
+      startup:
+        mode: sequential
+        interval_seconds: 2
       groups:
         drivers:
           setup: [/opt/ros/humble/setup.bash, install/setup.bash]
@@ -88,6 +94,7 @@ Dry-run output shows Compose environment names, not values.
 | --- | --- | ---: | --- | --- |
 | `description` | string | no | — | Menu description |
 | `compose` | mapping | no | — | Compose lifecycle configuration |
+| `startup` | mapping | no | Parallel | Startup policy between instance windows |
 | `instances` | mapping | yes | — | At least one instance |
 | `profiles` | mapping | yes | — | At least one profile |
 
@@ -108,9 +115,30 @@ Dry-run output shows Compose environment names, not values.
 | `enabled` | boolean | no | `true` | Included by default |
 | `container` | string | conditional | — | Existing-container target |
 | `service` | string | conditional | — | Compose service target |
+| `startup` | mapping | no | Parallel | Startup policy between group panes |
 | `groups` | mapping | yes | — | At least one group |
 
 Instance names become tmux window names and must match `[A-Za-z0-9][A-Za-z0-9_-]*`. Dots and colons conflict with tmux target syntax and are rejected during planning.
+
+## Startup ordering
+
+`startup` controls how sibling tmux objects are submitted. At scenario level it applies to
+instance windows; at instance level it applies to group panes:
+
+| Field | Type | Required | Default | Description |
+| --- | --- | ---: | --- | --- |
+| `mode` | `parallel` or `sequential` | no | `parallel` | Whether to wait between sibling launches |
+| `interval_seconds` | integer | no | `0` | Fixed wait from 0 through 3600 seconds |
+
+Mappings retain their YAML declaration order. In `parallel` mode Rigyard submits commands in that
+order without an intentional wait, so the processes run concurrently. In `sequential` mode it
+waits `interval_seconds` after successfully submitting one item and before submitting the next;
+there is no wait after the final item.
+
+For an instance with sequential panes, Rigyard submits every group with its configured pane
+interval. After the final pane is submitted, the scenario-level window interval begins. A
+successful submission does not mean that the process is ready. Use this fixed-delay policy to
+stagger launches, not as a readiness or health check.
 
 ## Group fields
 

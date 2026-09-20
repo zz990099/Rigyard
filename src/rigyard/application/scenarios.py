@@ -20,6 +20,7 @@ from ..scenarios.models import (
     ScenarioInstanceTemplate,
     ScenarioPlan,
     ScenarioProfileSpec,
+    ScenarioStartupSpec,
     ScenarioTemplate,
 )
 from ..scenarios.planner import ScenarioPlanner
@@ -86,12 +87,16 @@ class PlanScenarioUseCase:
         instances_prefix = f"scenarios.{scene_name}.instances"
         profile_prefix = f"scenarios.{scene_name}.profiles.{profile_name}"
         compose_prefix = f"scenarios.{scene_name}.compose"
+        startup_prefix = f"scenarios.{scene_name}.startup"
         profile_template = scenario.profiles[profile_name]
         profile_prompts = collect_prompts(profile_template, profile_prefix)
         compose_prompts = (
             collect_prompts(scenario.compose, compose_prefix)
             if scenario.compose is not None
             else {}
+        )
+        startup_prompts = (
+            collect_prompts(scenario.startup, startup_prefix) if resolve_group_runtime else {}
         )
         instance_prompts = {
             path: value
@@ -139,6 +144,7 @@ class PlanScenarioUseCase:
         selected = {
             **profile_prompts,
             **compose_prompts,
+            **startup_prompts,
             **instance_prompts,
             **group_prompts,
         }
@@ -151,6 +157,7 @@ class PlanScenarioUseCase:
                 selected.update(collect_prompts(instance.container, f"{prefix}.container"))
             if resolve_group_runtime:
                 selected.update(collect_prompts(instance.enabled, f"{prefix}.enabled"))
+                selected.update(collect_prompts(instance.startup, f"{prefix}.startup"))
                 for group_name in enabled_groups[name]:
                     selected.update(
                         collect_prompts(
@@ -198,6 +205,17 @@ class PlanScenarioUseCase:
                     service=materialize(
                         template.service, f"{prefix}.service", context, renderer
                     ),
+                    startup=(
+                        materialize_as(
+                            template.startup,
+                            f"{prefix}.startup",
+                            context,
+                            ScenarioStartupSpec,
+                            renderer,
+                        )
+                        if resolve_group_runtime
+                        else ScenarioStartupSpec()
+                    ),
                     groups=groups,
                 )
             else:
@@ -208,6 +226,17 @@ class PlanScenarioUseCase:
                 planned[name] = ScenarioInstanceSpec(
                     container=materialize(
                         template.container, f"{prefix}.container", context, renderer
+                    ),
+                    startup=(
+                        materialize_as(
+                            template.startup,
+                            f"{prefix}.startup",
+                            context,
+                            ScenarioStartupSpec,
+                            renderer,
+                        )
+                        if resolve_group_runtime
+                        else ScenarioStartupSpec()
                     ),
                     groups=groups,
                 )
@@ -230,12 +259,24 @@ class PlanScenarioUseCase:
             if scenario.compose is not None
             else None
         )
+        startup = (
+            materialize_as(
+                scenario.startup,
+                startup_prefix,
+                context,
+                ScenarioStartupSpec,
+                renderer,
+            )
+            if resolve_group_runtime
+            else ScenarioStartupSpec()
+        )
         return ScenarioPlanner().create_plan(
             scene_name,
             profile_name,
             planned,
             profile,
             compose,
+            startup,
             request.config_path,
             config.metadata.name,
             partial=bool(instances),

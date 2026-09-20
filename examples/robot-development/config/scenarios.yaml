@@ -2,10 +2,16 @@ description: Example scenarios
 
 robot-system:
   description: Example multi-process robot system
+  startup:
+    mode: sequential
+    interval_seconds: 3
   instances:
     robot:
       description: Robot software stack running in the development container
       container: robot-development
+      startup:
+        mode: sequential
+        interval_seconds: 1
       groups:
         drivers:
           script: /workspace/scripts/scenarios/drivers.sh

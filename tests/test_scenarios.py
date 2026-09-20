@@ -9,7 +9,12 @@ from rigyard.cli.main import run
 from rigyard.cli.menu.app import MenuApp
 from rigyard.cli.menu.prompt import MenuIO
 from rigyard.config.loader import load_config
-from rigyard.errors import ScenarioExecutionError, ScenarioPlanError, SchemaValidationError
+from rigyard.errors import (
+    ResolutionError,
+    ScenarioExecutionError,
+    ScenarioPlanError,
+    SchemaValidationError,
+)
 from rigyard.execution import CommandResult
 from rigyard.scenarios.executor import PANE_GROUP_OPTION, ScenarioExecutor
 from rigyard.scenarios.models import (
@@ -18,6 +23,7 @@ from rigyard.scenarios.models import (
     ScenarioInstancePlan,
     ScenarioPlan,
     ScenarioResult,
+    ScenarioStartupPlan,
 )
 from rigyard.scenarios.process import (
     command_line,
@@ -100,6 +106,49 @@ def test_plan_is_lazy_across_profiles_instances_and_groups(tmp_path: Path):
     assert groups[0].script == "/ros2_ws/drivers.sh"
     assert plan.session.startswith("tc-scenario-test-robot-")
     assert plan.mouse is True
+
+
+def test_plan_preserves_window_and_pane_startup_policies(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """robot:
+  startup: {mode: sequential, interval_seconds: 5}
+  instances:
+    robot1:
+      container: robot-dev
+      startup: {mode: sequential, interval_seconds: 2}
+      groups:
+        drivers: {script: /drivers.sh}
+        navigation: {script: /navigation.sh}
+  profiles:
+    development: {attach: false}
+""",
+    )
+
+    plan = PlanScenarioUseCase().plan(
+        "robot", "development", ResolutionRequest(config, interactive=False)
+    )
+
+    assert plan.startup == ScenarioStartupPlan("sequential", 5)
+    assert plan.instances[0].startup == ScenarioStartupPlan("sequential", 2)
+
+
+def test_startup_interval_must_be_in_the_supported_range(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """robot:
+  startup: {mode: sequential, interval_seconds: -1}
+  instances:
+    robot1: {container: robot-dev, groups: {drivers: {script: /drivers.sh}}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+
+    with pytest.raises(ResolutionError, match="greater than or equal to 0"):
+        PlanScenarioUseCase().plan(
+            "robot", "development", ResolutionRequest(config, interactive=False)
+        )
 
 
 def test_plan_selects_requested_instances(tmp_path: Path):
@@ -598,6 +647,7 @@ def instance(
     container: str | None = "robot-dev",
     service: str | None = None,
     groups: tuple[ScenarioGroupPlan, ...] = (),
+    startup: ScenarioStartupPlan | None = None,
 ) -> ScenarioInstancePlan:
     if service is not None:
         container = None
@@ -606,6 +656,7 @@ def instance(
         container,
         groups or (group("drivers"),),
         service=service,
+        startup=startup or ScenarioStartupPlan(),
     )
 
 
@@ -618,6 +669,7 @@ def scenario_plan(
     partial: bool = False,
     keep_alive: bool = True,
     compose: ScenarioComposePlan | None = None,
+    startup: ScenarioStartupPlan | None = None,
 ) -> ScenarioPlan:
     return ScenarioPlan(
         scene_name="robot",
@@ -632,6 +684,7 @@ def scenario_plan(
         mouse=mouse,
         partial=partial,
         keep_alive=keep_alive,
+        startup=startup or ScenarioStartupPlan(),
     )
 
 
@@ -942,6 +995,36 @@ def test_tmux_start_creates_one_window_per_instance_and_one_pane_per_group():
         for command in fake.commands
         if command[:2] == ("tmux", "select-layout")
     )
+
+
+def test_tmux_sequential_start_waits_only_between_panes_and_windows():
+    fake = FakeTmux()
+    waits: list[tuple[float, int, tuple[str, ...]]] = []
+
+    def record_wait(seconds: float) -> None:
+        started = sum(
+            command[:2] == ("tmux", "respawn-pane") for command in fake.commands
+        )
+        waits.append((seconds, started, tuple(fake.windows)))
+
+    plan = scenario_plan(
+        instance(
+            "robot1",
+            groups=(group("drivers"), group("localization"), group("navigation")),
+            startup=ScenarioStartupPlan("sequential", 2),
+        ),
+        instance("robot2", container="container-b", groups=(group("application"),)),
+        startup=ScenarioStartupPlan("sequential", 5),
+    )
+
+    ScenarioExecutor(fake, sleep_fn=record_wait).start(plan)
+
+    assert waits == [
+        (2, 1, ("robot1",)),
+        (2, 2, ("robot1",)),
+        (5, 3, ("robot1",)),
+        (0.4, 4, ("robot1", "robot2")),
+    ]
 
 
 def test_tmux_retiles_after_every_split_so_many_groups_fit():
@@ -1425,6 +1508,8 @@ def test_cli_dry_run_describes_existing_container_runtime(tmp_path: Path, capsys
     assert "Runtime: tmux in existing containers" in output
     assert "Instances: robot1" in output
     assert "Window robot1: container=robot-dev -> drivers" in output
+    assert "Window startup: parallel" in output
+    assert "Pane startup robot1: parallel" in output
     assert "Mouse mode: on" in output
     assert "Container restart: always" in output
 

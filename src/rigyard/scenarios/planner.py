@@ -15,6 +15,8 @@ from .models import (
     ScenarioInstanceSpec,
     ScenarioPlan,
     ScenarioProfileSpec,
+    ScenarioStartupPlan,
+    ScenarioStartupSpec,
 )
 
 CONTAINER_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
@@ -29,6 +31,7 @@ class ScenarioPlanner:
         instances: dict[str, ScenarioInstanceSpec],
         profile: ScenarioProfileSpec,
         compose: ScenarioComposeSpec | None,
+        startup: ScenarioStartupSpec,
         config_path: str | Path,
         project_name: str,
         *,
@@ -96,6 +99,7 @@ class ScenarioPlanner:
             mouse=profile.mouse,
             keep_alive=profile.keep_alive,
             partial=partial,
+            startup=_startup_plan(startup),
         )
 
 
@@ -116,7 +120,17 @@ def _instance_plan(name: str, instance: ScenarioInstanceSpec) -> ScenarioInstanc
     )
     if not groups:
         raise ScenarioPlanError(f"scenario instance {name!r} has no enabled groups")
-    return ScenarioInstancePlan(name, instance.container, groups, service=instance.service)
+    return ScenarioInstancePlan(
+        name,
+        instance.container,
+        groups,
+        service=instance.service,
+        startup=_startup_plan(instance.startup),
+    )
+
+
+def _startup_plan(startup: ScenarioStartupSpec) -> ScenarioStartupPlan:
+    return ScenarioStartupPlan(startup.mode, startup.interval_seconds)
 
 
 def _runtime_name(config_file: Path, project_name: str, scene_name: str) -> str:

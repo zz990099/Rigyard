@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..scenarios.models import ScenarioPlan
+from ..scenarios.models import ScenarioPlan, ScenarioStartupPlan
 from .style import Line, field, line
 
 
@@ -36,6 +36,7 @@ def describe_scenario(plan: ScenarioPlan) -> tuple[Line, ...]:
         field("Replace existing", str(plan.replace)),
         field("Mouse mode", "on" if plan.mouse else "off"),
         field("Keep pane alive", str(plan.keep_alive)),
+        field("Window startup", _startup_label(plan.startup, "windows")),
     ]
     if plan.compose is None:
         lines.append(field("Container restart", plan.restart_container))
@@ -55,15 +56,30 @@ def describe_scenario(plan: ScenarioPlan) -> tuple[Line, ...]:
                 ),
             )
         )
-    lines.extend(
-        line(
-            ("label", f"Window {instance.name}"),
-            ": ",
-            ("muted", "service=" if plan.compose is not None else "container="),
-            ("value", (instance.service if plan.compose is not None else instance.container) or ""),
-            ("muted", " -> "),
-            ("value", ", ".join(group.name for group in instance.groups)),
+    for instance in plan.instances:
+        lines.append(
+            line(
+                ("label", f"Window {instance.name}"),
+                ": ",
+                ("muted", "service=" if plan.compose is not None else "container="),
+                (
+                    "value",
+                    (instance.service if plan.compose is not None else instance.container) or "",
+                ),
+                ("muted", " -> "),
+                ("value", ", ".join(group.name for group in instance.groups)),
+            )
         )
-        for instance in plan.instances
-    )
+        lines.append(
+            field(
+                f"Pane startup {instance.name}",
+                _startup_label(instance.startup, "panes"),
+            )
+        )
     return tuple(lines)
+
+
+def _startup_label(startup: ScenarioStartupPlan, noun: str) -> str:
+    if startup.mode == "parallel":
+        return "parallel"
+    return f"sequential ({startup.interval_seconds}s between {noun})"
