@@ -7,13 +7,14 @@ This file records notable user-facing changes. Once releases begin, the project 
 ### Added
 
 - Structured user documentation for configuration, templates, runtime values, and core features.
-- Project-local command aliases through `rigyard init --alias NAME`.
+- Python-environment command aliases through `rigyard init --alias NAME`.
 - User-defined test run and result-reporting commands through `rigyard test run` and
   `rigyard test report`.
 - Constrained project-specific container tasks through `rigyard task run` and the fixed
   configuration-driven Tasks menu.
 - Manifest-configured workspace command aliases with CLI override and opt-out controls.
 - Terminal logos loaded from external UTF-8 files through templated paths.
+- Safe, project-aware alias removal through `rigyard alias remove`.
 
 ### Changed
 

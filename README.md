@@ -119,8 +119,11 @@ When the manifest lives elsewhere, pass it explicitly or bind the current worksp
 ```bash
 rigyard --config path/to/rigyard.yaml validate
 rigyard init -f path/to/rigyard.yaml
-./robot build native
+robot build native
 ```
+
+Configured aliases are installed in the active Conda or virtual environment. They are available as
+bare commands while that environment is active and can be removed with `rigyard alias remove`.
 
 ## Documentation
 

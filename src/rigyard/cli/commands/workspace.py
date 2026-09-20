@@ -32,7 +32,7 @@ def register_workspace_commands(commands: Any) -> None:
     alias_options.add_argument(
         "--alias",
         metavar="NAME",
-        help="override the project-local command alias configured by the manifest",
+        help="override the environment command alias configured by the manifest",
     )
     alias_options.add_argument(
         "--no-alias",

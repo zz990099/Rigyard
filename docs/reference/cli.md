@@ -68,22 +68,33 @@ Scenario actions:
 
 ```bash
 rigyard init -f PATH [--force] [--alias NAME | --no-alias]
+rigyard alias remove [NAME]
 ```
 
 The command validates the configuration and writes `.rigyard/context.yaml` in the current directory. Resolution order is explicit `--config`, current-directory binding, then current-directory `rigyard.yaml`. Parent directories are not searched.
 
 When the manifest is inside the workspace, the binding records a relative path so the same checkout can use different host and container mount roots. Rebinding the same configuration is idempotent; changing it requires `--force`.
 
-The optional `workspace.command_alias` manifest field creates an executable wrapper in the
-workspace root. `--alias NAME` overrides that value, while `--no-alias` disables it for one
-initialization:
+The optional `workspace.command_alias` manifest field creates an executable wrapper in the scripts
+directory of the active Conda or virtual environment. `--alias NAME` overrides that value, while
+`--no-alias` disables it for one initialization:
 
 ```bash
 rigyard init -f src/robot/.rigyard/rigyard.yaml
-./robot build native
+robot build native
 ```
 
-The wrapper locates the bound configuration relative to itself and invokes the stable `rigyard --config ...` entry point. It does not modify PATH or write to a user-wide bin directory. Existing files are protected unless `--force` explicitly replaces them.
+Rigyard requires the active environment to provide the running Rigyard interpreter, then binds the
+wrapper to that interpreter and an absolute configuration path. Deactivating the environment removes
+its scripts directory from normal command lookup. Rigyard does not modify `PATH` or write to a
+user-wide bin directory. Existing files and symbolic links are protected unless `--force`
+explicitly replaces them during initialization.
+
+`rigyard alias remove` uses `workspace.command_alias`; pass `NAME` to remove an alias that was
+created with a CLI override. Removal is idempotent and only accepts a regular file carrying Rigyard's
+generated marker for the selected configuration. It refuses unrelated files, symbolic links, and
+aliases belonging to another project. Project moves require re-running `rigyard init --force`
+because environment aliases store an absolute configuration path.
 
 ## Interactive menu
 

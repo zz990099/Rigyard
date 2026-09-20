@@ -2,7 +2,7 @@
 
 This is Rigyard's full reference project. It demonstrates:
 
-- a project-local command alias configured as `robot`;
+- a command alias named `robot` installed in the active Python environment;
 - a terminal logo loaded from `branding/logo.txt` through a global variable;
 - layered image builds and interactive build arguments;
 - development and AArch64 cross-compilation containers;
@@ -15,11 +15,16 @@ Initialize a disposable workspace from the repository root:
 
 ```bash
 rigyard init -f examples/robot-development/rigyard.yaml
-./robot validate
+robot validate
 ```
 
 Use `rigyard init -f examples/robot-development/rigyard.yaml --no-alias` to bind the workspace
-without creating `./robot`, or `--alias NAME` to override the configured name.
+without creating `robot`, or `--alias NAME` to override the configured name. Alias creation requires
+the Conda or virtual environment that provides Rigyard to be active. Remove it safely with:
+
+```bash
+rigyard alias remove
+```
 
 The commands can also be previewed directly:
 

@@ -32,7 +32,7 @@ sources:
 | `metadata.name` | string | yes | Must not be blank |
 | `metadata.description` | string | no | Project description |
 | `workspace` | mapping | no | Defaults used by workspace initialization |
-| `workspace.command_alias` | string | no | Project-local command created by `rigyard init` |
+| `workspace.command_alias` | string | no | Command installed in the active Python environment by `rigyard init` |
 | `branding` | mapping | no | Interactive terminal branding |
 | `branding.logo` | string | no | UTF-8 multiline terminal logo |
 | `branding.logo_file` | path | no | UTF-8 text file containing the terminal logo |
@@ -90,7 +90,8 @@ The logo is shown only by the interactive menu. Commands, help output, redirecte
 
 ## Workspace defaults
 
-`workspace.command_alias` defines the project-local executable created by `rigyard init`:
+`workspace.command_alias` defines the executable installed by `rigyard init` in the scripts
+directory of the active Conda or virtual environment:
 
 ```yaml
 workspace:
@@ -99,7 +100,9 @@ workspace:
 
 Names must begin with a letter, may contain letters, digits, `_` and `-`, and cannot be `rigyard`.
 Use `rigyard init --alias NAME` to override the configured name or `rigyard init --no-alias` to
-initialize without creating it. See [Workspace initialization](../reference/cli.md#workspace-initialization).
+initialize without creating it. Rigyard verifies that its running Python interpreter belongs to the
+active environment; it does not write aliases to system directories, pipx shims, or
+`~/.local/bin`. See [Workspace initialization](../reference/cli.md#workspace-initialization).
 
 ## Definition names
 

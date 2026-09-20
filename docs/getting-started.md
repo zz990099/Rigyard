@@ -55,16 +55,24 @@ When the everyday working directory differs from the configuration directory, ru
 
 ```bash
 rigyard init -f examples/robot-development/rigyard.yaml
-./robot validate
+robot validate
 ```
 
 The binding applies only to that directory; Rigyard does not search parent directories. This
-example configures `workspace.command_alias: robot`. A CLI option can override or disable it:
+example configures `workspace.command_alias: robot`. With the Python environment that provides
+Rigyard active, initialization installs `robot` into that environment's scripts directory. A CLI
+option can override or disable it:
 
 ```bash
 rigyard init -f examples/robot-development/rigyard.yaml --alias xxxbot
-./xxxbot validate
+xxxbot validate
 rigyard init -f examples/robot-development/rigyard.yaml --no-alias --force
+```
+
+Remove the configured Alias from the active environment when it is no longer needed:
+
+```bash
+rigyard alias remove
 ```
 
 Continue with the [configuration overview](configuration/index.md) or select a [core feature](index.md#core-features).
