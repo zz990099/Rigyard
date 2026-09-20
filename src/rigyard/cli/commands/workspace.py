@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-from ...workspace import initialize_workspace
+from ...workspace import initialize_workspace, remove_environment_alias
 from ..common import print_fields
 
 
@@ -41,6 +41,22 @@ def register_workspace_commands(commands: Any) -> None:
     )
     initialize.set_defaults(handler=_initialize)
 
+    alias = commands.add_parser(
+        "alias",
+        help="manage the current project's environment command alias",
+    )
+    alias_commands = alias.add_subparsers(dest="alias_command", required=True)
+    remove = alias_commands.add_parser(
+        "remove",
+        help="remove an alias generated for this configuration",
+    )
+    remove.add_argument(
+        "name",
+        nargs="?",
+        help="alias name; defaults to workspace.command_alias",
+    )
+    remove.set_defaults(handler=_remove_alias)
+
 
 def _initialize(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
     result = initialize_workspace(
@@ -63,4 +79,15 @@ def _initialize(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
             )
         )
     print_fields(args.style, fields)
+    return 0
+
+
+def _remove_alias(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
+    result = remove_environment_alias(args.config_path, args.name)
+    message = (
+        f"Removed environment command alias: {result.path}"
+        if result.removed
+        else f"Environment command alias already absent: {result.path}"
+    )
+    print_fields(args.style, (message,))
     return 0

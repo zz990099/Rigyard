@@ -290,3 +290,80 @@ def test_environment_alias_rejects_a_different_active_interpreter(
 
     with pytest.raises(WorkspaceError, match="does not provide the running rigyard"):
         workspace_module._active_environment_scripts_dir()
+
+
+def test_alias_remove_deletes_the_configured_environment_command(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    manifest = project_with_alias(workspace, "robot")
+    monkeypatch.chdir(workspace)
+    assert run(["init", "-f", str(manifest)]) == 0
+    capsys.readouterr()
+
+    assert run(["alias", "remove"]) == 0
+
+    assert not (environment_scripts / "robot").exists()
+    assert "Removed environment command alias:" in capsys.readouterr().out
+
+
+def test_alias_remove_accepts_an_explicit_name_and_is_idempotent(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    manifest = project(workspace)
+    monkeypatch.chdir(workspace)
+    assert run(["init", "-f", str(manifest), "--alias", "robot"]) == 0
+    capsys.readouterr()
+
+    assert run(["alias", "remove", "robot"]) == 0
+    assert run(["alias", "remove", "robot"]) == 0
+
+    assert not (environment_scripts / "robot").exists()
+    assert "already absent:" in capsys.readouterr().out
+
+
+def test_alias_remove_refuses_unmanaged_or_other_project_files(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    project_with_alias(workspace, "robot")
+    monkeypatch.chdir(workspace)
+    alias = environment_scripts / "robot"
+    alias.write_text("user command\n", encoding="utf-8")
+
+    assert run(["alias", "remove"]) == 2
+    assert alias.read_text(encoding="utf-8") == "user command\n"
+    assert "not generated for this configuration" in capsys.readouterr().err
+
+    other = project(tmp_path / "other")
+    alias.write_text(workspace_module._alias_script(other), encoding="utf-8")
+    assert run(["alias", "remove"]) == 2
+    assert alias.exists()
+    assert "not generated for this configuration" in capsys.readouterr().err
+
+
+def test_alias_remove_refuses_symlinks(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    project_with_alias(workspace, "robot")
+    monkeypatch.chdir(workspace)
+    target = tmp_path / "target"
+    target.write_text("keep\n", encoding="utf-8")
+    (environment_scripts / "robot").symlink_to(target)
+
+    assert run(["alias", "remove"]) == 2
+    assert target.read_text(encoding="utf-8") == "keep\n"
+    assert "refusing to remove symbolic link" in capsys.readouterr().err
+
+
+def test_alias_remove_requires_a_name_when_none_is_configured(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    project(workspace)
+    monkeypatch.chdir(workspace)
+
+    assert run(["alias", "remove"]) == 2
+    assert "pass an alias name" in capsys.readouterr().err
