@@ -182,6 +182,7 @@ def sample_plan(action="report") -> CommandPlan:
         environment=(),
         environment_overrides=(),
         timeout_seconds=30,
+        tty="auto",
     )
 
 

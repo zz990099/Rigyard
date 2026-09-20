@@ -14,6 +14,7 @@ clean:
   interpreter: [/bin/bash, -euo, pipefail]
   workdir: /workspace
   user: root
+  tty: auto
   setup:
     - /opt/ros/humble/setup.bash
   environment:
@@ -48,6 +49,7 @@ diagnose:
 | `setup` | string list | no | `[]` | Container scripts sourced in order |
 | `environment` | string mapping | no | `{}` | Task-only environment overrides |
 | `timeout_seconds` | integer | no | unlimited | 1 through 86400 seconds |
+| `tty` | `auto`, `always`, or `never` | no | `auto` | Container TTY allocation policy |
 | `menu` | mapping | no | CLI only | Fixed Tasks-menu presentation |
 | `menu.enabled` | boolean | no | `true` | Show this task when `menu` is present |
 | `menu.label` | non-blank string | no | Task name and description | Menu label override |
@@ -60,6 +62,8 @@ All business fields except menu presentation settings support corresponding [run
 The container must already exist and be running. Rigyard checks its state but does not create, start, or restart it. Setup scripts are sourced in order before the task script is executed. The host never interprets the configured command through an implicit shell.
 
 Task stdout and stderr are streamed unchanged. Rigyard does not parse or persist task output. A non-zero user-command exit status becomes the standard Rigyard execution-backend error.
+
+`tty: auto` allocates a container TTY only when Rigyard's standard output is a terminal. Use `always` to force allocation or `never` to keep output non-interactive.
 
 ## Commands
 

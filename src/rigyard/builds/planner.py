@@ -14,6 +14,8 @@ class BuildPlanner:
         spec: BuildSpec,
     ) -> BuildPlan:
         docker = ["docker", "exec"]
+        if spec.tty == "always":
+            docker.append("--tty")
         if spec.user is not None:
             docker.append(f"--user={spec.user}")
         if spec.workdir is not None:
@@ -31,6 +33,7 @@ class BuildPlanner:
             environment=tuple(sorted(spec.environment.items())),
             environment_overrides=tuple(sorted(spec.environment)),
             timeout_seconds=spec.timeout_seconds,
+            tty=spec.tty,
         )
 
 

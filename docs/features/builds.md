@@ -12,6 +12,7 @@ native:
   interpreter: [/bin/bash, -euo, pipefail]
   workdir: ${CONTAINER_WORKSPACE_ROOT}
   user: root
+  tty: auto
   setup:
     - /opt/ros/humble/setup.bash
     - install/setup.bash
@@ -35,6 +36,7 @@ native:
 | `interpreter` | string list | no | `[/bin/sh, -eu]` | Non-empty container interpreter argv |
 | `workdir` | path | no | Container default | Container working directory |
 | `user` | string | no | Container default | Passed to `docker exec --user` |
+| `tty` | `auto`, `always`, or `never` | no | `auto` | Container TTY allocation policy |
 | `setup` | string list | no | `[]` | Container scripts sourced in order |
 | `environment` | string mapping | no | `{}` | Build-only environment; host environment is not inherited |
 | `timeout_seconds` | integer | no | unlimited | 1 through 86400 seconds |
@@ -52,6 +54,8 @@ exec /bin/bash -euo pipefail /workspace/scripts/build-native.sh
 ```
 
 The interpreter, setup scripts, build script, and workdir are container-side values. Rigyard invokes `docker exec` through argv and never asks the host shell to interpret the business command. Only explicitly configured environment overrides are passed.
+
+`tty: auto` adds `docker exec --tty` when Rigyard's standard output is connected to a terminal. This enables dynamic progress displays such as colcon's status line while keeping redirected output and CI logs free of terminal control characters. Use `always` to force TTY allocation or `never` to disable it.
 
 `timeout_seconds` controls the host-side `docker exec` client and cannot guarantee termination of every process spawned inside the container. For strict process-tree timeout behavior, use a container-side mechanism such as `timeout` in the build script.
 

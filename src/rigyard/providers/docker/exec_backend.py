@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import subprocess
+import sys
+from collections.abc import Callable
 
 from ...errors import BackendUnavailableError
-from ...execution import CommandRunner, SubprocessRunner
+from ...execution import CommandRunner, SubprocessRunner, TtyMode
 
 
 class DockerExecError(Exception):
@@ -13,8 +15,13 @@ class DockerExecError(Exception):
 
 
 class DockerExecExecutor:
-    def __init__(self, runner: CommandRunner | None = None) -> None:
+    def __init__(
+        self,
+        runner: CommandRunner | None = None,
+        is_terminal: Callable[[], bool] | None = None,
+    ) -> None:
         self.runner = runner or SubprocessRunner()
+        self.is_terminal = is_terminal or _stdout_is_terminal
 
     def execute(
         self,
@@ -24,8 +31,11 @@ class DockerExecExecutor:
         action_label: str,
         unavailable_label: str,
         timeout_seconds: int | None,
+        tty: TtyMode = "auto",
     ) -> None:
         self._check_container(container)
+        if tty == "auto" and self.is_terminal():
+            command = _with_tty(command)
         try:
             result = self.runner.run(
                 command,
@@ -63,3 +73,14 @@ class DockerExecExecutor:
             raise DockerExecError(
                 f"container {container!r} is not running; start it before executing commands"
             )
+
+
+def _stdout_is_terminal() -> bool:
+    isatty = getattr(sys.stdout, "isatty", None)
+    return bool(isatty is not None and isatty())
+
+
+def _with_tty(command: tuple[str, ...]) -> tuple[str, ...]:
+    if command[:2] != ("docker", "exec") or "--tty" in command[2:]:
+        return command
+    return (*command[:2], "--tty", *command[2:])

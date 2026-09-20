@@ -21,6 +21,7 @@ class DockerExecTestBackend:
                 action_label=label,
                 unavailable_label=label,
                 timeout_seconds=plan.timeout_seconds,
+                tty=plan.tty,
             )
         except DockerExecError as exc:
             raise TestExecutionError(str(exc)) from exc

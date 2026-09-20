@@ -10,6 +10,8 @@ from .models import TaskPlan, TaskSpec
 class TaskPlanner:
     def create_plan(self, task_name: str, spec: TaskSpec) -> TaskPlan:
         docker = ["docker", "exec"]
+        if spec.tty == "always":
+            docker.append("--tty")
         if spec.user is not None:
             docker.append(f"--user={spec.user}")
         if spec.workdir is not None:
@@ -27,6 +29,7 @@ class TaskPlanner:
             environment=tuple(sorted(spec.environment.items())),
             environment_overrides=tuple(sorted(spec.environment)),
             timeout_seconds=spec.timeout_seconds,
+            tty=spec.tty,
         )
 
 

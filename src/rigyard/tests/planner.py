@@ -16,6 +16,8 @@ class TestPlanner:
     ) -> TestPlan:
         action_spec = spec.run if action == "run" else spec.report
         docker = ["docker", "exec"]
+        if spec.tty == "always":
+            docker.append("--tty")
         if spec.user is not None:
             docker.append(f"--user={spec.user}")
         if spec.workdir is not None:
@@ -34,6 +36,7 @@ class TestPlanner:
             environment=tuple(sorted(spec.environment.items())),
             environment_overrides=tuple(sorted(spec.environment)),
             timeout_seconds=action_spec.timeout_seconds,
+            tty=spec.tty,
         )
 
 

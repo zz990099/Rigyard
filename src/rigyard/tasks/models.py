@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from ..execution import TtyMode
 from ..parameters.models import PromptValue
 
 ENVIRONMENT_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -52,6 +53,7 @@ class TaskTemplate(BaseModel):
     setup: RuntimeList = ()
     environment: dict[str, RuntimeText] = Field(default_factory=dict)
     timeout_seconds: RuntimeInteger | None = None
+    tty: TtyMode = "auto"
     menu: TaskMenu | None = None
 
     @field_validator("container")
@@ -94,6 +96,7 @@ class TaskSpec(BaseModel):
     setup: tuple[str, ...] = ()
     environment: dict[str, str] = Field(default_factory=dict)
     timeout_seconds: int | None = Field(default=None, gt=0, le=86400)
+    tty: TtyMode = "auto"
     menu: TaskMenu | None = None
 
     @field_validator("setup")
@@ -122,6 +125,7 @@ class TaskPlan:
     environment: tuple[tuple[str, str], ...]
     environment_overrides: tuple[str, ...]
     timeout_seconds: int | None
+    tty: TtyMode
 
 
 @dataclass(frozen=True)

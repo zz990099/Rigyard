@@ -308,7 +308,36 @@ def sample_plan() -> BuildPlan:
         environment=(("BUILD_TYPE", "Release"),),
         environment_overrides=("BUILD_TYPE",),
         timeout_seconds=30,
+        tty="auto",
     )
+
+
+def test_tty_policy_controls_docker_exec(tmp_path: Path):
+    config = project(
+        tmp_path,
+        "native: {container: dev, script: /workspace/build.sh, tty: always}\n",
+    )
+    plan = BuildProjectUseCase(RecordingBackend()).plan(
+        "native", ResolutionRequest(config, interactive=False)
+    )
+
+    assert plan.tty == "always"
+    assert plan.command[:3] == ("docker", "exec", "--tty")
+
+
+def test_auto_tty_is_allocated_only_for_terminal_output():
+    plan = sample_plan()
+    terminal_runner = FakeRunner([CommandResult(0, "true\n"), CommandResult(0)])
+    terminal_backend = DockerExecBuildBackend(terminal_runner)
+    terminal_backend.executor.is_terminal = lambda: True
+    terminal_backend.execute(plan)
+    assert terminal_runner.calls[1][0][:3] == ("docker", "exec", "--tty")
+
+    redirected_runner = FakeRunner([CommandResult(0, "true\n"), CommandResult(0)])
+    redirected_backend = DockerExecBuildBackend(redirected_runner)
+    redirected_backend.executor.is_terminal = lambda: False
+    redirected_backend.execute(plan)
+    assert redirected_runner.calls[1][0] == plan.command
 
 
 def test_plan_lines_keep_their_text_and_carry_roles():

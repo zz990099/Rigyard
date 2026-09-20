@@ -15,6 +15,7 @@ unit:
   container: robot-development
   workdir: /workspace
   user: root
+  tty: auto
   setup:
     - /opt/ros/humble/setup.bash
     - install/setup.bash
@@ -42,6 +43,7 @@ unit:
 | `container` | string | yes | — | Existing container name or ID |
 | `workdir` | path | no | Container default | Container working directory |
 | `user` | string | no | Container default | Passed to `docker exec --user` |
+| `tty` | `auto`, `always`, or `never` | no | `auto` | Container TTY allocation policy |
 | `setup` | string list | no | `[]` | Container scripts sourced in order |
 | `environment` | string mapping | no | `{}` | Environment passed to both actions |
 | `run` | action | yes | — | Test execution command |
@@ -57,6 +59,8 @@ All business fields support corresponding [runtime values](../configuration/runt
 The container must already exist and be running. Rigyard checks its state but does not create, start, or restart it. Setup scripts are sourced in order before the selected action script is executed. The host never interprets the configured command through an implicit shell.
 
 The report command has no special output contract. It can run `colcon test-result --verbose`, print a pytest summary, display logs, calculate coverage, or invoke any project-specific reporter. Rigyard streams that output exactly as produced.
+
+`tty: auto` allocates a container TTY only when Rigyard's standard output is a terminal. Use `always` to force allocation or `never` to keep output non-interactive.
 
 ## Commands
 
