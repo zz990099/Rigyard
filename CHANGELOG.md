@@ -15,6 +15,7 @@ This file records notable user-facing changes. Once releases begin, the project 
 - Manifest-configured workspace command aliases with CLI override and opt-out controls.
 - Terminal logos loaded from external UTF-8 files through templated paths.
 - Safe, project-aware alias removal through `rigyard alias remove`.
+- Prompt-local `${INPUT}` composition and explicit list append semantics for runtime values.
 
 ### Changed
 

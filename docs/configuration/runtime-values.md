@@ -15,6 +15,7 @@ Only the selected resource is resolved. Building `images.development`, for examp
 ## PromptValue structure
 
 ```yaml
+base: [always-retained]     # Input with merge: append only
 default: optional-value
 prompt:
   mode: input | confirm | select
@@ -26,9 +27,11 @@ prompt:
     running_only: true
   repeat: false             # Input only
   item_hint: VALUE          # Hint for repeated input
+  merge: replace | append   # Input only; defaults to replace
+  input_template: ${INPUT}  # Input only; exactly one placeholder
 ```
 
-`default` is optional. Without it, non-interactive execution requires a values file, an environment variable, or `--set`.
+`default` is optional. Without it, non-interactive execution requires a values file, an environment variable, or `--set`. Existing configurations keep replacement behavior because `merge` defaults to `replace`.
 
 ## Modes
 
@@ -39,6 +42,37 @@ prompt:
 | `select` | Selected candidate | Requires non-empty `options` or a `source` |
 
 The final business field validates the resolved type and range.
+
+## Input composition
+
+An input prompt can transform its selected value before the business field receives it. `${INPUT}` is a prompt-local placeholder and must appear exactly once in `input_template`:
+
+```yaml
+name:
+  default: robot-cross
+  prompt:
+    mode: input
+    message: Enter the container prefix
+    input_template: "${INPUT}_dev"
+```
+
+The default resolves to `robot-cross_dev`; entering `trial` resolves to `trial_dev`. Values files, environment overrides, and `--set` supply the same raw input and receive the same transformation.
+
+List fields can either replace the whole value or append transformed entries to a fixed base. Append mode requires an explicit list-valued `base`:
+
+```yaml
+mounts:
+  base:
+    - ${PROJECT_ROOT}:/workspace
+  default: ~/sysroots/aarch64
+  prompt:
+    mode: input
+    merge: append
+    message: Enter the AArch64 sysroot directory
+    input_template: "${INPUT}:/opt/sysroots/aarch64"
+```
+
+This always retains the workspace mount and adds one user-selected sysroot mount. Add `repeat: true` and use a list-valued default when multiple additions are allowed. With the default `merge: replace`, the selected value replaces the complete business field and `base` is not allowed.
 
 ## Static options
 
@@ -136,9 +170,9 @@ rigyard container create development \
 
 Unknown paths are errors, preventing silent spelling mistakes.
 
-## Template ordering
+## Resolution ordering
 
-A PromptValue first selects its raw value. [String templates](templates.md) then expand recursively, followed by business-field validation. Defaults and explicit values may therefore contain templates:
+A PromptValue first selects its raw value. Rigyard then applies `input_template`, performs the configured append or replacement, expands [global string templates](templates.md) recursively, and finally validates the business field. Defaults, bases, and explicit values may therefore contain global templates:
 
 ```yaml
 name:
@@ -149,3 +183,5 @@ name:
 ```
 
 The prompt displays the rendered default. Pressing Enter still selects the raw default, which is expanded during the common template phase.
+
+`${INPUT}` is recognized only in `prompt.input_template`; it is not a global variable. Any global expressions in `input_template`, such as `${CONTAINER_WORKSPACE_ROOT}`, are expanded after the input substitution.

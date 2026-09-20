@@ -62,7 +62,7 @@ Each mount uses `SOURCE:TARGET[:ro|rw]`:
 - Targets must be absolute container paths and cannot repeat.
 - The mode defaults to `rw` and may only be `ro` or `rw`.
 
-Repeated input is also supported:
+Replacement input is supported and remains the default behavior:
 
 ```yaml
 mounts:
@@ -73,6 +73,22 @@ mounts:
     message: Enter a mount
     item_hint: SOURCE:TARGET[:ro]
 ```
+
+Use `base` with `merge: append` when some mounts must always remain while the user supplies additions:
+
+```yaml
+mounts:
+  base:
+    - ${PROJECT_ROOT}:/workspace
+  default: ~/sysroots/aarch64
+  prompt:
+    mode: input
+    merge: append
+    message: Enter the AArch64 sysroot directory
+    input_template: "${INPUT}:/opt/sysroots/aarch64"
+```
+
+The input template is applied to each selected item. Set `repeat: true` with a list-valued default to append multiple mounts. See [Input composition](../configuration/runtime-values.md#input-composition).
 
 ## Environment
 
@@ -98,10 +114,22 @@ Planning fails when a referenced host variable has no default and is missing. St
 
 ```yaml
 cross-aarch64:
+  name:
+    default: robot-cross-aarch64
+    prompt:
+      mode: input
+      message: Enter the cross-compilation container prefix
+      input_template: "${INPUT}_dev"
   image: example/cross-aarch64-base:latest
   mounts:
-    - .:/workspace
-    - /opt/robot/sysroot-aarch64:/opt/sysroot
+    base:
+      - ${PROJECT_ROOT}:/workspace
+    default: ~/sysroots/aarch64
+    prompt:
+      mode: input
+      merge: append
+      message: Enter the AArch64 sysroot directory
+      input_template: "${INPUT}:/opt/sysroots/aarch64"
   workdir: /workspace
   lifecycle:
     post_create:
@@ -111,7 +139,7 @@ cross-aarch64:
         user: root
         workdir: /workspace
         environment:
-          SYSROOT: /opt/sysroot
+          SYSROOT: /opt/sysroots/aarch64
         timeout_seconds: 300
     post_start:
       - name: verify-rigyard

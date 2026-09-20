@@ -13,7 +13,7 @@ This page is a compact index for schema version 3. The feature guides define com
 | RuntimeList | string list | PromptValue |
 | RuntimeScalar | string, integer, float, or boolean | PromptValue |
 
-A PromptValue contains optional `default` and required `prompt` fields. See [Runtime values](../configuration/runtime-values.md).
+A PromptValue contains an optional `default` and a required `prompt`. Prompt fields are `mode`, `message`, `options`, `source`, `repeat`, `item_hint`, `merge`, and `input_template`. Input prompts default to `merge: replace`; `merge: append` requires a list-valued PromptValue `base`. `input_template` must contain `${INPUT}` exactly once. See [Runtime values](../configuration/runtime-values.md).
 
 ## Root manifest
 

@@ -5,7 +5,7 @@ This is Rigyard's full reference project. It demonstrates:
 - a command alias named `robot` installed in the active Python environment;
 - a terminal logo loaded from `branding/logo.txt` through a global variable;
 - layered image builds and interactive build arguments;
-- development and AArch64 cross-compilation containers;
+- development and AArch64 cross-compilation containers, including composed names and sysroot mounts;
 - `post_create` and `post_start` lifecycle hooks;
 - native builds, test execution and user-defined test reports;
 - a confirmed menu task and a CLI-only diagnostics task;

@@ -82,6 +82,8 @@ A command captures time once, so timestamps remain consistent across all fields 
 
 Templates recursively process selected operation values in strings, paths, lists, tuples, mapping values, resolved PromptValues, and static prompt options.
 
+`${INPUT}` is separate from global templates. It is valid only in an input prompt's `input_template`, where it is replaced by the raw selected input before the expressions in this page are expanded. See [Input composition](runtime-values.md#input-composition).
+
 `branding.logo_file` is resolved eagerly because Rigyard must load the terminal asset with the root
 configuration. It supports the same expressions, including variables declared earlier in
 `variables`. If its path uses `${env:NAME}`, that environment variable must exist even during
