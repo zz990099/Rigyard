@@ -21,7 +21,9 @@ def register_scenario_commands(commands: Any) -> None:
     scene = commands.add_parser("scene", help="start and manage scenarios")
     actions = scene.add_subparsers(dest="scene_command", required=True)
 
-    start = _operation(actions, "start", "start a scenario profile")
+    start = _operation(
+        actions, "start", "start a scenario profile", instance_mode="multiple"
+    )
     start.add_argument("--dry-run", action="store_true", help="show the plan without starting")
     start.add_argument("--replace", action="store_true", help="replace an existing tmux session")
     start.add_argument(
@@ -31,24 +33,38 @@ def register_scenario_commands(commands: Any) -> None:
     )
     start.set_defaults(handler=_start)
 
-    stop = _operation(actions, "stop", "stop a scenario profile")
+    stop = _operation(
+        actions, "stop", "stop a scenario profile", instance_mode="multiple"
+    )
     stop.set_defaults(handler=_stop)
     down = _operation(actions, "down", "stop a scenario and remove its Compose environment")
     down.set_defaults(handler=_down)
-    status = _operation(actions, "status", "show scenario status")
+    status = _operation(
+        actions, "status", "show scenario status", instance_mode="multiple"
+    )
     status.set_defaults(handler=_status)
 
-    attach = _operation(actions, "attach", "attach to a running tmux scenario")
+    attach = _operation(
+        actions, "attach", "attach to a running tmux scenario", instance_mode="single"
+    )
     attach.add_argument("--group", help="select the initial tmux pane (group)")
     attach.set_defaults(handler=_attach)
 
-    logs = _operation(actions, "logs", "show scenario logs")
+    logs = _operation(
+        actions, "logs", "show scenario logs", instance_mode="single"
+    )
     logs.add_argument("--group", help="show one scenario group")
     logs.add_argument("--follow", action="store_true", help="follow logs interactively")
     logs.set_defaults(handler=_logs)
 
 
-def _operation(actions: Any, name: str, help_text: str) -> argparse.ArgumentParser:
+def _operation(
+    actions: Any,
+    name: str,
+    help_text: str,
+    *,
+    instance_mode: str | None = None,
+) -> argparse.ArgumentParser:
     command = actions.add_parser(name, help=help_text)
     command.add_argument("scene_name", help="scenario configuration name under scenarios")
     command.add_argument(
@@ -57,13 +73,20 @@ def _operation(actions: Any, name: str, help_text: str) -> argparse.ArgumentPars
         default=None,
         help="profile name under the selected scenario (default: the only profile)",
     )
-    command.add_argument(
-        "--instance",
-        dest="instances",
-        action="append",
-        metavar="NAME",
-        help="run one scenario instance; repeat to select several (default: all enabled)",
-    )
+    if instance_mode == "multiple":
+        command.add_argument(
+            "--instance",
+            dest="instances",
+            action="append",
+            metavar="NAME",
+            help="select one scenario instance; repeat to select several (default: all enabled)",
+        )
+    elif instance_mode == "single":
+        command.add_argument(
+            "--instance",
+            metavar="NAME",
+            help="select one scenario instance",
+        )
     command.add_argument("--source", type=Path, help="source file for ambiguous scenario names")
     add_resolution_arguments(command)
     return command
@@ -91,8 +114,14 @@ def _plan(
             source_path=args.source,
         ),
         resolve_group_runtime=args.scene_command == "start",
-        instances=args.instances,
+        instances=_selected_instances(args),
     )
+
+
+def _selected_instances(args: argparse.Namespace) -> list[str] | None:
+    multiple = getattr(args, "instances", None)
+    single = getattr(args, "instance", None)
+    return [single] if single is not None else multiple
 
 
 def _service() -> ScenarioService:
@@ -132,8 +161,6 @@ def _stop(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
 
 def _down(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
-    if args.instances:
-        parser.error("scene down does not support --instance")
     plan = _plan(args, parser)
     result = _service().down(plan)
     say(
@@ -163,5 +190,5 @@ def _logs(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
     result = _service().logs(plan, args.instance, args.group, follow=args.follow)
     if result.detail:
-        print(result.detail)
+        print(result.detail, file=args.output)
     return 0

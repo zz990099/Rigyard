@@ -5,7 +5,8 @@ import pytest
 
 from rigyard.application.requests import ResolutionRequest
 from rigyard.application.scenarios import PlanScenarioUseCase
-from rigyard.cli.main import run
+from rigyard.cli.commands import scenarios as scenario_commands
+from rigyard.cli.main import build_parser, run
 from rigyard.cli.menu.app import MenuApp
 from rigyard.cli.menu.prompt import MenuIO
 from rigyard.config.loader import load_config
@@ -1664,6 +1665,137 @@ def test_cli_dry_run_describes_compose_runtime(tmp_path: Path, capsys):
     assert "Window robot1: service=robot -> drivers" in output
     assert "/workspace" not in output
     assert "Container restart:" not in output
+
+
+class RecordingCliScenarioService:
+    def __init__(self) -> None:
+        self.calls: list[tuple] = []
+
+    def attach(self, plan, instance_name, group_name):
+        self.calls.append(("attach", plan, instance_name, group_name))
+        return ScenarioResult(plan.scene_name, plan.profile_name, "detached")
+
+    def logs(self, plan, instance_name, group_name, *, follow=False):
+        self.calls.append(("logs", plan, instance_name, group_name, follow))
+        return ScenarioResult(plan.scene_name, plan.profile_name, "captured log")
+
+    def status(self, plan):
+        self.calls.append(("status", plan))
+        return ScenarioResult(plan.scene_name, plan.profile_name, "running")
+
+
+def two_instance_scenario_yaml() -> str:
+    return """robot:
+  instances:
+    robot1: {container: container-a, groups: {drivers: {script: /a.sh}}}
+    robot2: {container: container-b, groups: {drivers: {script: /b.sh}}}
+  profiles:
+    development: {attach: false}
+"""
+
+
+def test_cli_attach_dispatches_one_instance(tmp_path: Path, monkeypatch):
+    config = project(tmp_path, two_instance_scenario_yaml())
+    service = RecordingCliScenarioService()
+    monkeypatch.setattr(scenario_commands, "_service", lambda: service)
+
+    assert (
+        run(
+            [
+                "--config",
+                str(config),
+                "scene",
+                "attach",
+                "robot",
+                "development",
+                "--instance",
+                "robot2",
+                "--group",
+                "drivers",
+                "--non-interactive",
+            ]
+        )
+        == 0
+    )
+
+    action, plan, instance_name, group_name = service.calls[0]
+    assert action == "attach"
+    assert [item.name for item in plan.instances] == ["robot2"]
+    assert (instance_name, group_name) == ("robot2", "drivers")
+
+
+def test_cli_logs_uses_injected_output_and_dispatches_one_instance(
+    tmp_path: Path, monkeypatch
+):
+    config = project(tmp_path, two_instance_scenario_yaml())
+    service = RecordingCliScenarioService()
+    monkeypatch.setattr(scenario_commands, "_service", lambda: service)
+    output = io.StringIO()
+
+    assert (
+        run(
+            [
+                "--config",
+                str(config),
+                "scene",
+                "logs",
+                "robot",
+                "development",
+                "--instance",
+                "robot1",
+                "--group",
+                "drivers",
+                "--non-interactive",
+            ],
+            stdout=output,
+        )
+        == 0
+    )
+
+    assert output.getvalue() == "captured log\n"
+    action, plan, instance_name, group_name, follow = service.calls[0]
+    assert action == "logs"
+    assert [item.name for item in plan.instances] == ["robot1"]
+    assert (instance_name, group_name, follow) == ("robot1", "drivers", False)
+
+
+def test_cli_status_accepts_repeated_instances(tmp_path: Path, monkeypatch):
+    config = project(tmp_path, two_instance_scenario_yaml())
+    service = RecordingCliScenarioService()
+    monkeypatch.setattr(scenario_commands, "_service", lambda: service)
+    output = io.StringIO()
+
+    assert (
+        run(
+            [
+                "--config",
+                str(config),
+                "scene",
+                "status",
+                "robot",
+                "development",
+                "--instance",
+                "robot1",
+                "--instance",
+                "robot2",
+                "--non-interactive",
+            ],
+            stdout=output,
+        )
+        == 0
+    )
+
+    action, plan = service.calls[0]
+    assert action == "status"
+    assert [item.name for item in plan.instances] == ["robot1", "robot2"]
+    assert output.getvalue() == "running\n"
+
+
+def test_cli_down_does_not_register_instance_option():
+    parser = build_parser()
+    args = parser.parse_args(["scene", "down", "robot"])
+    assert not hasattr(args, "instance")
+    assert not hasattr(args, "instances")
 
 
 class FakeScenarioExecutor:
