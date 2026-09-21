@@ -34,6 +34,7 @@ class BuildPlanner:
             environment_overrides=tuple(sorted(spec.environment)),
             timeout_seconds=spec.timeout_seconds,
             tty=spec.tty,
+            start_container=spec.start_container,
         )
 
 

@@ -54,6 +54,7 @@ class TaskTemplate(BaseModel):
     environment: dict[str, RuntimeText] = Field(default_factory=dict)
     timeout_seconds: RuntimeInteger | None = None
     tty: TtyMode = "auto"
+    start_container: bool = True
     menu: TaskMenu | None = None
 
     @field_validator("container")
@@ -97,6 +98,7 @@ class TaskSpec(BaseModel):
     environment: dict[str, str] = Field(default_factory=dict)
     timeout_seconds: int | None = Field(default=None, gt=0, le=86400)
     tty: TtyMode = "auto"
+    start_container: bool = True
     menu: TaskMenu | None = None
 
     @field_validator("setup")
@@ -126,6 +128,7 @@ class TaskPlan:
     environment_overrides: tuple[str, ...]
     timeout_seconds: int | None
     tty: TtyMode
+    start_container: bool = True
 
 
 @dataclass(frozen=True)

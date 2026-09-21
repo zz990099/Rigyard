@@ -71,6 +71,7 @@ def test_load_build_only_project(tmp_path: Path):
     assert loaded.builds["native"].description == "Native build"
     assert loaded.builds["native"].container == "dev"
     assert loaded.builds["native"].script == Path("/workspace/build.sh")
+    assert loaded.builds["native"].start_container is True
     assert loaded.images == {}
     assert loaded.containers == {}
 
@@ -104,6 +105,7 @@ cross:
     )
 
     assert plan.container == "dev"
+    assert plan.start_container is True
     assert plan.script == Path("/workspace/scripts/native.sh")
     assert plan.workdir == Path("/workspace")
     assert plan.command == (
@@ -222,6 +224,19 @@ def test_build_requires_container(tmp_path: Path):
 
     with pytest.raises(SchemaValidationError, match="container"):
         load_config(config)
+
+
+def test_build_can_disable_automatic_container_start(tmp_path: Path):
+    config = project(
+        tmp_path,
+        "native: {container: dev, start_container: false, script: /workspace/build.sh}\n",
+    )
+
+    plan = BuildProjectUseCase(RecordingBackend()).plan(
+        "native", ResolutionRequest(config, interactive=False)
+    )
+
+    assert plan.start_container is False
 
 
 def test_setup_wraps_the_container_command(tmp_path: Path):
@@ -346,6 +361,7 @@ def test_plan_lines_keep_their_text_and_carry_roles():
     assert [str(item) for item in lines] == [
         "Build: native",
         "Container: dev",
+        "Start stopped container: true",
         "Working directory: /workspace",
         "Command: docker exec --workdir=/workspace --env=BUILD_TYPE=Release dev "
         "/bin/bash -eu /workspace/build.sh",
@@ -355,7 +371,7 @@ def test_plan_lines_keep_their_text_and_carry_roles():
 
     style = Style(enabled=True)
     assert lines[0].render(style) == "\x1b[2mBuild\x1b[0m: \x1b[1mnative\x1b[0m"
-    assert lines[4].render(style) == (
+    assert lines[5].render(style) == (
         "\x1b[2mEnvironment overrides\x1b[0m: \x1b[2mBUILD_TYPE\x1b[0m"
     )
 
@@ -377,14 +393,62 @@ def test_docker_exec_backend_checks_container_and_executes():
     assert "environment" not in exec_kwargs
 
 
-def test_docker_exec_backend_rejects_missing_or_stopped_container():
+def test_docker_exec_backend_rejects_missing_container():
     plan = sample_plan()
     with pytest.raises(BuildExecutionError, match="does not exist"):
         DockerExecBuildBackend(
             FakeRunner([CommandResult(1, stderr="No such object\n")])
         ).execute(plan)
+
+
+def test_docker_exec_backend_starts_stopped_container_before_exec():
+    plan = sample_plan()
+    runner = FakeRunner(
+        [
+            CommandResult(0, "false\n"),
+            CommandResult(0, "dev\n"),
+            CommandResult(0, "true\n"),
+            CommandResult(0),
+        ]
+    )
+
+    DockerExecBuildBackend(runner).execute(plan)
+
+    assert [call[0] for call in runner.calls] == [
+        ("docker", "inspect", "--format={{.State.Running}}", "dev"),
+        ("docker", "start", "dev"),
+        ("docker", "inspect", "--format={{.State.Running}}", "dev"),
+        plan.command,
+    ]
+
+
+def test_docker_exec_backend_can_require_an_already_running_container():
+    plan = BuildPlan(**{**sample_plan().__dict__, "start_container": False})
     with pytest.raises(BuildExecutionError, match="is not running"):
         DockerExecBuildBackend(FakeRunner([CommandResult(0, "false\n")])).execute(plan)
+
+
+def test_docker_exec_backend_reports_start_failure_and_immediate_exit():
+    plan = sample_plan()
+    with pytest.raises(BuildExecutionError, match="cannot start container.*permission denied"):
+        DockerExecBuildBackend(
+            FakeRunner(
+                [
+                    CommandResult(0, "false\n"),
+                    CommandResult(1, stderr="permission denied\n"),
+                ]
+            )
+        ).execute(plan)
+    with pytest.raises(BuildExecutionError, match="did not remain running"):
+        DockerExecBuildBackend(
+            FakeRunner(
+                [
+                    CommandResult(0, "false\n"),
+                    CommandResult(0, "dev\n"),
+                    CommandResult(0, "false\n"),
+                ]
+            )
+        ).execute(plan)
 
 
 def test_docker_exec_backend_reports_exit_timeout_and_docker_errors():

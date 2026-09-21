@@ -37,6 +37,7 @@ class BuildTemplate(BaseModel):
     environment: dict[str, RuntimeText] = Field(default_factory=dict)
     timeout_seconds: RuntimeInteger | None = None
     tty: TtyMode = "auto"
+    start_container: bool = True
 
     @field_validator("container")
     @classmethod
@@ -79,6 +80,7 @@ class BuildSpec(BaseModel):
     environment: dict[str, str] = Field(default_factory=dict)
     timeout_seconds: int | None = Field(default=None, gt=0, le=86400)
     tty: TtyMode = "auto"
+    start_container: bool = True
 
     @field_validator("setup")
     @classmethod
@@ -107,6 +109,7 @@ class BuildPlan:
     environment_overrides: tuple[str, ...]
     timeout_seconds: int | None
     tty: TtyMode
+    start_container: bool = True
 
 
 @dataclass(frozen=True)

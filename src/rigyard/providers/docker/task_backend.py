@@ -22,6 +22,7 @@ class DockerExecTaskBackend:
                 unavailable_label=label,
                 timeout_seconds=plan.timeout_seconds,
                 tty=plan.tty,
+                start_container=plan.start_container,
             )
         except DockerExecError as exc:
             raise TaskExecutionError(str(exc)) from exc

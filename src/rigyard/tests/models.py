@@ -51,6 +51,7 @@ class TestTemplate(BaseModel):
     setup: RuntimeList = ()
     environment: dict[str, RuntimeText] = Field(default_factory=dict)
     tty: TtyMode = "auto"
+    start_container: bool = True
     run: TestActionTemplate
     report: TestActionTemplate
 
@@ -93,6 +94,7 @@ class TestSpec(BaseModel):
     setup: tuple[str, ...] = ()
     environment: dict[str, str] = Field(default_factory=dict)
     tty: TtyMode = "auto"
+    start_container: bool = True
     run: TestActionSpec
     report: TestActionSpec
 
@@ -124,6 +126,7 @@ class TestPlan:
     environment_overrides: tuple[str, ...]
     timeout_seconds: int | None
     tty: TtyMode
+    start_container: bool = True
 
 
 @dataclass(frozen=True)

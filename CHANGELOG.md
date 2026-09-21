@@ -20,6 +20,8 @@ This file records notable user-facing changes. Once releases begin, the project 
 
 ### Changed
 
+- Build, test, and custom-task commands now start stopped target containers by default, with
+  `start_container: false` available for strict lifecycle ownership.
 - Reduced the README to a PyPI-friendly overview and quick start.
 - Split repository examples into a minimal introduction and a full robot-development reference.
 - Standardized all project documentation and internal comments on English.

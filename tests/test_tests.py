@@ -80,6 +80,7 @@ def test_load_test_only_project(tmp_path: Path):
     assert loaded.sources.tests == Path("config/tests.yaml")
     assert loaded.tests["unit"].description == "Unit tests"
     assert loaded.tests["unit"].run.script == Path("/workspace/scripts/run-tests.sh")
+    assert loaded.tests["unit"].start_container is True
     assert loaded.images == {}
     assert loaded.builds == {}
 
@@ -99,6 +100,7 @@ def test_plan_selects_user_defined_action(tmp_path: Path, action, script, interp
     )
 
     assert plan.action == action
+    assert plan.start_container is True
     assert plan.script == Path(script)
     assert plan.timeout_seconds == timeout
     assert plan.command[:6] == (
@@ -154,6 +156,24 @@ def test_both_actions_are_required(tmp_path: Path):
 
     with pytest.raises(SchemaValidationError, match="report"):
         load_config(config)
+
+
+def test_test_can_disable_automatic_container_start(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """unit:
+  container: dev
+  start_container: false
+  run: {script: /workspace/run.sh}
+  report: {script: /workspace/report.sh}
+""",
+    )
+
+    plan = ExecuteTestUseCase(RecordingBackend()).plan(
+        "unit", "run", ResolutionRequest(config, interactive=False)
+    )
+
+    assert plan.start_container is False
 
 
 class FakeRunner:
@@ -213,6 +233,13 @@ def test_backend_reports_process_and_infrastructure_errors():
         ).execute(plan)
     with pytest.raises(BackendUnavailableError, match="cannot execute Docker"):
         DockerExecTestBackend(FakeRunner([FileNotFoundError("missing")])).execute(plan)
+
+
+def test_backend_honours_disabled_container_start():
+    plan = CommandPlan(**{**sample_plan().__dict__, "start_container": False})
+
+    with pytest.raises(CommandFailure, match="is not running"):
+        DockerExecTestBackend(FakeRunner([ProcessResult(0, "false\n")])).execute(plan)
 
 
 def test_cli_dry_run_does_not_execute(tmp_path: Path, monkeypatch, capsys):

@@ -1,6 +1,8 @@
 # Custom tasks
 
-Custom tasks provide a controlled extension point for project-specific operations that do not need a dedicated Rigyard feature. Each task executes one user-defined script through `docker exec` inside an existing, running container.
+Custom tasks provide a controlled extension point for project-specific operations that do not need
+a dedicated Rigyard feature. Each task executes one user-defined script through `docker exec`
+inside an existing container, which Rigyard can start when necessary.
 
 Tasks are always available through the CLI. A task appears under the fixed `Tasks…` interactive-menu entry only when its configuration explicitly enables menu exposure. Task configuration cannot replace built-in menu entries, create nested menus, or execute host commands.
 
@@ -10,6 +12,7 @@ Tasks are always available through the CLI. A task appears under the fixed `Task
 clean:
   description: Clean project build artifacts
   container: robot-development
+  start_container: true
   script: /workspace/scripts/tasks/clean.sh
   interpreter: [/bin/bash, -euo, pipefail]
   workdir: /workspace
@@ -42,6 +45,7 @@ diagnose:
 | --- | --- | ---: | --- | --- |
 | `description` | string | no | — | CLI and menu description |
 | `container` | string | yes | — | Existing container name or ID |
+| `start_container` | boolean | no | `true` | Start the container when it is stopped |
 | `script` | path | yes | — | Script path inside the container |
 | `interpreter` | string list | no | `[/bin/sh, -eu]` | Non-empty interpreter argv |
 | `workdir` | path | no | Container default | Container working directory |
@@ -59,7 +63,15 @@ All business fields except menu presentation settings support corresponding [run
 
 ## Execution semantics
 
-The container must already exist and be running. Rigyard checks its state but does not create, start, or restart it. Setup scripts are sourced in order before the task script is executed. The host never interprets the configured command through an implicit shell.
+The container must already exist. By default, Rigyard leaves a running container unchanged and
+runs `docker start` when it is stopped. Set `start_container: false` to require an already-running
+container. Rigyard does not create, recreate, restart, or stop the container. An automatically
+started container must remain running before execution continues. Setup scripts are sourced in
+order before the task script is executed. The host never interprets the configured command through
+an implicit shell.
+
+Automatic starts operate on the selected container name or ID and do not run lifecycle
+`post_start` hooks from a container definition.
 
 Task stdout and stderr are streamed unchanged. Rigyard does not parse or persist task output. A non-zero user-command exit status becomes the standard Rigyard execution-backend error.
 
@@ -74,7 +86,8 @@ rigyard task run clean --non-interactive \
   --set tasks.clean.environment.CLEAN_INSTALL=true
 ```
 
-`--dry-run` resolves the task and displays the final `docker exec` argv without checking or invoking Docker. CLI execution does not ask for menu confirmation.
+`--dry-run` resolves the task and container start policy and displays the final `docker exec` argv
+without checking or invoking Docker. CLI execution does not ask for menu confirmation.
 
 ## Scope
 

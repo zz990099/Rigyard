@@ -32,8 +32,9 @@ class DockerExecExecutor:
         unavailable_label: str,
         timeout_seconds: int | None,
         tty: TtyMode = "auto",
+        start_container: bool = True,
     ) -> None:
-        self._check_container(container)
+        self._ensure_container(container, start_container=start_container)
         if tty == "auto" and self.is_terminal():
             command = _with_tty(command)
         try:
@@ -55,7 +56,27 @@ class DockerExecExecutor:
                 f"{action_label} failed with exit code {result.returncode}"
             )
 
-    def _check_container(self, container: str) -> None:
+    def _ensure_container(self, container: str, *, start_container: bool) -> None:
+        if self._container_running(container):
+            return
+        if not start_container:
+            raise DockerExecError(
+                f"container {container!r} is not running; start it before executing commands"
+            )
+        try:
+            result = self.runner.run(("docker", "start", container), capture=True)
+        except OSError as exc:
+            raise BackendUnavailableError(f"cannot execute Docker: {exc}") from exc
+        if result.returncode:
+            detail = (result.stderr or result.stdout).strip()
+            suffix = f": {detail}" if detail else f" (exit {result.returncode})"
+            raise DockerExecError(f"cannot start container {container!r}{suffix}")
+        if not self._container_running(container):
+            raise DockerExecError(
+                f"container {container!r} did not remain running after docker start"
+            )
+
+    def _container_running(self, container: str) -> bool:
         try:
             result = self.runner.run(
                 ("docker", "inspect", "--format={{.State.Running}}", container),
@@ -69,10 +90,7 @@ class DockerExecExecutor:
             raise DockerExecError(
                 f"container {container!r} does not exist{suffix}; create it first"
             )
-        if result.stdout.strip() != "true":
-            raise DockerExecError(
-                f"container {container!r} is not running; start it before executing commands"
-            )
+        return result.stdout.strip() == "true"
 
 
 def _stdout_is_terminal() -> bool:

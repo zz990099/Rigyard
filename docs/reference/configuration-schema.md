@@ -81,6 +81,7 @@ Hook fields are `name`, `script`, `interpreter`, `user`, `workdir`, `environment
 ```text
 <build>.description
 <build>.container
+<build>.start_container = true
 <build>.script
 <build>.interpreter = [/bin/sh, -eu]
 <build>.workdir
@@ -97,6 +98,7 @@ Hook fields are `name`, `script`, `interpreter`, `user`, `workdir`, `environment
 ```text
 <test>.description
 <test>.container
+<test>.start_container = true
 <test>.workdir
 <test>.user
 <test>.setup = []
@@ -116,6 +118,7 @@ Hook fields are `name`, `script`, `interpreter`, `user`, `workdir`, `environment
 ```text
 <task>.description
 <task>.container
+<task>.start_container = true
 <task>.script
 <task>.interpreter = [/bin/sh, -eu]
 <task>.workdir

@@ -13,6 +13,7 @@ def describe_test(plan: TestPlan) -> tuple[Line, ...]:
         field("Test", plan.test_name),
         field("Action", plan.action),
         field("Container", plan.container),
+        field("Start stopped container", str(plan.start_container).lower()),
         field(
             "Working directory",
             str(plan.workdir) if plan.workdir is not None else "(container default)",

@@ -1,6 +1,8 @@
 # Project builds
 
-Project builds always run through `docker exec` inside an existing, running container. Rigyard does not create, start, or pull the build container and does not interpret build systems such as colcon, catkin, or CMake.
+Project builds run through `docker exec` inside an existing container. Rigyard can start a stopped
+container but does not create, recreate, restart, stop, or pull it, and does not interpret build
+systems such as colcon, catkin, or CMake.
 
 ## Configuration
 
@@ -8,6 +10,7 @@ Project builds always run through `docker exec` inside an existing, running cont
 native:
   description: Native container build
   container: robot-development
+  start_container: true
   script: ${CONTAINER_WORKSPACE_ROOT}/scripts/build-native.sh
   interpreter: [/bin/bash, -euo, pipefail]
   workdir: ${CONTAINER_WORKSPACE_ROOT}
@@ -32,6 +35,7 @@ native:
 | --- | --- | ---: | --- | --- |
 | `description` | string | no | — | Menu description |
 | `container` | string | yes | — | Existing container name or ID |
+| `start_container` | boolean | no | `true` | Start the container when it is stopped |
 | `script` | path | yes | — | Script path inside the container |
 | `interpreter` | string list | no | `[/bin/sh, -eu]` | Non-empty container interpreter argv |
 | `workdir` | path | no | Container default | Container working directory |
@@ -45,7 +49,16 @@ All business fields support corresponding [runtime values](../configuration/runt
 
 ## Execution semantics
 
-The container must exist and be running. A missing or stopped container causes an error without changing its lifecycle. Container-side control flow is equivalent to:
+The container must already exist. By default, Rigyard leaves a running container unchanged and
+runs `docker start` when it is stopped. Set `start_container: false` to require an already-running
+container without changing its lifecycle. A missing container is always an error, and Rigyard does
+not create, recreate, restart, or stop the container. After an automatic start, Rigyard verifies
+that the container remained running before it invokes `docker exec`.
+
+Automatic starts operate on the selected container name or ID and do not run lifecycle
+`post_start` hooks from a container definition.
+
+Container-side control flow is equivalent to:
 
 ```text
 . /opt/ros/humble/setup.bash &&
@@ -69,4 +82,5 @@ rigyard build native --non-interactive \
   --set builds.native.environment.BUILD_TYPE=Debug
 ```
 
-`--dry-run` resolves the container, script, setup, environment, and final `docker exec` argv without checking or invoking the Docker container.
+`--dry-run` resolves the container start policy, script, setup, environment, and final `docker exec`
+argv without checking or invoking Docker.

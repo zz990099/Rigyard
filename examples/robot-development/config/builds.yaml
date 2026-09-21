@@ -3,6 +3,7 @@ description: Example builds
 native:
   description: Example container build
   container: robot-development
+  start_container: true
   script: ${CONTAINER_WORKSPACE_ROOT}/scripts/build-native.sh
   interpreter: [/bin/bash, -euo, pipefail]
   workdir: ${CONTAINER_WORKSPACE_ROOT}

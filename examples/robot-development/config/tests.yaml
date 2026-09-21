@@ -3,6 +3,7 @@ description: Example tests
 unit:
   description: Example unit tests
   container: robot-development
+  start_container: true
   workdir: ${CONTAINER_WORKSPACE_ROOT}
   setup: [/opt/ros/humble/setup.bash]
   environment:

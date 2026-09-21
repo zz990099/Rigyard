@@ -101,11 +101,13 @@ container:
     source:
       provider: docker-containers
       filter: "^robot_"
-      running_only: true
+      running_only: false
 ```
 
 - `filter` is an optional regular expression matched against container names.
 - `running_only` is specific to `docker-containers` and defaults to `false`.
+- `running_only` only filters prompt candidates. Build, test, and task lifecycle behavior is
+  controlled independently by each definition's `start_container` field.
 
 Use `docker-images` to select a tagged local image. The filter is matched against the full
 `repository:tag` reference:

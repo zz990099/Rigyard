@@ -6,8 +6,8 @@ Rigyard is a configuration-driven CLI for containerized robotics development. A 
 
 - Build layered images from ordered Dockerfile fragments.
 - Create reproducible development containers and run lifecycle hooks.
-- Run project build scripts inside existing containers.
-- Run user-defined test and test-result commands inside existing containers.
+- Run project build scripts inside existing containers, starting stopped containers when allowed.
+- Run user-defined test and test-result commands with the same configurable start behavior.
 - Expose constrained project-specific container tasks through the CLI and interactive menu.
 - Start tmux debugging scenarios in existing containers or Docker Compose services.
 - Reuse configuration with global variables, string templates, and interactive runtime values.

@@ -12,6 +12,7 @@ def describe_build(plan: BuildPlan) -> tuple[Line, ...]:
     lines = (
         field("Build", plan.build_name),
         field("Container", plan.container),
+        field("Start stopped container", str(plan.start_container).lower()),
         field(
             "Working directory",
             str(plan.workdir) if plan.workdir is not None else "(container default)",

@@ -37,6 +37,7 @@ class TestPlanner:
             environment_overrides=tuple(sorted(spec.environment)),
             timeout_seconds=action_spec.timeout_seconds,
             tty=spec.tty,
+            start_container=spec.start_container,
         )
 
 

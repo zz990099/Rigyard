@@ -77,6 +77,7 @@ def test_load_task_only_project(tmp_path: Path):
     assert loaded.sources.tasks == Path("config/tasks.yaml")
     assert loaded.tasks["clean"].description == "Clean build artifacts"
     assert loaded.tasks["clean"].menu.label == "Clean workspace"
+    assert loaded.tasks["clean"].start_container is True
     assert loaded.images == {}
     assert loaded.tests == {}
 
@@ -89,6 +90,7 @@ def test_plan_uses_container_paths_setup_and_environment(tmp_path: Path):
     )
 
     assert plan.container == "dev"
+    assert plan.start_container is True
     assert plan.script == Path("/workspace/scripts/clean.sh")
     assert plan.timeout_seconds == 300
     assert plan.command[:6] == (
@@ -151,6 +153,19 @@ def test_menu_is_optional_and_label_must_not_be_blank(tmp_path: Path):
         load_config(invalid)
 
 
+def test_task_can_disable_automatic_container_start(tmp_path: Path):
+    config = project(
+        tmp_path,
+        "clean: {container: dev, start_container: false, script: /workspace/clean.sh}\n",
+    )
+
+    plan = ExecuteTaskUseCase(RecordingBackend()).plan(
+        "clean", ResolutionRequest(config, interactive=False)
+    )
+
+    assert plan.start_container is False
+
+
 class FakeRunner:
     def __init__(self, outcomes: list[ProcessResult | Exception]) -> None:
         self.outcomes = list(outcomes)
@@ -207,6 +222,13 @@ def test_backend_reports_process_and_infrastructure_errors():
         ).execute(plan)
     with pytest.raises(BackendUnavailableError, match="cannot execute Docker"):
         DockerExecTaskBackend(FakeRunner([FileNotFoundError("missing")])).execute(plan)
+
+
+def test_backend_honours_disabled_container_start():
+    plan = CommandPlan(**{**sample_plan().__dict__, "start_container": False})
+
+    with pytest.raises(CommandFailure, match="is not running"):
+        DockerExecTaskBackend(FakeRunner([ProcessResult(0, "false\n")])).execute(plan)
 
 
 def test_cli_dry_run_does_not_execute(tmp_path: Path, monkeypatch, capsys):

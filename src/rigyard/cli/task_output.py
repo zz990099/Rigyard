@@ -12,6 +12,7 @@ def describe_task(plan: TaskPlan) -> tuple[Line, ...]:
     lines = (
         field("Task", plan.task_name),
         field("Container", plan.container),
+        field("Start stopped container", str(plan.start_container).lower()),
         field(
             "Working directory",
             str(plan.workdir) if plan.workdir is not None else "(container default)",

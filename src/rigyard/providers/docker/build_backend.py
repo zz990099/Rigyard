@@ -21,6 +21,7 @@ class DockerExecBuildBackend:
                 unavailable_label=f"build {plan.build_name!r}",
                 timeout_seconds=plan.timeout_seconds,
                 tty=plan.tty,
+                start_container=plan.start_container,
             )
         except DockerExecError as exc:
             raise BuildExecutionError(str(exc)) from exc

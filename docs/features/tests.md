@@ -1,6 +1,7 @@
 # Tests
 
-Tests are user-defined commands executed through `docker exec` inside an existing, running container. Each test target has two independent actions:
+Tests are user-defined commands executed through `docker exec` inside an existing container.
+Rigyard can start the container when necessary. Each test target has two independent actions:
 
 - `run` executes the configured test cases.
 - `report` executes the configured result or log command.
@@ -13,6 +14,7 @@ Rigyard does not depend on colcon, pytest, CTest, or any other test framework. I
 unit:
   description: Unit tests
   container: robot-development
+  start_container: true
   workdir: /workspace
   user: root
   tty: auto
@@ -41,6 +43,7 @@ unit:
 | --- | --- | ---: | --- | --- |
 | `description` | string | no | — | Menu description |
 | `container` | string | yes | — | Existing container name or ID |
+| `start_container` | boolean | no | `true` | Start the container when it is stopped |
 | `workdir` | path | no | Container default | Container working directory |
 | `user` | string | no | Container default | Passed to `docker exec --user` |
 | `tty` | `auto`, `always`, or `never` | no | `auto` | Container TTY allocation policy |
@@ -56,7 +59,15 @@ All business fields support corresponding [runtime values](../configuration/runt
 
 ## Execution semantics
 
-The container must already exist and be running. Rigyard checks its state but does not create, start, or restart it. Setup scripts are sourced in order before the selected action script is executed. The host never interprets the configured command through an implicit shell.
+The container must already exist. By default, Rigyard leaves a running container unchanged and
+runs `docker start` when it is stopped. Set `start_container: false` to require an already-running
+container. Rigyard does not create, recreate, restart, or stop the container. An automatically
+started container must remain running before execution continues. Setup scripts are sourced in
+order before the selected action script is executed. The host never interprets the configured
+command through an implicit shell.
+
+Automatic starts operate on the selected container name or ID and do not run lifecycle
+`post_start` hooks from a container definition.
 
 The report command has no special output contract. It can run `colcon test-result --verbose`, print a pytest summary, display logs, calculate coverage, or invoke any project-specific reporter. Rigyard streams that output exactly as produced.
 
@@ -73,4 +84,5 @@ rigyard test run unit --non-interactive \
   --set tests.unit.environment.TEST_JOBS=8
 ```
 
-`--dry-run` resolves the configuration and displays the final `docker exec` argv without checking or invoking Docker.
+`--dry-run` resolves the configuration and container start policy and displays the final
+`docker exec` argv without checking or invoking Docker.
