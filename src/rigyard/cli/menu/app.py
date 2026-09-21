@@ -139,9 +139,7 @@ class MenuApp:
         except ValueError:
             return path
 
-    def _source_labels(
-        self, session: MenuSession, groups: tuple[SourceFileInfo, ...]
-    ) -> list[str]:
+    def _source_labels(self, session: MenuSession, groups: tuple[SourceFileInfo, ...]) -> list[str]:
         labels = []
         for group in groups:
             path = str(self._source_relative_path(session, group.path))
@@ -249,9 +247,7 @@ class MenuApp:
             self.io.write_note("Build cancelled.", "muted")
             return
         result = use_case.execute(plan)
-        self.io.write_note(
-            f"Built {result.final_tag} ({len(result.steps)} layer(s))", "success"
-        )
+        self.io.write_note(f"Built {result.final_tag} ({len(result.steps)} layer(s))", "success")
 
     def _build_project(self, session: MenuSession) -> None:
         group = self._select_source_group(session, "builds", "Build project")
@@ -281,9 +277,7 @@ class MenuApp:
             ("Run tests", "run"),
             ("Show test results", "report"),
         )
-        selected = self.io.select(
-            "Test", [label for label, _ in actions], back_label="Back"
-        )
+        selected = self.io.select("Test", [label for label, _ in actions], back_label="Back")
         if selected is None:
             return None
         return self._execute_test(session, actions[selected][1])
@@ -303,9 +297,7 @@ class MenuApp:
             sources=self.sources,
             formatter=self.io.style.render,
         )
-        plan = use_case.plan(
-            names[selected], action, self._request(session, group.path)
-        )
+        plan = use_case.plan(names[selected], action, self._request(session, group.path))
         for line in describe_test(plan):
             self.io.write_field(line)
         prompt = "Run these tests now?" if action == "run" else "Show test results now?"
@@ -323,20 +315,15 @@ class MenuApp:
         return menu is not None and menu.enabled
 
     def _has_menu_tasks(self, session: MenuSession) -> bool:
-        return bool(
-            self._source_groups(session, "tasks", requirement=self._is_menu_task)
-        )
+        return bool(self._source_groups(session, "tasks", requirement=self._is_menu_task))
 
     def _task_menu(self, session: MenuSession) -> None:
-        group = self._select_source_group(
-            session, "tasks", "Tasks", requirement=self._is_menu_task
-        )
+        group = self._select_source_group(session, "tasks", "Tasks", requirement=self._is_menu_task)
         if group is None:
             return
         names = [name for name in group.names if self._is_menu_task(group, name)]
         labels = [
-            group.definitions[name].menu.label
-            or self._definition_label(group, name)
+            group.definitions[name].menu.label or self._definition_label(group, name)
             for name in names
         ]
         selected = self.io.select("Tasks", labels, back_label="Back")
@@ -352,9 +339,7 @@ class MenuApp:
         plan = use_case.plan(task_name, self._request(session, group.path))
         for line in describe_task(plan):
             self.io.write_field(line)
-        if template.menu.confirm and not self.io.confirm(
-            "Run this task now?", default=True
-        ):
+        if template.menu.confirm and not self.io.confirm("Run this task now?", default=True):
             self.io.write_note("Task cancelled.", "muted")
             return
         result = use_case.execute(plan)
@@ -366,9 +351,7 @@ class MenuApp:
             ("Stop scene", self._stop_scene),
             ("Down scene", self._down_scene),
         )
-        selected = self.io.select(
-            "Scene", [label for label, _ in actions], back_label="Back"
-        )
+        selected = self.io.select("Scene", [label for label, _ in actions], back_label="Back")
         if selected is None:
             return None
         return actions[selected][1](session)
@@ -387,9 +370,7 @@ class MenuApp:
             if compose_only
             else None
         )
-        group = self._select_source_group(
-            session, "scenarios", title, requirement=requirement
-        )
+        group = self._select_source_group(session, "scenarios", title, requirement=requirement)
         if group is None:
             return None
         scene_names = [
@@ -417,9 +398,7 @@ class MenuApp:
         if selection is None:
             return
         group, scene_name, profile_name = selection
-        plan = PlanScenarioUseCase(
-            sources=self.sources, formatter=self.io.style.render
-        ).plan(
+        plan = PlanScenarioUseCase(sources=self.sources, formatter=self.io.style.render).plan(
             scene_name,
             profile_name,
             self._request(session, group.path),
@@ -440,9 +419,7 @@ class MenuApp:
         if selection is None:
             return
         group, scene_name, profile_name = selection
-        plan = PlanScenarioUseCase(
-            sources=self.sources, formatter=self.io.style.render
-        ).plan(
+        plan = PlanScenarioUseCase(sources=self.sources, formatter=self.io.style.render).plan(
             scene_name,
             profile_name,
             self._request(session, group.path, interactive=False),
@@ -455,9 +432,7 @@ class MenuApp:
             return
         result = ScenarioService(self.scenario_executor_factory()).stop(plan)
         role = "muted" if result.detail == "not running" else "success"
-        self.io.write_note(
-            f"Scenario {result.scene_name!r}: {result.detail or 'stopped'}", role
-        )
+        self.io.write_note(f"Scenario {result.scene_name!r}: {result.detail or 'stopped'}", role)
 
     def _down_scene(self, session: MenuSession) -> int | None:
         selection = self._select_scenario(session, "Down scene", compose_only=True)
@@ -468,9 +443,7 @@ class MenuApp:
             )
             return 2
         group, scene_name, profile_name = selection
-        plan = PlanScenarioUseCase(
-            sources=self.sources, formatter=self.io.style.render
-        ).plan(
+        plan = PlanScenarioUseCase(sources=self.sources, formatter=self.io.style.render).plan(
             scene_name,
             profile_name,
             self._request(session, group.path, interactive=False),

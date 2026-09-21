@@ -220,9 +220,7 @@ sources: {containers: containers.yaml}
             DynamicOption("example/robot:latest", "aaaaaaaaaaaa, 2 days ago, 4.1GB"),
         )
 
-    plan = CreateContainerUseCase(
-        FakeBackend(), sources={"docker-images": images}
-    ).plan(
+    plan = CreateContainerUseCase(FakeBackend(), sources={"docker-images": images}).plan(
         "development",
         ResolutionRequest(
             config,
@@ -320,26 +318,27 @@ def test_menu_resolves_prompts_before_confirmation(tmp_path, answer, expected):
     assert "never-print-this" not in output.getvalue()
 
 
-@pytest.mark.parametrize('answer', [False, True])
+@pytest.mark.parametrize("answer", [False, True])
 def test_existing_container_requires_confirmation_and_forced_removal(tmp_path, answer):
     class ExistingRunner(FakeRunner):
         def run(self, command, **kwargs):
             self.calls.append((command, kwargs))
-            if command[:2] == ('docker', 'ps'):
-                return CommandResult(0, 'original dev\nunrelated dev-other\n')
-            return CommandResult(0, 'new-id\n')
+            if command[:2] == ("docker", "ps"):
+                return CommandResult(0, "original dev\nunrelated dev-other\n")
+            return CommandResult(0, "new-id\n")
 
     prompts = []
     runner = ExistingRunner()
     backend = DockerContainerBackend(
-        runner, confirm_replace=lambda message: prompts.append(message) or answer,
+        runner,
+        confirm_replace=lambda message: prompts.append(message) or answer,
     )
     if answer:
-        assert backend.create(make_plan(tmp_path)).container_id == 'new-id'
-        assert runner.calls[1][0] == ('docker', 'rm', '-f', 'original')
-        assert runner.calls[2][0][:2] == ('docker', 'run')
+        assert backend.create(make_plan(tmp_path)).container_id == "new-id"
+        assert runner.calls[1][0] == ("docker", "rm", "-f", "original")
+        assert runner.calls[2][0][:2] == ("docker", "run")
     else:
-        with pytest.raises(ContainerCreateError, match='cancelled'):
+        with pytest.raises(ContainerCreateError, match="cancelled"):
             backend.create(make_plan(tmp_path))
         assert len(runner.calls) == 1
     assert len(prompts) == 1

@@ -44,17 +44,13 @@ def prompt_for_value(
     if default_display is None and value.has_default:
         default_display = str(value.default)
     default_hint = (
-        f" [{format_text('muted', str(default_display))}]"
-        if default_display is not None
-        else ""
+        f" [{format_text('muted', str(default_display))}]" if default_display is not None else ""
     )
     message = format_text("heading", prompt.message)
     if prompt.mode == PromptMode.CONFIRM:
         default_hint = "Y/n" if value.has_default and value.default else "y/N"
         while True:
-            raw = input_fn(
-                f"{message} [{format_text('muted', default_hint)}]: "
-            ).strip().lower()
+            raw = input_fn(f"{message} [{format_text('muted', default_hint)}]: ").strip().lower()
             if not raw and value.has_default:
                 return value.default
             if raw in {"y", "yes", "true", "1", "on"}:
@@ -79,9 +75,7 @@ def prompt_for_value(
                 return raw
 
     if prompt.repeat:
-        hint = (
-            f" ({format_text('muted', prompt.item_hint)})" if prompt.item_hint else ""
-        )
+        hint = f" ({format_text('muted', prompt.item_hint)})" if prompt.item_hint else ""
         items: list[str] = []
         while True:
             raw = input_fn(f"{message}{hint} [blank to finish]: ")

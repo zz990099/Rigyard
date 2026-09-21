@@ -62,9 +62,7 @@ def test_docker_images_source_degrades_instead_of_failing():
         CommandResult(1, stderr="Cannot connect to the Docker daemon"),
         FileNotFoundError("docker"),
     ):
-        assert docker_images_source(FakeRunner(outcome))(
-            PromptSource(provider=PROVIDER_NAME)
-        ) == ()
+        assert docker_images_source(FakeRunner(outcome))(PromptSource(provider=PROVIDER_NAME)) == ()
 
 
 def test_docker_source_registries_include_image_and_container_providers():

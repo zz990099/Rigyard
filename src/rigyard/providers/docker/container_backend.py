@@ -17,7 +17,8 @@ from ...execution import CommandRunner, SubprocessRunner
 
 class DockerContainerBackend:
     def __init__(
-        self, runner: CommandRunner | None = None,
+        self,
+        runner: CommandRunner | None = None,
         confirm_replace: Callable[[str], bool] | None = None,
     ) -> None:
         self.runner = runner or SubprocessRunner()
@@ -77,8 +78,11 @@ class DockerContainerBackend:
             if existing.returncode:
                 raise BackendUnavailableError("cannot list Docker containers")
             container_id = next(
-                (parts[0] for line in existing.stdout.splitlines()
-                 if len(parts := line.split()) == 2 and parts[1] == plan.container_name),
+                (
+                    parts[0]
+                    for line in existing.stdout.splitlines()
+                    if len(parts := line.split()) == 2 and parts[1] == plan.container_name
+                ),
                 None,
             )
             if container_id is not None:

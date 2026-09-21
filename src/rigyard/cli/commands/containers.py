@@ -34,6 +34,7 @@ def _create(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         overrides = parse_overrides(args.sets)
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
+
     def confirm_replace(message: str) -> bool:
         if args.non_interactive:
             print(f"{message} [y/N]: N (non-interactive)", file=args.output)

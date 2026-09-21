@@ -61,10 +61,10 @@ def test_service_stops_at_first_failure(tmp_path: Path) -> None:
     assert [step.index for step in backend.steps] == [1, 2]
 
 
-@pytest.mark.parametrize('fail_at', [None, 2])
+@pytest.mark.parametrize("fail_at", [None, 2])
 def test_alias_is_only_updated_after_all_layers_succeed(tmp_path, fail_at):
     config, spec = setup_spec(tmp_path)
-    spec = spec.model_copy(update={'tag_alias': 'example/test:stable'})
+    spec = spec.model_copy(update={"tag_alias": "example/test:stable"})
 
     class AliasBackend(RecordingBackend):
         def __init__(self):
@@ -76,21 +76,21 @@ def test_alias_is_only_updated_after_all_layers_succeed(tmp_path, fail_at):
             self.aliases.append((source, alias))
 
     backend = AliasBackend()
-    plan = ImageBuildPlanner().create_plan('test', spec, config)
+    plan = ImageBuildPlanner().create_plan("test", spec, config)
     if fail_at:
         with pytest.raises(ImageBuildError):
             ImageBuildService(backend).build(plan)
         assert backend.aliases == []
     else:
         result = ImageBuildService(backend).build(plan)
-        assert backend.aliases == [('example/test:latest', 'example/test:stable')]
-        assert result.tag_alias == 'example/test:stable'
+        assert backend.aliases == [("example/test:latest", "example/test:stable")]
+        assert result.tag_alias == "example/test:stable"
 
 
 def test_identical_alias_does_not_retag(tmp_path):
     config, spec = setup_spec(tmp_path)
-    spec = spec.model_copy(update={'tag_alias': spec.tag})
+    spec = spec.model_copy(update={"tag_alias": spec.tag})
     result = ImageBuildService(RecordingBackend()).build(
-        ImageBuildPlanner().create_plan('test', spec, config)
+        ImageBuildPlanner().create_plan("test", spec, config)
     )
     assert result.tag_alias == spec.tag

@@ -222,14 +222,12 @@ def test_backend_streams_user_output_without_capture():
 def test_backend_reports_process_and_infrastructure_errors():
     plan = sample_plan("run")
     with pytest.raises(CommandFailure, match="exit code 17"):
-        DockerExecTestBackend(
-            FakeRunner([ProcessResult(0, "true\n"), ProcessResult(17)])
-        ).execute(plan)
+        DockerExecTestBackend(FakeRunner([ProcessResult(0, "true\n"), ProcessResult(17)])).execute(
+            plan
+        )
     with pytest.raises(CommandFailure, match="timed out after 30 seconds"):
         DockerExecTestBackend(
-            FakeRunner(
-                [ProcessResult(0, "true\n"), subprocess.TimeoutExpired(plan.command, 30)]
-            )
+            FakeRunner([ProcessResult(0, "true\n"), subprocess.TimeoutExpired(plan.command, 30)])
         ).execute(plan)
     with pytest.raises(BackendUnavailableError, match="cannot execute Docker"):
         DockerExecTestBackend(FakeRunner([FileNotFoundError("missing")])).execute(plan)
@@ -263,9 +261,7 @@ def test_cli_dry_run_does_not_execute(tmp_path: Path, monkeypatch, capsys):
 def test_cli_executes_selected_command(tmp_path: Path, monkeypatch, capsys, action):
     config = project(tmp_path, definition())
     backend = RecordingBackend()
-    monkeypatch.setattr(
-        "rigyard.cli.commands.tests.DockerExecTestBackend", lambda: backend
-    )
+    monkeypatch.setattr("rigyard.cli.commands.tests.DockerExecTestBackend", lambda: backend)
 
     assert run(["--config", str(config), "test", action, "unit"]) == 0
     assert [plan.action for plan in backend.plans] == [action]

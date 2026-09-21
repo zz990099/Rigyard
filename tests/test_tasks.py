@@ -211,14 +211,12 @@ def test_backend_streams_task_output_without_capture():
 def test_backend_reports_process_and_infrastructure_errors():
     plan = sample_plan()
     with pytest.raises(CommandFailure, match="exit code 17"):
-        DockerExecTaskBackend(
-            FakeRunner([ProcessResult(0, "true\n"), ProcessResult(17)])
-        ).execute(plan)
+        DockerExecTaskBackend(FakeRunner([ProcessResult(0, "true\n"), ProcessResult(17)])).execute(
+            plan
+        )
     with pytest.raises(CommandFailure, match="timed out after 30 seconds"):
         DockerExecTaskBackend(
-            FakeRunner(
-                [ProcessResult(0, "true\n"), subprocess.TimeoutExpired(plan.command, 30)]
-            )
+            FakeRunner([ProcessResult(0, "true\n"), subprocess.TimeoutExpired(plan.command, 30)])
         ).execute(plan)
     with pytest.raises(BackendUnavailableError, match="cannot execute Docker"):
         DockerExecTaskBackend(FakeRunner([FileNotFoundError("missing")])).execute(plan)
@@ -253,9 +251,7 @@ def test_cli_runs_cli_only_task(tmp_path: Path, monkeypatch, capsys):
         "cli-only: {container: dev, script: /workspace/task.sh}\n",
     )
     backend = RecordingBackend()
-    monkeypatch.setattr(
-        "rigyard.cli.commands.tasks.DockerExecTaskBackend", lambda: backend
-    )
+    monkeypatch.setattr("rigyard.cli.commands.tasks.DockerExecTaskBackend", lambda: backend)
 
     assert run(["--config", str(config), "task", "run", "cli-only"]) == 0
     assert [plan.task_name for plan in backend.plans] == ["cli-only"]
@@ -268,8 +264,7 @@ def test_menu_shows_only_enabled_tasks_and_honours_confirmation(
 ):
     config = project(
         tmp_path,
-        definition(confirm=confirm)
-        + "hidden:\n"
+        definition(confirm=confirm) + "hidden:\n"
         "  container: dev\n"
         "  script: /workspace/hidden.sh\n"
         "  menu: {enabled: false, label: Hidden task}\n"

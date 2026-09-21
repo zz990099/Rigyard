@@ -156,12 +156,16 @@ def test_invalid_fragments_are_rejected(tmp_path: Path, content: str, message: s
         ImageBuildPlanner().create_plan("test", spec, config)
 
 
-@pytest.mark.parametrize('alias', ['', '-bad', 'bad tag', 'image@sha256:abc'])
+@pytest.mark.parametrize("alias", ["", "-bad", "bad tag", "image@sha256:abc"])
 def test_invalid_alias_fails_before_build(tmp_path, alias):
     config = make_project(tmp_path)
-    spec = ImageSpec.model_validate({
-        'base': 'ubuntu', 'tag': 'example:test', 'tag_alias': alias,
-        'layers': [{'name': 'system', 'dockerfile': 'system.Dockerfile'}],
-    })
-    with pytest.raises(ImagePlanError, match='tag_alias'):
-        ImageBuildPlanner().create_plan('test', spec, config)
+    spec = ImageSpec.model_validate(
+        {
+            "base": "ubuntu",
+            "tag": "example:test",
+            "tag_alias": alias,
+            "layers": [{"name": "system", "dockerfile": "system.Dockerfile"}],
+        }
+    )
+    with pytest.raises(ImagePlanError, match="tag_alias"):
+        ImageBuildPlanner().create_plan("test", spec, config)

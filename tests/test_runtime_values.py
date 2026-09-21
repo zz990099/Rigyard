@@ -29,10 +29,7 @@ _MISSING = object()
 def current_source_files() -> dict[str, tuple]:
     """Minimal current-schema source provenance for direct model unit tests."""
 
-    return {
-        kind: ()
-        for kind in ("images", "containers", "builds", "tests", "tasks", "scenarios")
-    }
+    return {kind: () for kind in ("images", "containers", "builds", "tests", "tasks", "scenarios")}
 
 
 def test_prompt_schema_validates_modes_and_defaults():
@@ -165,9 +162,12 @@ def test_input_template_applies_to_default_interactive_and_explicit_sources():
     assert resolver.resolve(interactive=False)["name"] == "default_dev"
     assert resolver.resolve(input_fn=lambda _: "interactive")["name"] == "interactive_dev"
     assert resolver.resolve(values={"name": "values"}, interactive=False)["name"] == "values_dev"
-    assert resolver.resolve(
-        environ={environment_name("name"): "environment"}, interactive=False
-    )["name"] == "environment_dev"
+    assert (
+        resolver.resolve(environ={environment_name("name"): "environment"}, interactive=False)[
+            "name"
+        ]
+        == "environment_dev"
+    )
     assert resolver.resolve(overrides={"name": "cli"}, interactive=False)["name"] == "cli_dev"
 
 
@@ -377,10 +377,18 @@ def test_dynamic_source_is_not_queried_without_interaction():
     )
 
     assert resolver.resolve(interactive=False)["containers.dev.name"] == "dev"
-    assert resolver.resolve(values={"containers": {"dev": {"name": "from-values"}}},
-                            interactive=False)["containers.dev.name"] == "from-values"
-    assert resolver.resolve(overrides={"containers.dev.name": "from-cli"},
-                            interactive=False)["containers.dev.name"] == "from-cli"
+    assert (
+        resolver.resolve(
+            values={"containers": {"dev": {"name": "from-values"}}}, interactive=False
+        )["containers.dev.name"]
+        == "from-values"
+    )
+    assert (
+        resolver.resolve(overrides={"containers.dev.name": "from-cli"}, interactive=False)[
+            "containers.dev.name"
+        ]
+        == "from-cli"
+    )
     assert calls == []
 
 
@@ -418,8 +426,7 @@ def test_prompt_formatter_styles_the_message_default_and_candidates():
     context = resolver.resolve(input_fn=lambda text: seen.append(text) or "")
 
     assert seen == [
-        "  <number>1)</> <value>dev</>  <muted>running</>"
-        "\n<heading>Container</> [<muted>dev</>]: "
+        "  <number>1)</> <value>dev</>  <muted>running</>\n<heading>Container</> [<muted>dev</>]: "
     ]
     assert context["containers.dev.name"] == "dev"
 
@@ -450,10 +457,20 @@ def test_prompt_source_schema_rules():
             }
         },
         {"prompt": {"mode": "input", "message": "x", "source": {"provider": "containers"}}},
-        {"prompt": {"mode": "select", "message": "x", "source": {"provider": "containers",
-                                                                 "filter": "("}}},
-        {"prompt": {"mode": "select", "message": "x", "source": {"provider": "containers",
-                                                                 "filtre": "^dev"}}},
+        {
+            "prompt": {
+                "mode": "select",
+                "message": "x",
+                "source": {"provider": "containers", "filter": "("},
+            }
+        },
+        {
+            "prompt": {
+                "mode": "select",
+                "message": "x",
+                "source": {"provider": "containers", "filtre": "^dev"},
+            }
+        },
         {"prompt": {"mode": "select", "message": "x", "source": {"provider": "Containers"}}},
     ):
         with pytest.raises(ValidationError):

@@ -46,9 +46,7 @@ def describe_container(plan: ContainerRunPlan) -> tuple[Line, ...]:
             ("muted", ", ".join(key for key, _ in plan.environment) or "none"),
         )
     )
-    lines.append(
-        field("Command", repr(plan.command) if plan.command else "image default")
-    )
+    lines.append(field("Command", repr(plan.command) if plan.command else "image default"))
     for hook in plan.hooks:
         lines.append(
             line(

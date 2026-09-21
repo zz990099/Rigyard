@@ -508,9 +508,7 @@ def test_tmux_instance_name_must_be_a_target_safe_window_name(tmp_path: Path):
 def test_plan_defaults_to_the_only_configured_profile(tmp_path: Path):
     config = project(tmp_path, scenario_yaml())
 
-    plan = PlanScenarioUseCase().plan(
-        "robot", None, ResolutionRequest(config, interactive=False)
-    )
+    plan = PlanScenarioUseCase().plan("robot", None, ResolutionRequest(config, interactive=False))
 
     assert plan.profile_name == "development"
 
@@ -528,9 +526,7 @@ def test_plan_requires_a_profile_when_several_are_configured(tmp_path: Path):
     )
 
     with pytest.raises(SchemaValidationError, match="needs a profile"):
-        PlanScenarioUseCase().plan(
-            "robot", None, ResolutionRequest(config, interactive=False)
-        )
+        PlanScenarioUseCase().plan("robot", None, ResolutionRequest(config, interactive=False))
 
 
 def test_cli_scene_start_defaults_to_the_only_profile(tmp_path: Path, capsys):
@@ -1002,9 +998,7 @@ def test_tmux_sequential_start_waits_only_between_panes_and_windows():
     waits: list[tuple[float, int, tuple[str, ...]]] = []
 
     def record_wait(seconds: float) -> None:
-        started = sum(
-            command[:2] == ("tmux", "respawn-pane") for command in fake.commands
-        )
+        started = sum(command[:2] == ("tmux", "respawn-pane") for command in fake.commands)
         waits.append((seconds, started, tuple(fake.windows)))
 
     plan = scenario_plan(
@@ -1105,10 +1099,14 @@ def test_compose_start_resolves_services_before_creating_tmux_windows(tmp_path: 
     up = (*base, "up", "-d", "--wait", "--wait-timeout", "45", "robot", "simulator")
     assert down in fake.commands
     assert up in fake.commands
-    assert fake.commands.index(down) < fake.commands.index(up) < next(
-        index
-        for index, command in enumerate(fake.commands)
-        if command[:2] == ("tmux", "new-session")
+    assert (
+        fake.commands.index(down)
+        < fake.commands.index(up)
+        < next(
+            index
+            for index, command in enumerate(fake.commands)
+            if command[:2] == ("tmux", "new-session")
+        )
     )
     pane_commands = [
         command for command in fake.commands if command[:2] == ("tmux", "respawn-pane")
@@ -1161,8 +1159,7 @@ def test_compose_start_aborts_when_previous_project_cannot_be_removed(tmp_path: 
         executor(fake).start(plan)
 
     assert not any(
-        command[:2] == ("docker", "compose") and "up" in command
-        for command in fake.commands
+        command[:2] == ("docker", "compose") and "up" in command for command in fake.commands
     )
     assert not any(command[:2] == ("tmux", "new-session") for command in fake.commands)
 
@@ -1178,12 +1175,10 @@ def test_partial_compose_start_preserves_the_existing_project(tmp_path: Path):
     executor(fake).start(plan)
 
     assert not any(
-        command[:2] == ("docker", "compose") and "down" in command
-        for command in fake.commands
+        command[:2] == ("docker", "compose") and "down" in command for command in fake.commands
     )
     assert any(
-        command[:2] == ("docker", "compose") and "up" in command
-        for command in fake.commands
+        command[:2] == ("docker", "compose") and "up" in command for command in fake.commands
     )
     assert "other" in fake.windows
 
@@ -1445,9 +1440,9 @@ def test_tmux_keep_alive_pane_sources_group_setup_before_the_ready_shell():
     )
     fake = FakeTmux()
     executor(fake).start(scenario_plan(item))
-    program = next(
-        command for command in fake.commands if command[:2] == ("tmux", "respawn-pane")
-    )[-1]
+    program = next(command for command in fake.commands if command[:2] == ("tmux", "respawn-pane"))[
+        -1
+    ]
     assert ". install/setup.bash\nset +e\nros2 launch a.launch.py" in program
 
 
@@ -1723,9 +1718,7 @@ def test_cli_attach_dispatches_one_instance(tmp_path: Path, monkeypatch):
     assert (instance_name, group_name) == ("robot2", "drivers")
 
 
-def test_cli_logs_uses_injected_output_and_dispatches_one_instance(
-    tmp_path: Path, monkeypatch
-):
+def test_cli_logs_uses_injected_output_and_dispatches_one_instance(tmp_path: Path, monkeypatch):
     config = project(tmp_path, two_instance_scenario_yaml())
     service = RecordingCliScenarioService()
     monkeypatch.setattr(scenario_commands, "_service", lambda: service)

@@ -3,4 +3,3 @@
 from typing import Literal
 
 TtyMode = Literal["auto", "always", "never"]
-

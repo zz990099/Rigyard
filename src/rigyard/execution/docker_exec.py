@@ -29,9 +29,7 @@ def docker_exec_command(
         docker.append(f"--user={user}")
     if workdir is not None:
         docker.append(f"--workdir={workdir}")
-    docker.extend(
-        f"--env={name}={value}" for name, value in sorted((environment or {}).items())
-    )
+    docker.extend(f"--env={name}={value}" for name, value in sorted((environment or {}).items()))
     docker.append(container)
     return (*docker, *_container_command(program, interpreter, setup))
 

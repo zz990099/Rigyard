@@ -52,7 +52,7 @@ def container_session_argv(group: ScenarioGroup) -> tuple[str, ...]:
             '__rigyard_history="${HISTFILE-$HOME/.bash_history}"',
             'if [ -n "$__rigyard_history" ]; then',
             "  printf '%s\\n' "
-            f"{shlex.quote(command_line(group))} >> \"$__rigyard_history\" 2>/dev/null",
+            f'{shlex.quote(command_line(group))} >> "$__rigyard_history" 2>/dev/null',
             "fi",
             f"exec {shlex.join((shell, '-i'))}",
         )

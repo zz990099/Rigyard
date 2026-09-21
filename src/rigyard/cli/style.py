@@ -40,9 +40,7 @@ class Line:
         return "".join(part for _, part in self.parts)
 
     def render(self, style: Style) -> str:
-        return "".join(
-            style.render(role, part) if role else part for role, part in self.parts
-        )
+        return "".join(style.render(role, part) if role else part for role, part in self.parts)
 
     def __str__(self) -> str:
         return self.text()

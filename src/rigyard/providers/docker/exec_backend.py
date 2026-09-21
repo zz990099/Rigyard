@@ -48,13 +48,9 @@ class DockerExecExecutor:
                 f"{action_label} timed out after {timeout_seconds} seconds"
             ) from exc
         except OSError as exc:
-            raise BackendUnavailableError(
-                f"cannot execute {unavailable_label}: {exc}"
-            ) from exc
+            raise BackendUnavailableError(f"cannot execute {unavailable_label}: {exc}") from exc
         if result.returncode:
-            raise DockerExecError(
-                f"{action_label} failed with exit code {result.returncode}"
-            )
+            raise DockerExecError(f"{action_label} failed with exit code {result.returncode}")
 
     def _ensure_container(self, container: str, *, start_container: bool) -> None:
         if self._container_running(container):

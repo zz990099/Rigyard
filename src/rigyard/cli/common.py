@@ -76,9 +76,7 @@ def emit(data: Any, output_format: str, *, stream: TextIO | None = None) -> None
         )
 
 
-def stream_input(
-    input_stream: TextIO, output_stream: TextIO
-) -> Callable[[str], str]:
+def stream_input(input_stream: TextIO, output_stream: TextIO) -> Callable[[str], str]:
     """Create an ``input``-compatible reader over injected CLI streams."""
 
     def read(prompt: str) -> str:

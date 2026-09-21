@@ -52,9 +52,10 @@ def test_docker_containers_source_degrades_instead_of_failing():
         CommandResult(1, stderr="Cannot connect to the Docker daemon"),
         FileNotFoundError("docker"),
     ):
-        assert docker_containers_source(FakeRunner(outcome))(
-            PromptSource(provider=PROVIDER_NAME)
-        ) == ()
+        assert (
+            docker_containers_source(FakeRunner(outcome))(PromptSource(provider=PROVIDER_NAME))
+            == ()
+        )
 
 
 def test_docker_container_sources_registers_the_container_provider():

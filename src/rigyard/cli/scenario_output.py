@@ -24,11 +24,7 @@ def describe_scenario(plan: ScenarioPlan) -> tuple[Line, ...]:
         field(
             "Runtime",
             "tmux in "
-            + (
-                "Compose-managed containers"
-                if plan.compose is not None
-                else "existing containers"
-            ),
+            + ("Compose-managed containers" if plan.compose is not None else "existing containers"),
         ),
         field("Instances", ", ".join(instance.name for instance in plan.instances)),
         field("tmux session", plan.session),

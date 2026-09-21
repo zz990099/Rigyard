@@ -111,9 +111,7 @@ def _source_path(manifest_path: Path, configured: Path) -> Path:
     return source.resolve()
 
 
-def _source_paths(
-    manifest_path: Path, configured: Path | tuple[Path, ...]
-) -> tuple[Path, ...]:
+def _source_paths(manifest_path: Path, configured: Path | tuple[Path, ...]) -> tuple[Path, ...]:
     if isinstance(configured, tuple):
         return tuple(_source_path(manifest_path, item) for item in configured)
     return (_source_path(manifest_path, configured),)

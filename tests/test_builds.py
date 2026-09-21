@@ -396,9 +396,9 @@ def test_docker_exec_backend_checks_container_and_executes():
 def test_docker_exec_backend_rejects_missing_container():
     plan = sample_plan()
     with pytest.raises(BuildExecutionError, match="does not exist"):
-        DockerExecBuildBackend(
-            FakeRunner([CommandResult(1, stderr="No such object\n")])
-        ).execute(plan)
+        DockerExecBuildBackend(FakeRunner([CommandResult(1, stderr="No such object\n")])).execute(
+            plan
+        )
 
 
 def test_docker_exec_backend_starts_stopped_container_before_exec():
@@ -454,9 +454,9 @@ def test_docker_exec_backend_reports_start_failure_and_immediate_exit():
 def test_docker_exec_backend_reports_exit_timeout_and_docker_errors():
     plan = sample_plan()
     with pytest.raises(BuildExecutionError, match="exit code 17"):
-        DockerExecBuildBackend(
-            FakeRunner([CommandResult(0, "true\n"), CommandResult(17)])
-        ).execute(plan)
+        DockerExecBuildBackend(FakeRunner([CommandResult(0, "true\n"), CommandResult(17)])).execute(
+            plan
+        )
     with pytest.raises(BuildExecutionError, match="timed out after 30 seconds"):
         DockerExecBuildBackend(
             FakeRunner(

@@ -204,7 +204,7 @@ def _alias_script(manifest_path: Path) -> str:
             f"{ALIAS_CONFIG_PREFIX}{config_path}",
             "set -eu",
             f"exec {shlex.quote(sys.executable)} -m rigyard --config "
-            f"{shlex.quote(str(config_path))} \"$@\"",
+            f'{shlex.quote(str(config_path))} "$@"',
             "",
         )
     )

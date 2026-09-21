@@ -265,9 +265,7 @@ def test_environment_alias_requires_an_active_python_environment(tmp_path: Path,
         workspace_module._active_environment_scripts_dir()
 
 
-def test_environment_alias_uses_the_matching_python_scripts_directory(
-    tmp_path: Path, monkeypatch
-):
+def test_environment_alias_uses_the_matching_python_scripts_directory(tmp_path: Path, monkeypatch):
     active = tmp_path / "rigyard-environment"
     scripts = active / "bin"
     scripts.mkdir(parents=True)
@@ -282,9 +280,7 @@ def test_environment_alias_uses_the_matching_python_scripts_directory(
     assert workspace_module._active_environment_scripts_dir() == scripts
 
 
-def test_environment_alias_rejects_a_different_active_interpreter(
-    tmp_path: Path, monkeypatch
-):
+def test_environment_alias_rejects_a_different_active_interpreter(tmp_path: Path, monkeypatch):
     active = tmp_path / "other-environment"
     monkeypatch.setenv("VIRTUAL_ENV", str(active))
 

@@ -21,9 +21,7 @@ def register_scenario_commands(commands: Any) -> None:
     scene = commands.add_parser("scene", help="start and manage scenarios")
     actions = scene.add_subparsers(dest="scene_command", required=True)
 
-    start = _operation(
-        actions, "start", "start a scenario profile", instance_mode="multiple"
-    )
+    start = _operation(actions, "start", "start a scenario profile", instance_mode="multiple")
     start.add_argument("--dry-run", action="store_true", help="show the plan without starting")
     start.add_argument(
         "--no-attach",
@@ -32,15 +30,11 @@ def register_scenario_commands(commands: Any) -> None:
     )
     start.set_defaults(handler=_start)
 
-    stop = _operation(
-        actions, "stop", "stop a scenario profile", instance_mode="multiple"
-    )
+    stop = _operation(actions, "stop", "stop a scenario profile", instance_mode="multiple")
     stop.set_defaults(handler=_stop)
     down = _operation(actions, "down", "stop a scenario and remove its Compose environment")
     down.set_defaults(handler=_down)
-    status = _operation(
-        actions, "status", "show scenario status", instance_mode="multiple"
-    )
+    status = _operation(actions, "status", "show scenario status", instance_mode="multiple")
     status.set_defaults(handler=_status)
 
     attach = _operation(
@@ -49,9 +43,7 @@ def register_scenario_commands(commands: Any) -> None:
     attach.add_argument("--group", help="select the initial tmux pane (group)")
     attach.set_defaults(handler=_attach)
 
-    logs = _operation(
-        actions, "logs", "show scenario logs", instance_mode="single"
-    )
+    logs = _operation(actions, "logs", "show scenario logs", instance_mode="single")
     logs.add_argument("--group", help="show one scenario group")
     logs.add_argument("--follow", action="store_true", help="follow logs interactively")
     logs.set_defaults(handler=_logs)
@@ -99,9 +91,7 @@ def _plan(
         overrides = parse_overrides(args.sets)
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
-    return PlanScenarioUseCase(
-        sources=docker_sources(), formatter=args.style.render
-    ).plan(
+    return PlanScenarioUseCase(sources=docker_sources(), formatter=args.style.render).plan(
         args.scene_name,
         args.profile_name,
         ResolutionRequest(

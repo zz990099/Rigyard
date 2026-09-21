@@ -313,6 +313,7 @@ class ScenarioExecutor:
 
     def _require(self, command: tuple[str, ...], label: str) -> None:
         self.commands.require(command, label)
+
     def _compose_base(self, plan: ScenarioPlan) -> tuple[str, ...]:
         if plan.compose is None:
             raise ScenarioPlanError("scenario is not managed by Docker Compose")
@@ -327,15 +328,11 @@ class ScenarioExecutor:
 
     def _instance_service(self, instance: ScenarioInstancePlan) -> str:
         if instance.service is None:
-            raise ScenarioPlanError(
-                f"scenario instance {instance.name!r} has no Compose service"
-            )
+            raise ScenarioPlanError(f"scenario instance {instance.name!r} has no Compose service")
         return instance.service
 
     def _compose_services(self, plan: ScenarioPlan) -> tuple[str, ...]:
-        return tuple(
-            dict.fromkeys(self._instance_service(instance) for instance in plan.instances)
-        )
+        return tuple(dict.fromkeys(self._instance_service(instance) for instance in plan.instances))
 
     def _compose_environment(self, plan: ScenarioPlan) -> dict[str, str]:
         if plan.compose is None:
@@ -432,9 +429,7 @@ class ScenarioExecutor:
             self._wait_container_running(container)
 
     def _check_containers(self, plan: ScenarioPlan) -> None:
-        containers = (
-            self._instance_container(instance) for instance in plan.instances
-        )
+        containers = (self._instance_container(instance) for instance in plan.instances)
         for container in dict.fromkeys(containers):
             if not self._container_running(container):
                 raise ScenarioExecutionError(f"container {container!r} is not running")
@@ -533,9 +528,7 @@ class ScenarioExecutor:
     ) -> tuple[str, ...]:
         if not plan.keep_alive:
             return self._docker_exec(plan, instance, group)
-        primary = self._docker_exec(
-            plan, instance, group, argv=container_session_argv(group)
-        )
+        primary = self._docker_exec(plan, instance, group, argv=container_session_argv(group))
         return keep_alive_argv(primary, group.name, host_shell_argv(self.environment))
 
     def _configure_session(self, plan: ScenarioPlan) -> None:
@@ -550,11 +543,7 @@ class ScenarioExecutor:
         index: int,
         count: int,
     ) -> None:
-        if (
-            startup.mode == "sequential"
-            and startup.interval_seconds > 0
-            and index + 1 < count
-        ):
+        if startup.mode == "sequential" and startup.interval_seconds > 0 and index + 1 < count:
             self.sleep_fn(startup.interval_seconds)
 
     def _configure_window(self, window: str) -> None:

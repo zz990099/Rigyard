@@ -67,4 +67,3 @@ def _resolve_source_path(config_path: Path, source_path: Path) -> Path:
     if not path.is_absolute():
         path = config_path.resolve().parent / path
     return path.resolve()
-

@@ -39,8 +39,7 @@ def test_for_stream_detects_terminals_and_honours_overrides():
 def test_cli_colour_option_overrides_the_stream(tmp_path, monkeypatch, capsys):
     config = tmp_path / "rigyard.yaml"
     config.write_text(
-        "version: 3\nmetadata: {name: style-test}\n"
-        "sources: {containers: containers.yaml}\n"
+        "version: 3\nmetadata: {name: style-test}\nsources: {containers: containers.yaml}\n"
     )
     (tmp_path / "containers.yaml").write_text("dev: {image: ubuntu}\n")
 

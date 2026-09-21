@@ -297,9 +297,7 @@ class RigyardConfig(BaseModel):
     tasks: Mapping[str, TaskTemplate] = Field(default_factory=dict)
     scenarios: Mapping[str, ScenarioTemplate] = Field(default_factory=dict)
     source_files: Mapping[str, tuple[SourceFileInfo, ...]]
-    duplicate_names: Mapping[str, Mapping[str, tuple[Path, ...]]] = Field(
-        default_factory=dict
-    )
+    duplicate_names: Mapping[str, Mapping[str, tuple[Path, ...]]] = Field(default_factory=dict)
 
     @field_validator("variables")
     @classmethod
@@ -311,9 +309,7 @@ class RigyardConfig(BaseModel):
 
     @field_validator("images", "containers", "builds", "tests", "tasks", "scenarios")
     @classmethod
-    def valid_definition_names(
-        cls, values: Mapping[str, Any]
-    ) -> Mapping[str, Any]:
+    def valid_definition_names(cls, values: Mapping[str, Any]) -> Mapping[str, Any]:
         invalid = _invalid_names(values)
         if invalid:
             raise ValueError(f"invalid definition name(s): {', '.join(invalid)}")

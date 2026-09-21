@@ -201,9 +201,7 @@ class RuntimeValueResolver:
                     f"invalid input template value for {path}: expected a scalar or list"
                 )
             if isinstance(raw, (list, tuple)):
-                composed = [
-                    prompt.input_template.replace("${INPUT}", str(item)) for item in raw
-                ]
+                composed = [prompt.input_template.replace("${INPUT}", str(item)) for item in raw]
             else:
                 composed = prompt.input_template.replace("${INPUT}", str(raw))
         if prompt.merge == PromptMerge.APPEND:
