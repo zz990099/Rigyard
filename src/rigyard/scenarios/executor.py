@@ -24,6 +24,7 @@ from .process import (
     process_argv,
     startup_exit_code,
 )
+from .runtime import ScenarioCommandGateway
 
 PLACEHOLDER = "import time; time.sleep(86400)"
 PANE_GROUP_OPTION = "@tc_group"
@@ -40,6 +41,7 @@ class ScenarioExecutor:
         environment: Mapping[str, str] | None = None,
     ) -> None:
         self.runner = runner or SubprocessRunner()
+        self.commands = ScenarioCommandGateway(self.runner)
         self.sleep_fn = sleep_fn
         self.environment = os.environ if environment is None else environment
 
@@ -310,13 +312,7 @@ class ScenarioExecutor:
         self._require(("docker", "compose", "version"), "Docker Compose")
 
     def _require(self, command: tuple[str, ...], label: str) -> None:
-        try:
-            result = self.runner.run(command, capture=True)
-        except OSError as exc:
-            raise BackendUnavailableError(f"cannot execute {label}: {exc}") from exc
-        if result.returncode:
-            raise BackendUnavailableError(f"{label} is unavailable")
-
+        self.commands.require(command, label)
     def _compose_base(self, plan: ScenarioPlan) -> tuple[str, ...]:
         if plan.compose is None:
             raise ScenarioPlanError("scenario is not managed by Docker Compose")
@@ -444,22 +440,7 @@ class ScenarioExecutor:
                 raise ScenarioExecutionError(f"container {container!r} is not running")
 
     def _container_running(self, container: str) -> bool:
-        try:
-            result = self.runner.run(
-                ("docker", "inspect", "--format={{.State.Running}}", container),
-                capture=True,
-            )
-        except OSError as exc:
-            raise BackendUnavailableError(f"cannot execute Docker: {exc}") from exc
-        if result.returncode:
-            detail = (result.stderr or result.stdout).strip()
-            suffix = f": {detail}" if detail else ""
-            raise ScenarioExecutionError(
-                f"container {container!r} is not available{suffix}; "
-                f"create it first with 'rigyard container create {container}'"
-            )
-        return result.stdout.strip() == "true"
-
+        return self.commands.container_running(container)
     def _wait_container_running(
         self,
         container: str,
@@ -477,48 +458,11 @@ class ScenarioExecutor:
     # -- tmux inspection ---------------------------------------------------
 
     def _session_exists(self, session: str) -> bool:
-        try:
-            result = self.runner.run(("tmux", "has-session", "-t", session), capture=True)
-        except OSError as exc:
-            raise BackendUnavailableError(f"cannot execute tmux: {exc}") from exc
-        return result.returncode == 0
-
+        return self.commands.session_exists(session)
     def _window_exists(self, plan: ScenarioPlan, instance: ScenarioInstancePlan) -> bool:
-        try:
-            result = self.runner.run(
-                ("tmux", "list-windows", "-t", plan.session, "-F", "#{window_name}"),
-                capture=True,
-            )
-        except OSError as exc:
-            raise BackendUnavailableError(f"cannot execute tmux: {exc}") from exc
-        if result.returncode:
-            return False
-        return instance.name in result.stdout.splitlines()
-
+        return self.commands.window_exists(plan.session, instance.name)
     def _panes(self, window: str) -> tuple[tuple[str, int], ...]:
-        """Return (group tag, pane index) pairs in creation order.
-
-        The tag is a tmux pane option, not the pane title: interactive shells
-        rewrite the title, which would lose the group mapping.
-        """
-
-        result = self._checked(
-            (
-                "tmux",
-                "list-panes",
-                "-t",
-                window,
-                "-F",
-                f"#{{{PANE_GROUP_OPTION}}} #{{pane_index}}",
-            ),
-            f"cannot inspect tmux window {window!r}",
-        )
-        panes = []
-        for line in result.stdout.splitlines():
-            title, _, index = line.rpartition(" ")
-            panes.append((title, int(index)))
-        return tuple(panes)
-
+        return self.commands.panes(window, PANE_GROUP_OPTION)
     def _window_target(self, plan: ScenarioPlan, instance: ScenarioInstancePlan) -> str:
         return f"{plan.session}:{instance.name}"
 
@@ -692,12 +636,9 @@ class ScenarioExecutor:
         capture: bool = True,
         environment: Mapping[str, str] | None = None,
     ) -> CommandResult:
-        try:
-            result = self.runner.run(command, capture=capture, environment=environment)
-        except OSError as exc:
-            raise BackendUnavailableError(f"{message}: {exc}") from exc
-        if result.returncode:
-            detail = (result.stderr or result.stdout).strip()
-            suffix = f": {detail}" if detail else f" (exit {result.returncode})"
-            raise ScenarioExecutionError(message + suffix)
-        return result
+        return self.commands.checked(
+            command,
+            message,
+            capture=capture,
+            environment=environment,
+        )

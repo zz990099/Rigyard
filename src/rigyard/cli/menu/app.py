@@ -33,7 +33,7 @@ from ..container_output import describe_container
 from ..scenario_output import describe_scenario, describe_scenario_target
 from ..task_output import describe_task
 from ..test_output import describe_test
-from .model import MenuAction, MenuRegistry
+from .catalog import build_default_registry
 from .prompt import MenuIO
 from .session import MenuSession
 
@@ -66,51 +66,14 @@ class MenuApp:
         self.test_backend_factory = test_backend_factory or DockerExecTestBackend
         self.task_backend_factory = task_backend_factory or DockerExecTaskBackend
         self.scenario_executor_factory = scenario_executor_factory or ScenarioExecutor
-        self.registry = MenuRegistry(
-            (
-                MenuAction(
-                    "image.build",
-                    "Build image",
-                    self._build_image,
-                    enabled=lambda session: bool(session.config.images),
-                    disabled_reason="no images configured",
-                ),
-                MenuAction(
-                    "container.create",
-                    "Create container",
-                    self._create_container,
-                    enabled=lambda session: bool(session.config.containers),
-                    disabled_reason="no containers configured",
-                ),
-                MenuAction(
-                    "project.build",
-                    "Build project",
-                    self._build_project,
-                    enabled=lambda session: bool(session.config.builds),
-                    disabled_reason="no builds configured",
-                ),
-                MenuAction(
-                    "scene.menu",
-                    "Scene…",
-                    self._scene_menu,
-                    enabled=lambda session: bool(session.config.scenarios),
-                    disabled_reason="no scenarios configured",
-                ),
-                MenuAction(
-                    "test.menu",
-                    "Test…",
-                    self._test_menu,
-                    enabled=lambda session: bool(session.config.tests),
-                    disabled_reason="no tests configured",
-                ),
-                MenuAction(
-                    "task.menu",
-                    "Tasks…",
-                    self._task_menu,
-                    enabled=self._has_menu_tasks,
-                    disabled_reason="no menu tasks configured",
-                ),
-            )
+        self.registry = build_default_registry(
+            build_image=self._build_image,
+            create_container=self._create_container,
+            build_project=self._build_project,
+            scene_menu=self._scene_menu,
+            test_menu=self._test_menu,
+            task_menu=self._task_menu,
+            has_menu_tasks=self._has_menu_tasks,
         )
 
     def run(
