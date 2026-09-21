@@ -5,11 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from ...config.models import RigyardConfig
+from ...application.project import ProjectContext
 
 
 @dataclass
 class MenuSession:
-    config_path: Path
-    config: RigyardConfig
+    project: ProjectContext
     values_path: Path | None = None
+
+    @property
+    def config_path(self) -> Path:
+        return self.project.config_path
+
+    @property
+    def config(self):
+        return self.project.config

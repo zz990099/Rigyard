@@ -10,6 +10,7 @@ from ...application.builds import BuildProjectUseCase
 from ...application.containers import CreateContainerUseCase
 from ...application.images import BuildImageUseCase
 from ...application.parameters import ValidateConfigUseCase
+from ...application.project import ProjectContext
 from ...application.requests import BuildImageRequest, ResolutionRequest
 from ...application.scenarios import PlanScenarioUseCase
 from ...application.tasks import ExecuteTaskUseCase
@@ -85,7 +86,10 @@ class MenuApp:
         config_file = Path(config_path)
         values_file = Path(values_path) if values_path is not None else None
         config = ValidateConfigUseCase().execute(config_file)
-        session = MenuSession(config_file, config, values_file)
+        session = MenuSession(
+            ProjectContext.capture(config_file, config=config),
+            values_file,
+        )
 
         try:
             logo = session.config.branding.logo or DEFAULT_LOGO
@@ -186,6 +190,7 @@ class MenuApp:
             interactive=interactive,
             input_fn=self.io.ask,
             source_path=source_path,
+            project=session.project,
         )
 
     def _create_container(self, session: MenuSession) -> None:
@@ -238,6 +243,7 @@ class MenuApp:
                 interactive=True,
                 input_fn=self.io.ask,
                 source_path=group.path,
+                project=session.project,
             )
         )
         self.io.write_field(f"Image: {plan.final_tag}; layers: {len(plan.steps)}")

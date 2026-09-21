@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Mapping
 from datetime import datetime
 
-from ..config.loader import load_config
 from ..errors import SchemaValidationError
 from ..parameters.prompt import Formatter
 from ..parameters.sources import DynamicSources
@@ -17,6 +15,7 @@ from ..tests.planner import TestPlanner
 from ..tests.service import TestService
 from .definitions import find_definition
 from .parameters import resolve_template
+from .project import project_context
 from .requests import ResolutionRequest
 
 
@@ -41,25 +40,30 @@ class ExecuteTestUseCase:
         environment: Mapping[str, str] | None = None,
         now: datetime | None = None,
     ) -> TestPlan:
-        config = load_config(request.config_path)
+        project = project_context(
+            request.config_path,
+            request.project,
+            environment=environment,
+            timestamp=now,
+        )
+        config = project.config
         match = find_definition(
             config,
             "tests",
             test_name,
             request.source_path,
-            request.config_path,
+            project.config_path,
         )
         if match is None:
             available = ", ".join(sorted(config.tests)) or "none"
             raise SchemaValidationError(
                 f"unknown test {test_name!r}; configured tests: {available}"
             )
-        host_environment = dict(os.environ if environment is None else environment)
         renderer = StringTemplateRenderer(
             TemplateContext.capture(
-                host_environment,
-                now=now,
-                config_path=request.config_path,
+                project.environment,
+                now=project.timestamp,
+                config_path=project.config_path,
                 variables=config.variables,
             ).with_source(match.source_path)
         )

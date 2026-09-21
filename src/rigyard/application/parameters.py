@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
@@ -38,6 +37,7 @@ from ..scenarios.models import (
 from ..tasks.models import TaskSpec
 from ..tests.models import TestSpec
 from .definitions import definition_source_paths
+from .project import project_context
 from .requests import ResolutionRequest
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -73,10 +73,12 @@ class ResolveParametersUseCase:
     def execute(
         self, request: ResolutionRequest, *, allow_missing: bool = False
     ) -> ResolvedContext:
-        config = load_config(request.config_path)
+        project = project_context(request.config_path, request.project)
+        config = project.config
         template_context = TemplateContext.capture(
-            os.environ,
-            config_path=request.config_path,
+            project.environment,
+            now=project.timestamp,
+            config_path=project.config_path,
             variables=config.variables,
         )
         renderer = SourceAwareStringTemplateRenderer(

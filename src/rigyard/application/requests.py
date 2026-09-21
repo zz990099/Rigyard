@@ -8,6 +8,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
+from .project import ProjectContext
+
 InputFunction = Callable[[str], str]
 
 
@@ -19,6 +21,7 @@ class ResolutionRequest:
     interactive: bool = True
     input_fn: InputFunction = input
     source_path: Path | None = None
+    project: ProjectContext | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "config_path", Path(self.config_path))
@@ -38,6 +41,7 @@ class BuildImageRequest:
     interactive: bool = True
     input_fn: InputFunction = input
     source_path: Path | None = None
+    project: ProjectContext | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "config_path", Path(self.config_path))
@@ -55,4 +59,5 @@ class BuildImageRequest:
             interactive=self.interactive,
             input_fn=self.input_fn,
             source_path=self.source_path,
+            project=self.project,
         )

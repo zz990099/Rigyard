@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 
-from ..config.loader import load_config
 from ..errors import SchemaValidationError
 from ..parameters.models import PromptValue
 from ..parameters.prompt import Formatter
@@ -26,6 +24,7 @@ from ..scenarios.models import (
 from ..scenarios.planner import ScenarioPlanner
 from .definitions import find_definition
 from .parameters import resolve_selected_prompts
+from .project import project_context
 from .requests import ResolutionRequest
 
 
@@ -49,7 +48,13 @@ class PlanScenarioUseCase:
         environment: Mapping[str, str] | None = None,
         now: datetime | None = None,
     ) -> ScenarioPlan:
-        config = load_config(request.config_path)
+        project = project_context(
+            request.config_path,
+            request.project,
+            environment=environment,
+            timestamp=now,
+        )
+        config = project.config
         if scene_name not in config.scenarios:
             available = ", ".join(sorted(config.scenarios)) or "none"
             raise SchemaValidationError(
@@ -60,7 +65,7 @@ class PlanScenarioUseCase:
             "scenarios",
             scene_name,
             request.source_path,
-            request.config_path,
+            project.config_path,
         )
         if match is None:
             available = ", ".join(sorted(config.scenarios)) or "none"
@@ -70,9 +75,9 @@ class PlanScenarioUseCase:
         scenario = match.value
         renderer = StringTemplateRenderer(
             TemplateContext.capture(
-                dict(os.environ if environment is None else environment),
-                now=now,
-                config_path=request.config_path,
+                project.environment,
+                now=project.timestamp,
+                config_path=project.config_path,
                 variables=config.variables,
             ).with_source(match.source_path)
         )
@@ -174,6 +179,7 @@ class PlanScenarioUseCase:
                 {**request.overrides, **selection_context.as_dict()},
                 request.interactive,
                 request.input_fn,
+                project=project,
             ),
             renderer=renderer,
             sources=self.sources,
@@ -272,7 +278,7 @@ class PlanScenarioUseCase:
             profile,
             compose,
             startup,
-            request.config_path,
+            project.config_path,
             config.metadata.name,
             partial=bool(instances),
         )
