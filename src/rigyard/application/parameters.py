@@ -81,7 +81,7 @@ class ResolveParametersUseCase:
         )
         renderer = SourceAwareStringTemplateRenderer(
             template_context,
-            definition_source_paths(config, request.config_path),
+            definition_source_paths(config),
         )
         context = resolve_prompts(
             config,

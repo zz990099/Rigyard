@@ -412,13 +412,13 @@ def test_scenario_instance_requires_container(tmp_path: Path):
 
 
 @pytest.mark.parametrize(
-    "legacy_field",
+    "removed_field",
     (
         "      backend: tmux\n",
         "      compose_file: deploy/compose.yaml\n",
     ),
 )
-def test_scenario_profile_rejects_removed_backend_fields(tmp_path: Path, legacy_field: str):
+def test_scenario_profile_rejects_removed_backend_fields(tmp_path: Path, removed_field: str):
     config = project(
         tmp_path,
         """robot:
@@ -427,22 +427,22 @@ def test_scenario_profile_rejects_removed_backend_fields(tmp_path: Path, legacy_
   profiles:
     development:
 """
-        + legacy_field,
+        + removed_field,
     )
     with pytest.raises(SchemaValidationError, match="Extra inputs are not permitted"):
         load_config(config)
 
 
 @pytest.mark.parametrize(
-    "legacy_field",
+    "removed_field",
     (
         "      supervisor: {priority: 10}\n",
         "      groups: {drivers: {script: /run.sh, supervisor: {priority: 10}}}\n",
     ),
 )
-def test_scenario_rejects_removed_deployment_fields(tmp_path: Path, legacy_field: str):
+def test_scenario_rejects_removed_deployment_fields(tmp_path: Path, removed_field: str):
     groups = "      groups: {drivers: {script: /run.sh}}\n"
-    if "groups:" in legacy_field:
+    if "groups:" in removed_field:
         groups = ""
     config = project(
         tmp_path,
@@ -451,7 +451,7 @@ def test_scenario_rejects_removed_deployment_fields(tmp_path: Path, legacy_field
     robot1:
       container: robot-dev
 """
-        + legacy_field
+        + removed_field
         + groups
         + "  profiles: {development: {attach: false}}\n",
     )
@@ -609,12 +609,12 @@ def test_group_requires_exactly_one_of_script_or_command(tmp_path: Path):
         load_config(config)
 
 
-def test_schema_version_2_is_rejected_with_migration_hint(tmp_path: Path):
+def test_unsupported_schema_version_is_rejected(tmp_path: Path):
     config = write(
         tmp_path / "rigyard.yaml",
-        "version: 2\nmetadata: {name: old}\nsources: {scenarios: s.yaml}\n",
+        "version: 2\nmetadata: {name: invalid}\nsources: {scenarios: s.yaml}\n",
     )
-    with pytest.raises(SchemaValidationError, match="instances.<name>"):
+    with pytest.raises(SchemaValidationError, match="unsupported schema version 2; expected 3"):
         load_config(config)
 
 

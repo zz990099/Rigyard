@@ -13,7 +13,7 @@ from rigyard.containers.planner import ContainerRunPlanner
 from rigyard.errors import BackendUnavailableError, ContainerCreateError, ContainerPlanError
 from rigyard.parameters.sources import DynamicOption
 from rigyard.providers.docker.container_backend import DockerContainerBackend
-from rigyard.providers.docker.runner import CommandResult
+from rigyard.execution.runner import CommandResult
 
 
 def make_plan(tmp_path, host_environment=None, **kwargs):

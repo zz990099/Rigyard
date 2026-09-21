@@ -15,7 +15,7 @@ from rigyard.containers.planner import ContainerRunPlanner
 from rigyard.containers.service import ContainerCreateService
 from rigyard.errors import ContainerLifecycleError, ContainerPlanError
 from rigyard.providers.docker.container_backend import DockerContainerBackend
-from rigyard.providers.docker.runner import CommandResult
+from rigyard.execution.runner import CommandResult
 
 
 class QueueRunner:

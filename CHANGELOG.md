@@ -43,3 +43,5 @@ This file records notable user-facing changes. Once releases begin, the project 
 - `${TOOLCHAIN_ROOT}` is now `${RIGYARD_ROOT}`, and `TOOL_PARAM_*` overrides are now
   `RIGYARD_PARAM_*`.
 - The import package and distribution name are now `rigyard`.
+- Removed compatibility fallbacks for assembled configurations without source provenance,
+  schema version 2 migration guidance, and the old Docker runner import path.

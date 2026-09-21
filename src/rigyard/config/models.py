@@ -194,14 +194,9 @@ class RigyardManifest(BaseModel):
     @field_validator("version")
     @classmethod
     def supported_version(cls, value: int) -> int:
-        if value == SCHEMA_VERSION:
-            return value
-        if value == 2:
-            raise ValueError(
-                "schema version 2 is not supported: move scenario `groups` under "
-                "`instances.<name>` and set `version: 3`"
-            )
-        raise ValueError(f"unsupported schema version {value}; expected {SCHEMA_VERSION}")
+        if value != SCHEMA_VERSION:
+            raise ValueError(f"unsupported schema version {value}; expected {SCHEMA_VERSION}")
+        return value
 
     @field_validator("variables")
     @classmethod
@@ -301,7 +296,7 @@ class RigyardConfig(BaseModel):
     tests: Mapping[str, TestTemplate] = Field(default_factory=dict)
     tasks: Mapping[str, TaskTemplate] = Field(default_factory=dict)
     scenarios: Mapping[str, ScenarioTemplate] = Field(default_factory=dict)
-    source_files: Mapping[str, tuple[SourceFileInfo, ...]] = Field(default_factory=dict)
+    source_files: Mapping[str, tuple[SourceFileInfo, ...]]
     duplicate_names: Mapping[str, Mapping[str, tuple[Path, ...]]] = Field(
         default_factory=dict
     )

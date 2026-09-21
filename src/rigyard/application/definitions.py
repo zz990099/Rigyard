@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -40,12 +39,6 @@ def find_definition(
             f"unknown {kind} source {target}; configured sources: {available}"
         )
 
-    if not groups:
-        template = _legacy_mapping(config, kind).get(name)
-        if template is None:
-            return None
-        return DefinitionMatch(template, config_path.resolve())
-
     matches = [(group, group.definitions[name]) for group in groups if name in group.definitions]
     if len(matches) > 1:
         paths = ", ".join(str(group.path) for group, _ in matches)
@@ -58,19 +51,14 @@ def find_definition(
     return None
 
 
-def definition_source_paths(config: RigyardConfig, config_path: Path) -> dict[str, Path]:
+def definition_source_paths(config: RigyardConfig) -> dict[str, Path]:
     """Map materialization prefixes to the source file that defined them."""
 
     paths: dict[str, Path] = {}
     for kind in ("images", "containers", "builds", "tests", "tasks", "scenarios"):
-        groups = config.source_files.get(kind, ())
-        if groups:
-            for group in groups:
-                for name in group.definitions:
-                    paths.setdefault(f"{kind}.{name}", group.path)
-            continue
-        for name in _legacy_mapping(config, kind):
-            paths[f"{kind}.{name}"] = config_path.resolve()
+        for group in config.source_files[kind]:
+            for name in group.definitions:
+                paths.setdefault(f"{kind}.{name}", group.path)
     return paths
 
 
@@ -80,16 +68,3 @@ def _resolve_source_path(config_path: Path, source_path: Path) -> Path:
         path = config_path.resolve().parent / path
     return path.resolve()
 
-
-def _legacy_mapping(config: RigyardConfig, kind: str) -> Mapping[str, Any]:
-    if kind == "images":
-        return config.images
-    if kind == "containers":
-        return config.containers
-    if kind == "builds":
-        return config.builds
-    if kind == "tests":
-        return config.tests
-    if kind == "tasks":
-        return config.tasks
-    return config.scenarios
