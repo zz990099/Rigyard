@@ -12,7 +12,7 @@ from ...containers.models import (
     ContainerRunPlan,
 )
 from ...errors import BackendUnavailableError, ContainerCreateError, ContainerLifecycleError
-from .runner import CommandRunner, SubprocessRunner
+from ...execution import CommandRunner, SubprocessRunner
 
 
 class DockerContainerBackend:
