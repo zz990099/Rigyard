@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import shlex
-
+from ..execution.docker_exec import docker_exec_command
 from .models import BuildPlan, BuildSpec
 
 
@@ -13,20 +12,21 @@ class BuildPlanner:
         build_name: str,
         spec: BuildSpec,
     ) -> BuildPlan:
-        docker = ["docker", "exec"]
-        if spec.tty == "always":
-            docker.append("--tty")
-        if spec.user is not None:
-            docker.append(f"--user={spec.user}")
-        if spec.workdir is not None:
-            docker.append(f"--workdir={spec.workdir}")
-        docker.extend(f"--env={name}={value}" for name, value in sorted(spec.environment.items()))
-        docker.append(spec.container)
+        command = docker_exec_command(
+            container=spec.container,
+            program=(*spec.interpreter, str(spec.script)),
+            interpreter=spec.interpreter,
+            setup=spec.setup,
+            workdir=spec.workdir,
+            user=spec.user,
+            environment=spec.environment,
+            tty=spec.tty,
+        )
         return BuildPlan(
             build_name=build_name,
             container=spec.container,
             script=spec.script,
-            command=(*docker, *_container_command(spec)),
+            command=command,
             workdir=spec.workdir,
             user=spec.user,
             setup=spec.setup,
@@ -36,12 +36,3 @@ class BuildPlanner:
             tty=spec.tty,
             start_container=spec.start_container,
         )
-
-
-def _container_command(spec: BuildSpec) -> tuple[str, ...]:
-    base = (*spec.interpreter, str(spec.script))
-    if not spec.setup:
-        return base
-    prelude = " && ".join(f". {shlex.quote(script)}" for script in spec.setup)
-    program = f"{prelude} && exec {shlex.join(base)}"
-    return (*spec.interpreter, "-c", program)

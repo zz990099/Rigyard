@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import shlex
-
-from .models import TestAction, TestActionSpec, TestPlan, TestSpec
+from ..execution.docker_exec import docker_exec_command
+from .models import TestAction, TestPlan, TestSpec
 
 
 class TestPlanner:
@@ -15,21 +14,22 @@ class TestPlanner:
         spec: TestSpec,
     ) -> TestPlan:
         action_spec = spec.run if action == "run" else spec.report
-        docker = ["docker", "exec"]
-        if spec.tty == "always":
-            docker.append("--tty")
-        if spec.user is not None:
-            docker.append(f"--user={spec.user}")
-        if spec.workdir is not None:
-            docker.append(f"--workdir={spec.workdir}")
-        docker.extend(f"--env={name}={value}" for name, value in sorted(spec.environment.items()))
-        docker.append(spec.container)
+        command = docker_exec_command(
+            container=spec.container,
+            program=(*action_spec.interpreter, str(action_spec.script)),
+            interpreter=action_spec.interpreter,
+            setup=spec.setup,
+            workdir=spec.workdir,
+            user=spec.user,
+            environment=spec.environment,
+            tty=spec.tty,
+        )
         return TestPlan(
             test_name=test_name,
             action=action,
             container=spec.container,
             script=action_spec.script,
-            command=(*docker, *_container_command(action_spec, spec.setup)),
+            command=command,
             workdir=spec.workdir,
             user=spec.user,
             setup=spec.setup,
@@ -39,15 +39,3 @@ class TestPlanner:
             tty=spec.tty,
             start_container=spec.start_container,
         )
-
-
-def _container_command(
-    action: TestActionSpec,
-    setup: tuple[str, ...],
-) -> tuple[str, ...]:
-    base = (*action.interpreter, str(action.script))
-    if not setup:
-        return base
-    prelude = " && ".join(f". {shlex.quote(script)}" for script in setup)
-    program = f"{prelude} && exec {shlex.join(base)}"
-    return (*action.interpreter, "-c", program)
