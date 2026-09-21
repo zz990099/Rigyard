@@ -46,6 +46,10 @@ def describe_scenario(plan: ScenarioPlan) -> tuple[Line, ...]:
                 field("Compose file", str(plan.compose.file)),
                 field("Compose project", plan.compose.project_name),
                 field(
+                    "Compose start",
+                    "selected services only" if plan.partial else "recreate project",
+                ),
+                field(
                     "Compose wait timeout",
                     f"{plan.compose.wait_timeout_seconds}s",
                 ),

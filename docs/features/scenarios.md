@@ -66,7 +66,15 @@ robot-system:
       attach: true
 ```
 
-With `compose`, every instance must use `service`, not `container`. `scene start` runs `docker compose up -d --wait`, then resolves each service to exactly one container ID through `docker compose ps -q`. One instance cannot currently target a scaled service.
+With `compose`, every instance must use `service`, not `container`. A complete `scene start` first
+stops the previous tmux session, then runs `docker compose down --remove-orphans` followed by
+`docker compose up -d --wait`. This recreates the project containers and networks while preserving
+named volumes and images. Rigyard then resolves each service to exactly one container ID through
+`docker compose ps -q`. One instance cannot currently target a scaled service.
+
+A partial start selected with `--instance` does not tear down the Compose project because doing so
+would interrupt unselected instances. It runs `compose up` for the selected services and joins or
+creates the matching tmux windows.
 
 `compose.file` is relative to the root manifest. `compose.environment` is expanded by Rigyard and passed to Compose `config`, `up`, `ps`, and `down`, overriding the same host variable:
 
@@ -208,11 +216,15 @@ This preserves output and supports quick command edits and retries. With `keep_a
 
 | Command | tmux | Existing container | Compose containers |
 | --- | --- | --- | --- |
-| `scene start` | Creates session, windows, and panes | Applies restart policy | Runs `compose up -d --wait` |
+| `scene start` | Replaces the complete session, or selected windows for `--instance` | Applies restart policy | Full start runs `down --remove-orphans`, then `up -d --wait`; partial start only runs `up` |
 | `scene stop` | Stops processes and closes targets | Preserved | Preserved |
-| `scene down` | Stops the complete scenario | Not applicable | Runs `compose down` |
+| `scene down` | Stops the complete scenario | Not applicable | Runs `compose down --remove-orphans` |
 
-`scene down` is available only for Compose scenarios and operates on the complete Compose project, so it rejects `--instance`. If a failure occurs after Compose up, containers remain available for diagnosis; use `scene down` to remove them.
+`scene down` is available only for Compose scenarios and operates on the complete Compose project,
+so it rejects `--instance`. A complete Compose start is intentionally destructive to old project
+containers: if the subsequent `compose up` fails, the previous environment has already been
+removed, while any newly created containers remain available for diagnosis. Use `scene down` to
+remove them. Named volumes are not removed.
 
 ## Commands
 

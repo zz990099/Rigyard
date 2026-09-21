@@ -1101,9 +1101,11 @@ def test_compose_start_resolves_services_before_creating_tmux_windows(tmp_path: 
         "--project-name",
         "robot-debug",
     )
+    down = (*base, "down", "--remove-orphans")
     up = (*base, "up", "-d", "--wait", "--wait-timeout", "45", "robot", "simulator")
+    assert down in fake.commands
     assert up in fake.commands
-    assert fake.commands.index(up) < next(
+    assert fake.commands.index(down) < fake.commands.index(up) < next(
         index
         for index, command in enumerate(fake.commands)
         if command[:2] == ("tmux", "new-session")
@@ -1114,6 +1116,76 @@ def test_compose_start_resolves_services_before_creating_tmux_windows(tmp_path: 
     assert any("robot-container" in " ".join(command) for command in pane_commands)
     assert any("simulator-container" in " ".join(command) for command in pane_commands)
     assert not any(command[:2] == ("docker", "restart") for command in fake.commands)
+
+
+def test_compose_start_stops_tmux_before_recreating_project(tmp_path: Path):
+    fake = FakeTmux(session=True, windows=("robot1",))
+    plan = scenario_plan(
+        instance(service="robot"),
+        compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60),
+    )
+
+    executor(fake).start(plan)
+
+    base = (
+        "docker",
+        "compose",
+        "-f",
+        str(tmp_path / "compose.yaml"),
+        "--project-name",
+        "robot-debug",
+    )
+    kill = ("tmux", "kill-session", "-t", "robot-session")
+    down = (*base, "down", "--remove-orphans")
+    up = (*base, "up", "-d", "--wait", "--wait-timeout", "60", "robot")
+    assert fake.commands.index(kill) < fake.commands.index(down) < fake.commands.index(up)
+
+
+def test_compose_start_aborts_when_previous_project_cannot_be_removed(tmp_path: Path):
+    fake = FakeTmux()
+
+    def fail_down(command, _):
+        if command[:2] == ("docker", "compose") and "down" in command:
+            return CommandResult(17, stderr="resource is busy")
+        return None
+
+    fake.override = fail_down
+    plan = scenario_plan(
+        instance(service="robot"),
+        compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60),
+    )
+
+    with pytest.raises(
+        ScenarioExecutionError, match="Docker Compose down failed.*resource is busy"
+    ):
+        executor(fake).start(plan)
+
+    assert not any(
+        command[:2] == ("docker", "compose") and "up" in command
+        for command in fake.commands
+    )
+    assert not any(command[:2] == ("tmux", "new-session") for command in fake.commands)
+
+
+def test_partial_compose_start_preserves_the_existing_project(tmp_path: Path):
+    fake = FakeTmux(session=True, windows=("other",), compose_services=("robot", "other"))
+    plan = scenario_plan(
+        instance(service="robot"),
+        compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60),
+        partial=True,
+    )
+
+    executor(fake).start(plan)
+
+    assert not any(
+        command[:2] == ("docker", "compose") and "down" in command
+        for command in fake.commands
+    )
+    assert any(
+        command[:2] == ("docker", "compose") and "up" in command
+        for command in fake.commands
+    )
+    assert "other" in fake.windows
 
 
 def test_compose_commands_receive_resolved_environment(tmp_path: Path):
@@ -1158,6 +1230,7 @@ def test_compose_start_rejects_unknown_services_before_up(tmp_path: Path):
         executor(fake).start(plan)
 
     assert not any("up" in command for command in fake.commands)
+    assert not any("down" in command for command in fake.commands)
     assert not any(command[:2] == ("tmux", "new-session") for command in fake.commands)
 
 
@@ -1191,6 +1264,7 @@ def test_compose_down_stops_tmux_then_removes_environment(tmp_path: Path):
         "--project-name",
         "robot-debug",
         "down",
+        "--remove-orphans",
     )
     kill = ("tmux", "kill-session", "-t", "robot-session")
     assert result.detail == "down"
@@ -1584,6 +1658,7 @@ def test_cli_dry_run_describes_compose_runtime(tmp_path: Path, capsys):
     assert "Runtime: tmux in Compose-managed containers" in output
     assert f"Compose file: {compose_file.resolve()}" in output
     assert "Compose project: robot-debug" in output
+    assert "Compose start: recreate project" in output
     assert "Compose wait timeout: 20s" in output
     assert "Compose environment keys: WORKSPACE" in output
     assert "Window robot1: service=robot -> drivers" in output

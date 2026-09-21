@@ -20,6 +20,8 @@ This file records notable user-facing changes. Once releases begin, the project 
 
 ### Changed
 
+- Complete Compose scene starts now remove the previous project containers and orphans before
+  recreating them; partial instance starts remain incremental.
 - Build, test, and custom-task commands now start stopped target containers by default, with
   `start_container: false` available for strict lifecycle ownership.
 - Reduced the README to a PyPI-friendly overview and quick start.

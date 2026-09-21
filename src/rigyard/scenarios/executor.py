@@ -50,6 +50,8 @@ class ScenarioExecutor:
             self._preflight_compose(plan)
         if self._session_exists(plan.session):
             self.stop(plan)
+        if plan.compose is not None and not plan.partial:
+            self._remove_compose(plan)
         runtime_plan = self._prepare_compose(plan) if plan.compose is not None else plan
         if plan.compose is None:
             self._restart_containers(runtime_plan)
@@ -178,11 +180,7 @@ class ScenarioExecutor:
         self._require_docker()
         self._require_compose()
         self.stop(plan)
-        self._checked(
-            (*self._compose_base(plan), "down"),
-            "Docker Compose down failed",
-            environment=self._compose_environment(plan),
-        )
+        self._remove_compose(plan)
         return ScenarioResult(plan.scene_name, plan.profile_name, "down")
 
     def stop(self, plan: ScenarioPlan) -> ScenarioResult:
@@ -400,6 +398,13 @@ class ScenarioExecutor:
                 )
                 for instance in plan.instances
             ),
+        )
+
+    def _remove_compose(self, plan: ScenarioPlan) -> None:
+        self._checked(
+            (*self._compose_base(plan), "down", "--remove-orphans"),
+            "Docker Compose down failed",
+            environment=self._compose_environment(plan),
         )
 
     def _instance_container(self, instance: ScenarioInstancePlan) -> str:
