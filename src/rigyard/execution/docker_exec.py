@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shlex
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 from .tty import TtyMode
 
@@ -14,7 +15,7 @@ def docker_exec_command(
     program: Sequence[str],
     interpreter: tuple[str, ...],
     setup: tuple[str, ...] = (),
-    workdir: object | None = None,
+    workdir: str | Path | None = None,
     user: str | None = None,
     environment: Mapping[str, str] | None = None,
     tty: TtyMode = "auto",

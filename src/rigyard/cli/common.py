@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -76,7 +76,9 @@ def emit(data: Any, output_format: str, *, stream: TextIO | None = None) -> None
         )
 
 
-def stream_input(input_stream: TextIO, output_stream: TextIO):
+def stream_input(
+    input_stream: TextIO, output_stream: TextIO
+) -> Callable[[str], str]:
     """Create an ``input``-compatible reader over injected CLI streams."""
 
     def read(prompt: str) -> str:

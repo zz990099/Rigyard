@@ -268,7 +268,7 @@ def test_environment_alias_requires_an_active_python_environment(tmp_path: Path,
 def test_environment_alias_uses_the_matching_python_scripts_directory(
     tmp_path: Path, monkeypatch
 ):
-    active = tmp_path / "toolchain-environment"
+    active = tmp_path / "rigyard-environment"
     scripts = active / "bin"
     scripts.mkdir(parents=True)
     monkeypatch.setenv("VIRTUAL_ENV", str(active))

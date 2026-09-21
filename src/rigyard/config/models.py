@@ -285,7 +285,7 @@ class ScenarioDefinitions(RootModel[dict[str, ScenarioTemplate]]):
 
 
 class RigyardConfig(BaseModel):
-    """Fully loaded deeply immutable configuration used by application services."""
+    """Fully loaded configuration with read-only resource mappings for application services."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, validate_default=True)
 

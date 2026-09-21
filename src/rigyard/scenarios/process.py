@@ -47,8 +47,8 @@ def container_session_argv(group: ScenarioGroup) -> tuple[str, ...]:
             shlex.join(_base_argv(group)),
             "__rigyard_status=$?",
             f'echo "{EXIT_MARKER.format(group=_label(group))}$__rigyard_status"',
-            # Same effect as typing the command into an interactive shell (legacy):
-            # seed the history file so ↑ recalls it after the shell has started.
+            # Preserve interactive recall by seeding the history file so ↑ can
+            # retrieve the command after the shell has started.
             '__rigyard_history="${HISTFILE-$HOME/.bash_history}"',
             'if [ -n "$__rigyard_history" ]; then',
             "  printf '%s\\n' "
