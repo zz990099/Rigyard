@@ -19,8 +19,8 @@ from .commands.scenarios import register_scenario_commands
 from .commands.tasks import register_task_commands
 from .commands.tests import register_test_commands
 from .commands.workspace import register_workspace_commands
-from .menu import MenuApp, MenuIO
 from .common import stream_input
+from .menu import MenuApp, MenuIO
 from .style import ColorMode, Style
 
 

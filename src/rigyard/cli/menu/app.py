@@ -34,6 +34,7 @@ from ..scenario_output import describe_scenario, describe_scenario_target
 from ..task_output import describe_task
 from ..test_output import describe_test
 from .catalog import build_default_registry
+from .model import MenuAction
 from .prompt import MenuIO
 from .session import MenuSession
 

@@ -111,7 +111,11 @@ def _start(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         print_fields(args.style, describe_scenario(plan), stream=args.output)
         return 0
     result = _service().start(plan)
-    say(args.style, f"Started scenario {result.scene_name!r} profile {result.profile_name!r}", stream=args.output)
+    say(
+        args.style,
+        f"Started scenario {result.scene_name!r} profile {result.profile_name!r}",
+        stream=args.output,
+    )
     return 0
 
 
@@ -132,7 +136,11 @@ def _down(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         parser.error("scene down does not support --instance")
     plan = _plan(args, parser)
     result = _service().down(plan)
-    say(args.style, result.detail or f"Removed scenario {result.scene_name!r} environment", stream=args.output)
+    say(
+        args.style,
+        result.detail or f"Removed scenario {result.scene_name!r} environment",
+        stream=args.output,
+    )
     return 0
 
 

@@ -8,7 +8,7 @@ import time
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 
-from ..errors import BackendUnavailableError, ScenarioExecutionError, ScenarioPlanError
+from ..errors import ScenarioExecutionError, ScenarioPlanError
 from ..execution import CommandResult, CommandRunner, SubprocessRunner
 from .models import (
     ScenarioGroupPlan,
