@@ -243,6 +243,8 @@ def test_cli_dry_run_does_not_execute(tmp_path: Path, monkeypatch, capsys):
     output = capsys.readouterr().out
     assert "Task: clean" in output
     assert "/workspace/scripts/clean.sh" in output
+    assert "--env=CLEAN_INSTALL=REDACTED" in output
+    assert "--env=CLEAN_INSTALL=false" not in output
 
 
 def test_cli_runs_cli_only_task(tmp_path: Path, monkeypatch, capsys):

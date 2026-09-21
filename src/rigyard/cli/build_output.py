@@ -5,6 +5,7 @@ from __future__ import annotations
 import shlex
 
 from ..builds.models import BuildPlan
+from .command_output import redact_environment_values
 from .style import Line, field, line
 
 
@@ -17,7 +18,7 @@ def describe_build(plan: BuildPlan) -> tuple[Line, ...]:
             "Working directory",
             str(plan.workdir) if plan.workdir is not None else "(container default)",
         ),
-        field("Command", shlex.join(plan.command)),
+        field("Command", shlex.join(redact_environment_values(plan.command))),
         line(
             ("label", "Environment overrides"),
             ": ",

@@ -255,6 +255,8 @@ def test_cli_dry_run_does_not_execute(tmp_path: Path, monkeypatch, capsys):
     assert "Test: unit" in output
     assert "Action: report" in output
     assert "/workspace/scripts/show-results.sh" in output
+    assert "--env=TEST_JOBS=REDACTED" in output
+    assert "--env=TEST_JOBS=4" not in output
 
 
 @pytest.mark.parametrize("action", ["run", "report"])

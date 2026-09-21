@@ -363,7 +363,7 @@ def test_plan_lines_keep_their_text_and_carry_roles():
         "Container: dev",
         "Start stopped container: true",
         "Working directory: /workspace",
-        "Command: docker exec --workdir=/workspace --env=BUILD_TYPE=Release dev "
+        "Command: docker exec --workdir=/workspace --env=BUILD_TYPE=REDACTED dev "
         "/bin/bash -eu /workspace/build.sh",
         "Environment overrides: BUILD_TYPE",
         "Timeout: 30 seconds",
