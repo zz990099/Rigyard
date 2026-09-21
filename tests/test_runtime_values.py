@@ -26,6 +26,15 @@ def prompt(mode="input", default="value", **prompt_options):
 _MISSING = object()
 
 
+def current_source_files() -> dict[str, tuple]:
+    """Minimal current-schema source provenance for direct model unit tests."""
+
+    return {
+        kind: ()
+        for kind in ("images", "containers", "builds", "tests", "tasks", "scenarios")
+    }
+
+
 def test_prompt_schema_validates_modes_and_defaults():
     assert prompt("confirm", False).default is False
     assert prompt("select", "a", options=["a", "b"]).prompt.options == ("a", "b")
@@ -95,9 +104,10 @@ def test_input_composition_schema_is_explicit_and_rejects_ambiguous_forms():
 def test_prompts_are_discovered_by_configuration_path():
     config = RigyardConfig.model_validate(
         {
-            "version": 2,
+            "version": 3,
             "metadata": {"name": "test"},
             "sources": {"containers": "containers.yaml"},
+            "source_files": current_source_files(),
             "containers": {
                 "development": {
                     "image": "ubuntu",
@@ -453,9 +463,10 @@ def test_prompt_source_schema_rules():
 def test_target_model_performs_type_validation_after_interaction():
     template = RigyardConfig.model_validate(
         {
-            "version": 2,
+            "version": 3,
             "metadata": {"name": "test"},
             "sources": {"containers": "containers.yaml"},
+            "source_files": current_source_files(),
             "containers": {
                 "dev": {
                     "image": "ubuntu",
