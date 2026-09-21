@@ -8,7 +8,7 @@ from typing import Any
 
 from ...application.containers import CreateContainerUseCase
 from ...application.requests import ResolutionRequest
-from ...providers.docker import docker_container_sources
+from ...providers.docker import docker_sources
 from ...providers.docker.container_backend import DockerContainerBackend
 from ..common import parse_overrides, print_fields, say
 from ..container_output import describe_container
@@ -45,7 +45,7 @@ def _create(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
     use_case = CreateContainerUseCase(
         DockerContainerBackend(confirm_replace=confirm_replace),
-        sources=docker_container_sources(),
+        sources=docker_sources(),
         formatter=args.style.render,
     )
     plan = use_case.plan(

@@ -21,7 +21,7 @@ from ...providers.docker import (
     DockerExecTaskBackend,
     DockerExecTestBackend,
     DockerImageBackend,
-    docker_container_sources,
+    docker_sources,
 )
 from ...providers.docker.container_backend import DockerContainerBackend
 from ...scenarios.executor import ScenarioExecutor
@@ -54,7 +54,7 @@ class MenuApp:
         sources: DynamicSources | None = None,
     ) -> None:
         self.io = io or MenuIO()
-        self.sources = dict(docker_container_sources() if sources is None else sources)
+        self.sources = dict(docker_sources() if sources is None else sources)
         self.backend_factory = backend_factory or DockerImageBackend
         self.container_backend_factory = container_backend_factory or (
             # Replacing an existing container stays an explicit "no" by default.

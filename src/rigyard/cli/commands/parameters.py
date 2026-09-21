@@ -12,7 +12,7 @@ from ...application.parameters import (
     ValidateConfigUseCase,
 )
 from ...application.requests import ResolutionRequest
-from ...providers.docker import docker_container_sources
+from ...providers.docker import docker_sources
 from ..common import emit, parse_overrides, say
 
 
@@ -72,7 +72,7 @@ def _inspect(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
 
 def _resolve(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     context = ResolveParametersUseCase(
-        sources=docker_container_sources(), formatter=args.style.render
+        sources=docker_sources(), formatter=args.style.render
     ).execute(resolution_request(args, parser))
     emit(context.as_dict(include_sources=args.with_sources), args.format)
     return 0

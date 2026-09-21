@@ -89,7 +89,8 @@ Interactive and explicit values must match static options. The default must also
 
 ## Dynamic options
 
-The built-in `docker-containers` provider queries host Docker only when the prompt is displayed:
+Built-in dynamic providers query host Docker only when the prompt is displayed. Use
+`docker-containers` to select an existing container:
 
 ```yaml
 container:
@@ -104,7 +105,27 @@ container:
 ```
 
 - `filter` is an optional regular expression matched against container names.
-- `running_only` defaults to `false`.
+- `running_only` is specific to `docker-containers` and defaults to `false`.
+
+Use `docker-images` to select a tagged local image. The filter is matched against the full
+`repository:tag` reference:
+
+```yaml
+image:
+  default: example/robot-development:latest
+  prompt:
+    mode: select
+    message: Select the development image
+    source:
+      provider: docker-images
+      filter: "^example/robot-development:"
+```
+
+Image candidates show the short image ID, creation age, and size. Untagged dangling images are
+omitted because they do not have a stable repository/tag reference.
+
+Both providers share these resolution rules:
+
 - Dynamic options are an open set; explicit values need not appear in the query result.
 - If Docker is unavailable or no candidates exist, interactive mode falls back to ordinary input.
 - Non-interactive execution and explicit values do not query the provider.

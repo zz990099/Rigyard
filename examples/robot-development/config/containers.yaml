@@ -7,7 +7,14 @@ development:
     prompt:
       mode: input
       message: Enter the container name
-  image: example/robot-development:latest
+  image:
+    default: example/robot-development:latest
+    prompt:
+      mode: select
+      message: Select the development image
+      source:
+        provider: docker-images
+        filter: "^example/robot-development:"
   privileged:
     default: false
     prompt:

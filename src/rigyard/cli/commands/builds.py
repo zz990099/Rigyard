@@ -8,7 +8,7 @@ from typing import Any
 
 from ...application.builds import BuildProjectUseCase
 from ...application.requests import ResolutionRequest
-from ...providers.docker import DockerExecBuildBackend, docker_container_sources
+from ...providers.docker import DockerExecBuildBackend, docker_sources
 from ..build_output import describe_build
 from ..common import parse_overrides, print_fields, say
 from .parameters import add_resolution_arguments
@@ -30,7 +30,7 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         parser.error(str(exc))
     use_case = BuildProjectUseCase(
         DockerExecBuildBackend(),
-        sources=docker_container_sources(),
+        sources=docker_sources(),
         formatter=args.style.render,
     )
     plan = use_case.plan(

@@ -8,7 +8,7 @@ from typing import Any
 
 from ...application.requests import ResolutionRequest
 from ...application.tasks import ExecuteTaskUseCase
-from ...providers.docker import DockerExecTaskBackend, docker_container_sources
+from ...providers.docker import DockerExecTaskBackend, docker_sources
 from ..common import parse_overrides, print_fields, say
 from ..task_output import describe_task
 from .parameters import add_resolution_arguments
@@ -32,7 +32,7 @@ def _run_task(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         parser.error(str(exc))
     use_case = ExecuteTaskUseCase(
         DockerExecTaskBackend(),
-        sources=docker_container_sources(),
+        sources=docker_sources(),
         formatter=args.style.render,
     )
     plan = use_case.plan(

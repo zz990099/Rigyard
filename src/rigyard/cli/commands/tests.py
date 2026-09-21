@@ -8,7 +8,7 @@ from typing import Any
 
 from ...application.requests import ResolutionRequest
 from ...application.tests import ExecuteTestUseCase
-from ...providers.docker import DockerExecTestBackend, docker_container_sources
+from ...providers.docker import DockerExecTestBackend, docker_sources
 from ...tests.models import TestAction
 from ..common import parse_overrides, print_fields, say
 from ..test_output import describe_test
@@ -40,7 +40,7 @@ def _test(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     action: TestAction = args.test_action
     use_case = ExecuteTestUseCase(
         DockerExecTestBackend(),
-        sources=docker_container_sources(),
+        sources=docker_sources(),
         formatter=args.style.render,
     )
     plan = use_case.plan(

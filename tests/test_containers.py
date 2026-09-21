@@ -11,6 +11,7 @@ from rigyard.cli.menu.prompt import MenuIO
 from rigyard.containers.models import ContainerCreateResult, ContainerSpec
 from rigyard.containers.planner import ContainerRunPlanner
 from rigyard.errors import BackendUnavailableError, ContainerCreateError, ContainerPlanError
+from rigyard.parameters.sources import DynamicOption
 from rigyard.providers.docker.container_backend import DockerContainerBackend
 from rigyard.providers.docker.runner import CommandResult
 
@@ -188,6 +189,50 @@ def test_use_case_resolves_selected_inline_values(tmp_path):
         ),
     )
     assert plan.container_name == "chosen" and plan.privileged is True
+
+
+def test_use_case_selects_container_image_from_dynamic_provider(tmp_path):
+    config = tmp_path / "rigyard.yaml"
+    config.write_text(
+        """version: 3
+metadata: {name: dynamic-image}
+sources: {containers: containers.yaml}
+"""
+    )
+    (tmp_path / "containers.yaml").write_text(
+        """development:
+  image:
+    default: example/robot:latest
+    prompt:
+      mode: select
+      message: Select the image
+      source:
+        provider: docker-images
+        filter: "^example/robot:"
+"""
+    )
+    calls = []
+
+    def images(source):
+        calls.append(source)
+        return (
+            DynamicOption("example/robot:cuda", "bbbbbbbbbbbb, 3 hours ago, 4.2GB"),
+            DynamicOption("example/robot:latest", "aaaaaaaaaaaa, 2 days ago, 4.1GB"),
+        )
+
+    plan = CreateContainerUseCase(
+        FakeBackend(), sources={"docker-images": images}
+    ).plan(
+        "development",
+        ResolutionRequest(
+            config,
+            interactive=True,
+            input_fn=lambda _: "example/robot:cuda",
+        ),
+    )
+
+    assert plan.image == "example/robot:cuda"
+    assert len(calls) == 1
 
 
 def test_container_composes_name_and_appends_a_templated_mount(tmp_path):
