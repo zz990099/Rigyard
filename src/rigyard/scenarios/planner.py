@@ -91,7 +91,6 @@ class ScenarioPlanner:
             profile_name=profile_name,
             session=session,
             attach=profile.attach,
-            replace=True,
             stop_grace_seconds=profile.stop_grace_seconds,
             instances=planned,
             compose=compose_plan,

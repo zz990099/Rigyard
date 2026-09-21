@@ -33,7 +33,6 @@ def describe_scenario(plan: ScenarioPlan) -> tuple[Line, ...]:
         field("Instances", ", ".join(instance.name for instance in plan.instances)),
         field("tmux session", plan.session),
         field("Attach after start", str(plan.attach)),
-        field("Replace existing", str(plan.replace)),
         field("Mouse mode", "on" if plan.mouse else "off"),
         field("Keep pane alive", str(plan.keep_alive)),
         field("Window startup", _startup_label(plan.startup, "windows")),

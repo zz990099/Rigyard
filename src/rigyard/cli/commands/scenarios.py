@@ -25,7 +25,6 @@ def register_scenario_commands(commands: Any) -> None:
         actions, "start", "start a scenario profile", instance_mode="multiple"
     )
     start.add_argument("--dry-run", action="store_true", help="show the plan without starting")
-    start.add_argument("--replace", action="store_true", help="replace an existing tmux session")
     start.add_argument(
         "--no-attach",
         action="store_true",
@@ -130,12 +129,8 @@ def _service() -> ScenarioService:
 
 def _start(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
-    if args.replace or args.no_attach:
-        plan = replace(
-            plan,
-            replace=plan.replace or args.replace,
-            attach=plan.attach and not args.no_attach,
-        )
+    if args.no_attach:
+        plan = replace(plan, attach=plan.attach and not args.no_attach)
     if args.dry_run:
         print_fields(args.style, describe_scenario(plan), stream=args.output)
         return 0

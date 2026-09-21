@@ -178,7 +178,6 @@ Profile fields:
 ```text
 session
 attach = true
-replace = true
 stop_grace_seconds = 5
 restart_container = always
 mouse = true

@@ -176,7 +176,6 @@ interpreter: [/bin/bash, -eo, pipefail]
 | --- | --- | ---: | --- | --- |
 | `session` | string | no | Stable generated value | tmux session name |
 | `attach` | boolean | no | `true` | Attach after startup |
-| `replace` | boolean | no | `true` | Replace matching scenario tmux objects |
 | `stop_grace_seconds` | integer | no | `5` | Wait 0 through 30 seconds after Ctrl+C |
 | `restart_container` | enum | no | `always` | Existing-container lifecycle policy |
 | `mouse` | boolean | no | `true` | Enable tmux mouse support |

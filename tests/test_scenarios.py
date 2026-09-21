@@ -677,7 +677,6 @@ def scenario_plan(
         profile_name="development",
         session=session,
         attach=attach,
-        replace=False,
         stop_grace_seconds=0,
         instances=instances or (instance(),),
         compose=compose,

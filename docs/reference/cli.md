@@ -55,7 +55,7 @@ Scenario actions:
 
 | Action | Additional options |
 | --- | --- |
-| `start` | `--instance NAME`, `--dry-run`, `--replace`, `--no-attach` |
+| `start` | `--instance NAME`, `--dry-run`, `--no-attach` |
 | `stop` | `--instance NAME` |
 | `down` | Compose scenarios only; rejects `--instance` |
 | `status` | `--instance NAME` |

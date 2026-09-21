@@ -125,7 +125,6 @@ class ScenarioProfileTemplate(BaseModel):
 
     session: RuntimeText | None = None
     attach: RuntimeBool = True
-    replace: RuntimeBool = True
     stop_grace_seconds: RuntimeInteger = 5
     restart_container: RestartPolicy = "always"
     mouse: bool = True
@@ -261,7 +260,6 @@ class ScenarioProfileSpec(BaseModel):
 
     session: str | None = None
     attach: bool = True
-    replace: bool = True
     stop_grace_seconds: int = Field(default=5, ge=0, le=30)
     restart_container: RestartPolicy = "always"
     mouse: bool = True
@@ -318,7 +316,6 @@ class ScenarioPlan:
     profile_name: str
     session: str
     attach: bool
-    replace: bool
     stop_grace_seconds: int
     instances: tuple[ScenarioInstancePlan, ...]
     compose: ScenarioComposePlan | None = None
