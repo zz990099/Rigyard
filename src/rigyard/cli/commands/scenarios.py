@@ -87,6 +87,7 @@ def _plan(
             args.values,
             overrides,
             interactive=not args.non_interactive,
+            input_fn=args.input_fn,
             source_path=args.source,
         ),
         resolve_group_runtime=args.scene_command == "start",
@@ -107,10 +108,10 @@ def _start(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             attach=plan.attach and not args.no_attach,
         )
     if args.dry_run:
-        print_fields(args.style, describe_scenario(plan))
+        print_fields(args.style, describe_scenario(plan), stream=args.output)
         return 0
     result = _service().start(plan)
-    say(args.style, f"Started scenario {result.scene_name!r} profile {result.profile_name!r}")
+    say(args.style, f"Started scenario {result.scene_name!r} profile {result.profile_name!r}", stream=args.output)
     return 0
 
 
@@ -121,6 +122,7 @@ def _stop(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         args.style,
         result.detail or f"Stopped scenario {result.scene_name!r}",
         "muted" if result.detail == "not running" else "success",
+        stream=args.output,
     )
     return 0
 
@@ -130,14 +132,14 @@ def _down(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         parser.error("scene down does not support --instance")
     plan = _plan(args, parser)
     result = _service().down(plan)
-    say(args.style, result.detail or f"Removed scenario {result.scene_name!r} environment")
+    say(args.style, result.detail or f"Removed scenario {result.scene_name!r} environment", stream=args.output)
     return 0
 
 
 def _status(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
     result = _service().status(plan)
-    print(result.detail or "running")
+    print(result.detail or "running", file=args.output)
     return 0
 
 
@@ -145,7 +147,7 @@ def _attach(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
     result = _service().attach(plan, args.instance, args.group)
     if result.detail:
-        print(result.detail)
+        print(result.detail, file=args.output)
     return 0
 
 

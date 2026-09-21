@@ -42,12 +42,13 @@ def _run_task(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             values_path=args.values,
             overrides=overrides,
             interactive=not args.non_interactive,
+            input_fn=args.input_fn,
             source_path=args.source,
         ),
     )
     if args.dry_run:
-        print_fields(args.style, describe_task(plan))
+        print_fields(args.style, describe_task(plan), stream=args.output)
         return 0
     result = use_case.execute(plan)
-    say(args.style, f"Task {result.task_name!r} completed")
+    say(args.style, f"Task {result.task_name!r} completed", stream=args.output)
     return 0

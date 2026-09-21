@@ -1,3 +1,4 @@
+import io
 from pathlib import Path
 
 from rigyard.cli.main import run
@@ -53,6 +54,14 @@ def test_validate_and_inspect_use_global_project_config(tmp_path: Path, capsys):
     output = capsys.readouterr().out
     assert '"images.development.base"' in output
     assert '"mode": "select"' in output
+
+
+def test_subcommand_honours_injected_output_stream(tmp_path: Path):
+    output = io.StringIO()
+
+    assert run(["--config", str(config_file(tmp_path)), "validate"], stdout=output) == 0
+
+    assert "OK:" in output.getvalue()
 
 
 def test_resolve_nested_values_and_cli_override(tmp_path: Path, capsys):

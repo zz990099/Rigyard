@@ -20,6 +20,7 @@ from .commands.tasks import register_task_commands
 from .commands.tests import register_test_commands
 from .commands.workspace import register_workspace_commands
 from .menu import MenuApp, MenuIO
+from .common import stream_input
 from .style import ColorMode, Style
 
 
@@ -76,6 +77,9 @@ def run(
     style = Style.for_stream(output_stream, mode=args.color)
     error_style = Style.for_stream(error_stream, mode=args.color)
     args.style = style
+    args.output = output_stream
+    args.error = error_stream
+    args.input_fn = stream_input(input_stream, output_stream)
     try:
         if args.command is None:
             io = MenuIO(input_stream, output_stream, style=style)

@@ -78,7 +78,7 @@ def _initialize(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
                 f"Available while this Python environment is active: {result.alias_path.name}",
             )
         )
-    print_fields(args.style, fields)
+    print_fields(args.style, fields, stream=args.output)
     return 0
 
 
@@ -89,5 +89,5 @@ def _remove_alias(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
         if result.removed
         else f"Environment command alias already absent: {result.path}"
     )
-    print_fields(args.style, (message,))
+    print_fields(args.style, (message,), stream=args.output)
     return 0

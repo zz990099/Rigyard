@@ -40,12 +40,13 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             values_path=args.values,
             overrides=overrides,
             interactive=not args.non_interactive,
+            input_fn=args.input_fn,
             source_path=args.source,
         ),
     )
     if args.dry_run:
-        print_fields(args.style, describe_build(plan))
+        print_fields(args.style, describe_build(plan), stream=args.output)
         return 0
     result = use_case.execute(plan)
-    say(args.style, f"Build {result.build_name!r} completed")
+    say(args.style, f"Build {result.build_name!r} completed", stream=args.output)
     return 0

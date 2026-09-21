@@ -6,23 +6,34 @@ import argparse
 import json
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 import yaml
 
 from .style import Line, Style
 
 
-def say(style: Style, message: str, role: str = "success") -> None:
+def say(
+    style: Style,
+    message: str,
+    role: str = "success",
+    *,
+    stream: TextIO | None = None,
+) -> None:
     """Print one styled status line."""
 
-    print(style.render(role, message))
+    print(style.render(role, message), file=stream)
 
 
-def print_fields(style: Style, lines: Iterable[Line | str]) -> None:
+def print_fields(
+    style: Style,
+    lines: Iterable[Line | str],
+    *,
+    stream: TextIO | None = None,
+) -> None:
     """Print rendered plan lines with dimmed field names."""
 
-    print("\n".join(_render_field(style, item) for item in lines))
+    print("\n".join(_render_field(style, item) for item in lines), file=stream)
 
 
 def _render_field(style: Style, item: Line | str) -> str:
@@ -54,9 +65,25 @@ def serializable(value: Any) -> Any:
     return value
 
 
-def emit(data: Any, output_format: str) -> None:
+def emit(data: Any, output_format: str, *, stream: TextIO | None = None) -> None:
     normalized = serializable(data)
     if output_format == "json":
-        print(json.dumps(normalized, indent=2, ensure_ascii=False))
+        print(json.dumps(normalized, indent=2, ensure_ascii=False), file=stream)
     else:
-        print(yaml.safe_dump(normalized, sort_keys=False, allow_unicode=True).rstrip())
+        print(
+            yaml.safe_dump(normalized, sort_keys=False, allow_unicode=True).rstrip(),
+            file=stream,
+        )
+
+
+def stream_input(input_stream: TextIO, output_stream: TextIO):
+    """Create an ``input``-compatible reader over injected CLI streams."""
+
+    def read(prompt: str) -> str:
+        print(prompt, end="", file=output_stream, flush=True)
+        value = input_stream.readline()
+        if value == "":
+            raise EOFError
+        return value.rstrip("\r\n")
+
+    return read

@@ -56,17 +56,18 @@ def resolution_request(
         args.values,
         overrides,
         interactive=not args.non_interactive,
+        input_fn=args.input_fn,
     )
 
 
 def _validate(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
     ValidateConfigUseCase().execute(args.config_path)
-    say(args.style, f"OK: {args.config_path}")
+    say(args.style, f"OK: {args.config_path}", stream=args.output)
     return 0
 
 
 def _inspect(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
-    emit(InspectParametersUseCase().execute(args.config_path), args.format)
+    emit(InspectParametersUseCase().execute(args.config_path), args.format, stream=args.output)
     return 0
 
 
@@ -74,5 +75,5 @@ def _resolve(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     context = ResolveParametersUseCase(
         sources=docker_sources(), formatter=args.style.render
     ).execute(resolution_request(args, parser))
-    emit(context.as_dict(include_sources=args.with_sources), args.format)
+    emit(context.as_dict(include_sources=args.with_sources), args.format, stream=args.output)
     return 0

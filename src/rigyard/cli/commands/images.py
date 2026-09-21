@@ -41,11 +41,12 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             values_path=args.values,
             overrides=overrides,
             interactive=not args.non_interactive,
+            input_fn=args.input_fn,
             source_path=args.source,
         )
     )
     result = use_case.execute(plan)
-    say(args.style, f"Built {result.final_tag} ({len(result.steps)} layer(s))")
+    say(args.style, f"Built {result.final_tag} ({len(result.steps)} layer(s))", stream=args.output)
     if result.tag_alias is not None:
-        print_fields(args.style, (f"Alias: {result.tag_alias}",))
+        print_fields(args.style, (f"Alias: {result.tag_alias}",), stream=args.output)
     return 0

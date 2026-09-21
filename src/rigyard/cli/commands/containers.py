@@ -36,10 +36,10 @@ def _create(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         parser.error(str(exc))
     def confirm_replace(message: str) -> bool:
         if args.non_interactive:
-            print(f"{message} [y/N]: N (non-interactive)")
+            print(f"{message} [y/N]: N (non-interactive)", file=args.output)
             return False
         try:
-            return input(f"{message} [y/N]: ").strip().lower() in {"y", "yes"}
+            return args.input_fn(f"{message} [y/N]: ").strip().lower() in {"y", "yes"}
         except EOFError:
             return False
 
@@ -55,16 +55,18 @@ def _create(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             values_path=args.values,
             overrides=overrides,
             interactive=not args.non_interactive,
+            input_fn=args.input_fn,
             source_path=args.source,
         ),
     )
     if args.dry_run:
-        print_fields(args.style, describe_container(plan))
+        print_fields(args.style, describe_container(plan), stream=args.output)
         return 0
     result = use_case.execute(plan)
     say(
         args.style,
         f"Created and started {result.container_name} ({result.container_id}); "
         f"completed {len(result.hooks)} lifecycle hook(s)",
+        stream=args.output,
     )
     return 0
