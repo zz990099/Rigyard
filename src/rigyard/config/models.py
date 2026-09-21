@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
@@ -22,9 +24,14 @@ COMMAND_ALIAS_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,62}$")
 MAX_LOGO_BYTES = 8 * 1024
 MAX_LOGO_LINES = 12
 MAX_LOGO_COLUMNS = 100
+ValueT = TypeVar("ValueT")
 
 
-def _invalid_names(values: dict[str, object]) -> list[str]:
+def _freeze_mapping(values: Mapping[str, ValueT]) -> Mapping[str, ValueT]:
+    return MappingProxyType(dict(values))
+
+
+def _invalid_names(values: Mapping[str, object]) -> list[str]:
     return sorted(name for name in values if not IMAGE_NAME.fullmatch(name))
 
 
@@ -161,23 +168,28 @@ class RigyardSources(BaseModel):
 
 
 class SourceFileInfo(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, validate_default=True)
 
     path: Path
     description: str | None = None
     names: tuple[str, ...] = ()
-    definitions: dict[str, Any] = Field(default_factory=dict)
+    definitions: Mapping[str, Any] = Field(default_factory=dict)
+
+    @field_validator("definitions")
+    @classmethod
+    def frozen_definitions(cls, values: Mapping[str, Any]) -> Mapping[str, Any]:
+        return _freeze_mapping(values)
 
 
 class RigyardManifest(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, validate_default=True)
 
     version: int
     metadata: RigyardMetadata
     workspace: RigyardWorkspace = Field(default_factory=RigyardWorkspace)
     branding: RigyardBrandingSource = Field(default_factory=RigyardBrandingSource)
     sources: RigyardSources
-    variables: dict[str, str] = Field(default_factory=dict)
+    variables: Mapping[str, str] = Field(default_factory=dict)
 
     @field_validator("version")
     @classmethod
@@ -193,11 +205,11 @@ class RigyardManifest(BaseModel):
 
     @field_validator("variables")
     @classmethod
-    def valid_variable_names(cls, values: dict[str, str]) -> dict[str, str]:
+    def valid_variable_names(cls, values: Mapping[str, str]) -> Mapping[str, str]:
         invalid = sorted(name for name in values if not VARIABLE_NAME.fullmatch(name))
         if invalid:
             raise ValueError(f"invalid global variable name(s): {', '.join(invalid)}")
-        return values
+        return _freeze_mapping(values)
 
 
 class ImageDefinitions(RootModel[dict[str, ImageTemplate]]):
@@ -273,81 +285,57 @@ class ScenarioDefinitions(RootModel[dict[str, ScenarioTemplate]]):
 
 
 class RigyardConfig(BaseModel):
-    """Fully loaded immutable configuration used by application services."""
+    """Fully loaded deeply immutable configuration used by application services."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, validate_default=True)
 
     version: int
     metadata: RigyardMetadata
     workspace: RigyardWorkspace = Field(default_factory=RigyardWorkspace)
     branding: RigyardBranding = Field(default_factory=RigyardBranding)
     sources: RigyardSources
-    variables: dict[str, str] = Field(default_factory=dict)
-    images: dict[str, ImageTemplate] = Field(default_factory=dict)
-    containers: dict[str, ContainerTemplate] = Field(default_factory=dict)
-    builds: dict[str, BuildTemplate] = Field(default_factory=dict)
-    tests: dict[str, TestTemplate] = Field(default_factory=dict)
-    tasks: dict[str, TaskTemplate] = Field(default_factory=dict)
-    scenarios: dict[str, ScenarioTemplate] = Field(default_factory=dict)
-    source_files: dict[str, tuple[SourceFileInfo, ...]] = Field(default_factory=dict)
-    duplicate_names: dict[str, dict[str, tuple[Path, ...]]] = Field(default_factory=dict)
+    variables: Mapping[str, str] = Field(default_factory=dict)
+    images: Mapping[str, ImageTemplate] = Field(default_factory=dict)
+    containers: Mapping[str, ContainerTemplate] = Field(default_factory=dict)
+    builds: Mapping[str, BuildTemplate] = Field(default_factory=dict)
+    tests: Mapping[str, TestTemplate] = Field(default_factory=dict)
+    tasks: Mapping[str, TaskTemplate] = Field(default_factory=dict)
+    scenarios: Mapping[str, ScenarioTemplate] = Field(default_factory=dict)
+    source_files: Mapping[str, tuple[SourceFileInfo, ...]] = Field(default_factory=dict)
+    duplicate_names: Mapping[str, Mapping[str, tuple[Path, ...]]] = Field(
+        default_factory=dict
+    )
 
     @field_validator("variables")
     @classmethod
-    def valid_variable_names(cls, values: dict[str, str]) -> dict[str, str]:
+    def valid_variable_names(cls, values: Mapping[str, str]) -> Mapping[str, str]:
         invalid = sorted(name for name in values if not VARIABLE_NAME.fullmatch(name))
         if invalid:
             raise ValueError(f"invalid global variable name(s): {', '.join(invalid)}")
-        return values
+        return _freeze_mapping(values)
 
-    @field_validator("images")
+    @field_validator("images", "containers", "builds", "tests", "tasks", "scenarios")
     @classmethod
-    def valid_image_names(cls, value: dict[str, ImageTemplate]) -> dict[str, ImageTemplate]:
-        invalid = _invalid_names(value)
+    def valid_definition_names(
+        cls, values: Mapping[str, Any]
+    ) -> Mapping[str, Any]:
+        invalid = _invalid_names(values)
         if invalid:
-            raise ValueError(f"invalid image name(s): {', '.join(invalid)}")
-        return value
+            raise ValueError(f"invalid definition name(s): {', '.join(invalid)}")
+        return _freeze_mapping(values)
 
-    @field_validator("containers")
+    @field_validator("source_files")
     @classmethod
-    def valid_container_names(
-        cls, value: dict[str, ContainerTemplate]
-    ) -> dict[str, ContainerTemplate]:
-        invalid = _invalid_names(value)
-        if invalid:
-            raise ValueError(f"invalid container name(s): {', '.join(invalid)}")
-        return value
+    def frozen_source_files(
+        cls, values: Mapping[str, tuple[SourceFileInfo, ...]]
+    ) -> Mapping[str, tuple[SourceFileInfo, ...]]:
+        return _freeze_mapping(values)
 
-    @field_validator("builds")
+    @field_validator("duplicate_names")
     @classmethod
-    def valid_build_names(cls, value: dict[str, BuildTemplate]) -> dict[str, BuildTemplate]:
-        invalid = _invalid_names(value)
-        if invalid:
-            raise ValueError(f"invalid build name(s): {', '.join(invalid)}")
-        return value
-
-    @field_validator("tests")
-    @classmethod
-    def valid_test_names(cls, value: dict[str, TestTemplate]) -> dict[str, TestTemplate]:
-        invalid = _invalid_names(value)
-        if invalid:
-            raise ValueError(f"invalid test name(s): {', '.join(invalid)}")
-        return value
-
-    @field_validator("tasks")
-    @classmethod
-    def valid_task_names(cls, value: dict[str, TaskTemplate]) -> dict[str, TaskTemplate]:
-        invalid = _invalid_names(value)
-        if invalid:
-            raise ValueError(f"invalid task name(s): {', '.join(invalid)}")
-        return value
-
-    @field_validator("scenarios")
-    @classmethod
-    def valid_scenario_names(
-        cls, value: dict[str, ScenarioTemplate]
-    ) -> dict[str, ScenarioTemplate]:
-        invalid = _invalid_names(value)
-        if invalid:
-            raise ValueError(f"invalid scenario name(s): {', '.join(invalid)}")
-        return value
+    def frozen_duplicate_names(
+        cls, values: Mapping[str, Mapping[str, tuple[Path, ...]]]
+    ) -> Mapping[str, Mapping[str, tuple[Path, ...]]]:
+        return _freeze_mapping(
+            {kind: _freeze_mapping(duplicates) for kind, duplicates in values.items()}
+        )

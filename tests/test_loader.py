@@ -68,6 +68,15 @@ sources: {containers: containers.yaml}
         "CONTAINER_PROJECT_ROOT": "/workspace/project",
     }
 
+    with pytest.raises(TypeError):
+        loaded.variables["WORKSPACE_ROOT"] = "/changed"  # type: ignore[index]
+    with pytest.raises(TypeError):
+        loaded.containers["other"] = loaded.containers["development"]  # type: ignore[index]
+    with pytest.raises(TypeError):
+        loaded.source_files["containers"][0].definitions["other"] = (  # type: ignore[index]
+            loaded.containers["development"]
+        )
+
 
 def test_manifest_loads_multiple_sources_with_descriptions(tmp_path: Path):
     config = manifest(

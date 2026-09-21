@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -80,7 +81,7 @@ def _resolve_source_path(config_path: Path, source_path: Path) -> Path:
     return path.resolve()
 
 
-def _legacy_mapping(config: RigyardConfig, kind: str) -> dict[str, Any]:
+def _legacy_mapping(config: RigyardConfig, kind: str) -> Mapping[str, Any]:
     if kind == "images":
         return config.images
     if kind == "containers":
