@@ -25,6 +25,7 @@ from ..parameters.resolver import (
 )
 from ..parameters.sources import DynamicSources
 from ..parameters.templates import (
+    SourceAwareStringTemplateRenderer,
     StringTemplateRenderer,
     TemplateContext,
     validate_template_syntax,
@@ -36,6 +37,7 @@ from ..scenarios.models import (
 )
 from ..tasks.models import TaskSpec
 from ..tests.models import TestSpec
+from .definitions import definition_source_paths
 from .requests import ResolutionRequest
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -52,7 +54,7 @@ class InspectParametersUseCase:
     def execute(self, config_path: str | Path) -> dict[str, Any]:
         config = load_config(config_path)
         _validate_config_templates(config, config_path)
-        prompts = collect_prompts(config)
+        prompts = _collect_config_prompts(config)
         return {
             "version": config.version,
             "runtime_values": RuntimeValueResolver(prompts).inspect(),
@@ -72,12 +74,14 @@ class ResolveParametersUseCase:
         self, request: ResolutionRequest, *, allow_missing: bool = False
     ) -> ResolvedContext:
         config = load_config(request.config_path)
-        renderer = StringTemplateRenderer(
-            TemplateContext.capture(
-                os.environ,
-                config_path=request.config_path,
-                variables=config.variables,
-            )
+        template_context = TemplateContext.capture(
+            os.environ,
+            config_path=request.config_path,
+            variables=config.variables,
+        )
+        renderer = SourceAwareStringTemplateRenderer(
+            template_context,
+            definition_source_paths(config, request.config_path),
         )
         context = resolve_prompts(
             config,
@@ -148,7 +152,11 @@ def resolve_prompts(
     sources: DynamicSources | None = None,
     formatter: Formatter | None = None,
 ) -> ResolvedContext:
-    prompts = collect_prompts(template, prefix)
+    prompts = (
+        _collect_config_prompts(template)
+        if isinstance(template, RigyardConfig) and not prefix
+        else collect_prompts(template, prefix)
+    )
     values = load_values(request.values_path) if request.values_path else {}
     return RuntimeValueResolver(
         prompts,
@@ -162,6 +170,15 @@ def resolve_prompts(
         input_fn=request.input_fn,
         allow_missing=allow_missing,
     )
+
+
+def _collect_config_prompts(config: RigyardConfig) -> dict[str, Any]:
+    """Collect public resource prompts without internal source provenance copies."""
+
+    prompts: dict[str, Any] = {}
+    for kind in ("images", "containers", "builds", "tests", "tasks", "scenarios"):
+        prompts.update(collect_prompts(getattr(config, kind), kind))
+    return prompts
 
 
 def resolve_template(

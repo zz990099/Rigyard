@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from rigyard.application.containers import CreateContainerUseCase
-from rigyard.application.parameters import ValidateConfigUseCase
+from rigyard.application.parameters import ResolveParametersUseCase, ValidateConfigUseCase
 from rigyard.application.requests import ResolutionRequest
 from rigyard.containers.models import ContainerSpec, ContainerTemplate
 from rigyard.errors import ResolutionError
@@ -167,10 +167,21 @@ def test_root_templates_are_explicit_immutable_and_escaped(tmp_path: Path):
     assert active.render('${WORKSPACE_ROOT}', 'mounts') == str(tmp_path)
     assert active.render('${PROJECT_ROOT}', 'mounts') == f'{config.parent}/..'
     assert active.render('${RIGYARD_ROOT}', 'mounts') == str(config.parent)
+    assert active.render('${RIGYARD_FILE}', 'mounts') == str(config.resolve())
+    assert active.render('${SOURCE_DIR}', 'mounts') == str(config.parent.resolve())
+    assert active.render('${SOURCE_FILE}', 'mounts') == str(config.resolve())
     assert active.render('$${PROJECT_ROOT}', 'script') == '${PROJECT_ROOT}'
     with pytest.raises(TypeError):
         active.context.roots['WORKSPACE_ROOT'] = '/wrong'
-    validate_template_syntax(['${WORKSPACE_ROOT}', '${RIGYARD_ROOT}'])
+    validate_template_syntax(
+        [
+            '${WORKSPACE_ROOT}',
+            '${RIGYARD_ROOT}',
+            '${RIGYARD_FILE}',
+            '${SOURCE_DIR}',
+            '${SOURCE_FILE}',
+        ]
+    )
     with pytest.raises(ResolutionError, match='requires a config path'):
         renderer().render('${RIGYARD_ROOT}', 'mounts')
     with pytest.raises(ResolutionError, match='invalid template'):
@@ -379,6 +390,98 @@ def test_project_root_can_be_defined_explicitly_for_flat_config_layout(tmp_path:
     )
     assert active.render('${PROJECT_ROOT}', 'value') == str(tmp_path)
     assert active.render('${RIGYARD_ROOT}', 'value') == str(tmp_path)
+
+
+def test_definition_templates_use_the_selected_source_file(tmp_path: Path):
+    config = write(
+        tmp_path / "rigyard.yaml",
+        """version: 3
+metadata: {name: source-templates}
+variables:
+  MANIFEST_SOURCE_DIR: ${SOURCE_DIR}
+sources:
+  containers:
+    - config/a/containers.yaml
+    - config/b/containers.yaml
+""",
+    )
+    write(
+        tmp_path / "config/a/containers.yaml",
+        """development:
+  image: ubuntu
+  name: from-a
+""",
+    )
+    selected_source = write(
+        tmp_path / "config/b/containers.yaml",
+        """development:
+  image: ubuntu
+  name: from-b
+  mounts: ["${SOURCE_DIR}/assets:/assets"]
+  environment:
+    SOURCE_FILE: ${SOURCE_FILE}
+    RIGYARD_FILE: ${RIGYARD_FILE}
+    MANIFEST_SOURCE_DIR: ${MANIFEST_SOURCE_DIR}
+""",
+    )
+
+    plan = CreateContainerUseCase(backend=None).plan(
+        "development",
+        ResolutionRequest(
+            config,
+            interactive=False,
+            source_path=Path("config/b/containers.yaml"),
+        ),
+        environment={},
+        now=NOW,
+    )
+
+    assert plan.container_name == "from-b"
+    assert {(mount.source, mount.target) for mount in plan.mounts} == {
+        (str(selected_source.parent / "assets"), "/assets")
+    }
+    assert dict(plan.environment) == {
+        "SOURCE_FILE": str(selected_source),
+        "RIGYARD_FILE": str(config),
+        "MANIFEST_SOURCE_DIR": str(config.parent),
+    }
+
+
+def test_resolve_command_renders_each_prompt_default_from_its_source(tmp_path: Path):
+    config = write(
+        tmp_path / "rigyard.yaml",
+        """version: 3
+metadata: {name: source-defaults}
+sources:
+  containers:
+    - config/a/containers.yaml
+    - config/b/containers.yaml
+""",
+    )
+    for directory, name in (("a", "first"), ("b", "second")):
+        write(
+            tmp_path / f"config/{directory}/containers.yaml",
+            f"""{name}:
+  image: ubuntu
+  name:
+    default: ${{SOURCE_DIR}}/{name}
+    prompt: {{mode: input, message: Name}}
+""",
+        )
+    prompts: list[str] = []
+
+    ResolveParametersUseCase().execute(
+        ResolutionRequest(
+            config,
+            interactive=True,
+            input_fn=lambda prompt: prompts.append(prompt) or "",
+        )
+    )
+
+    assert prompts == [
+        f"Name [{tmp_path / 'config/a/first'}]: ",
+        f"Name [{tmp_path / 'config/b/second'}]: ",
+    ]
 
 
 def test_image_alias_supports_templates_and_prompt_defaults(tmp_path):

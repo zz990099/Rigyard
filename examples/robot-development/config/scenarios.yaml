@@ -56,7 +56,7 @@ robot-system:
 robot-system-compose:
   description: Example robot system whose development container is managed by Compose
   compose:
-    file: deploy/compose.development.yaml
+    file: ${SOURCE_DIR}/../deploy/compose.development.yaml
     project_name: robot-system-debug
     wait_timeout_seconds: 60
     environment:

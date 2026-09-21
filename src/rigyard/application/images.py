@@ -40,14 +40,14 @@ class BuildImageUseCase:
         now: datetime | None = None,
     ) -> ImageBuildPlan:
         config = load_config(request.config_path)
-        template = find_definition(
+        match = find_definition(
             config,
             "images",
             request.image_name,
             request.source_path,
             request.config_path,
         )
-        if template is None:
+        if match is None:
             available = ", ".join(sorted(config.images)) or "none"
             raise ImageConfigError(
                 f"unknown image {request.image_name!r}; configured images: {available}"
@@ -59,11 +59,11 @@ class BuildImageUseCase:
                 now=now,
                 config_path=request.config_path,
                 variables=config.variables,
-            )
+            ).with_source(match.source_path)
         )
         spec, _ = resolve_template(
             config,
-            template,
+            match.value,
             request.resolution_request(),
             f"images.{request.image_name}",
             ImageSpec,

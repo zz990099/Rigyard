@@ -41,14 +41,14 @@ class CreateContainerUseCase:
         now: datetime | None = None,
     ) -> ContainerRunPlan:
         config = load_config(request.config_path)
-        template = find_definition(
+        match = find_definition(
             config,
             "containers",
             container_name,
             request.source_path,
             request.config_path,
         )
-        if template is None:
+        if match is None:
             raise SchemaValidationError(f"unknown container {container_name!r}")
         host_environment = dict(os.environ if environment is None else environment)
         renderer = StringTemplateRenderer(
@@ -57,11 +57,11 @@ class CreateContainerUseCase:
                 now=now,
                 config_path=request.config_path,
                 variables=config.variables,
-            )
+            ).with_source(match.source_path)
         )
         spec, _ = resolve_template(
             config,
-            template,
+            match.value,
             request,
             f"containers.{container_name}",
             ContainerSpec,

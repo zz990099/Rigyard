@@ -50,31 +50,32 @@ class PlanScenarioUseCase:
         now: datetime | None = None,
     ) -> ScenarioPlan:
         config = load_config(request.config_path)
-        renderer = StringTemplateRenderer(
-            TemplateContext.capture(
-                dict(os.environ if environment is None else environment),
-                now=now,
-                config_path=request.config_path,
-                variables=config.variables,
-            )
-        )
         if scene_name not in config.scenarios:
             available = ", ".join(sorted(config.scenarios)) or "none"
             raise SchemaValidationError(
                 f"unknown scenario {scene_name!r}; configured scenarios: {available}"
             )
-        scenario = find_definition(
+        match = find_definition(
             config,
             "scenarios",
             scene_name,
             request.source_path,
             request.config_path,
         )
-        if scenario is None:
+        if match is None:
             available = ", ".join(sorted(config.scenarios)) or "none"
             raise SchemaValidationError(
                 f"unknown scenario {scene_name!r}; configured scenarios: {available}"
             )
+        scenario = match.value
+        renderer = StringTemplateRenderer(
+            TemplateContext.capture(
+                dict(os.environ if environment is None else environment),
+                now=now,
+                config_path=request.config_path,
+                variables=config.variables,
+            ).with_source(match.source_path)
+        )
         compose_managed = scenario.compose is not None
         profile_name = _select_profile_name(scene_name, scenario, profile_name)
         if profile_name not in scenario.profiles:
@@ -198,13 +199,9 @@ class PlanScenarioUseCase:
                 raise SchemaValidationError(f"scenario instance {name!r} has no enabled groups")
             if compose_managed:
                 if template.service is None:
-                    raise SchemaValidationError(
-                        f"scenario instance {name!r} requires service"
-                    )
+                    raise SchemaValidationError(f"scenario instance {name!r} requires service")
                 planned[name] = ScenarioInstanceSpec(
-                    service=materialize(
-                        template.service, f"{prefix}.service", context, renderer
-                    ),
+                    service=materialize(template.service, f"{prefix}.service", context, renderer),
                     startup=(
                         materialize_as(
                             template.startup,
@@ -220,9 +217,7 @@ class PlanScenarioUseCase:
                 )
             else:
                 if template.container is None:
-                    raise SchemaValidationError(
-                        f"scenario instance {name!r} requires container"
-                    )
+                    raise SchemaValidationError(f"scenario instance {name!r} requires container")
                 planned[name] = ScenarioInstanceSpec(
                     container=materialize(
                         template.container, f"{prefix}.container", context, renderer

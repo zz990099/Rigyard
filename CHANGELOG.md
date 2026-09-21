@@ -17,6 +17,8 @@ This file records notable user-facing changes. Once releases begin, the project 
 - Safe, project-aware alias removal through `rigyard alias remove`.
 - Prompt-local `${INPUT}` composition and explicit list append semantics for runtime values.
 - Image build network modes, per-layer overrides, and an atomic interactive host-proxy group.
+- Source-aware `${SOURCE_DIR}` and `${SOURCE_FILE}` templates, plus `${RIGYARD_FILE}` for the
+  absolute root manifest path.
 
 ### Changed
 

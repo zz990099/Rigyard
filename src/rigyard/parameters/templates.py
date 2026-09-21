@@ -16,7 +16,9 @@ from ..errors import ResolutionError
 from .models import PromptValue
 
 ENVIRONMENT_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-ROOT_NAMES = frozenset({"WORKSPACE_ROOT", "RIGYARD_ROOT"})
+ROOT_NAMES = frozenset(
+    {"WORKSPACE_ROOT", "RIGYARD_ROOT", "RIGYARD_FILE", "SOURCE_DIR", "SOURCE_FILE"}
+)
 SUPPORTED_DATE_DIRECTIVES = frozenset("aAwdbBmyYHIpMSfzZjUWcxXGuV%")
 
 
@@ -42,7 +44,8 @@ class TemplateContext:
             raise ValueError("template time must include timezone information")
         roots: dict[str, str] = {}
         if config_path is not None:
-            rigyard_root = Path(config_path).resolve().parent
+            rigyard_file = Path(config_path).resolve()
+            rigyard_root = rigyard_file.parent
             roots = {
                 "WORKSPACE_ROOT": str(
                     Path.cwd().resolve()
@@ -50,6 +53,9 @@ class TemplateContext:
                     else Path(workspace_root).resolve()
                 ),
                 "RIGYARD_ROOT": str(rigyard_root),
+                "RIGYARD_FILE": str(rigyard_file),
+                "SOURCE_DIR": str(rigyard_root),
+                "SOURCE_FILE": str(rigyard_file),
             }
         base = cls(
             MappingProxyType(dict(environment)),
@@ -73,6 +79,20 @@ class TemplateContext:
             base.local_now,
             base.utc_now,
             MappingProxyType(configured),
+        )
+
+    def with_source(self, source_path: str | Path) -> TemplateContext:
+        """Return this snapshot with source-local paths for one definition file."""
+
+        source_file = Path(source_path).resolve()
+        roots = dict(self.roots)
+        roots["SOURCE_DIR"] = str(source_file.parent)
+        roots["SOURCE_FILE"] = str(source_file)
+        return TemplateContext(
+            self.environment,
+            self.local_now,
+            self.utc_now,
+            MappingProxyType(roots),
         )
 
 
@@ -205,6 +225,37 @@ class StringTemplateRenderer:
     def _error(path: str, message: str) -> ResolutionError:
         prefix = f"{path}: " if path else ""
         return ResolutionError(f"{prefix}{message}")
+
+
+class SourceAwareStringTemplateRenderer(StringTemplateRenderer):
+    """Render each definition subtree relative to its actual source file."""
+
+    def __init__(
+        self,
+        context: TemplateContext,
+        source_paths: Mapping[str, str | Path],
+        *,
+        variable_names: Collection[str] = (),
+    ) -> None:
+        super().__init__(context, variable_names=variable_names)
+        self._source_renderers = tuple(
+            (
+                prefix,
+                StringTemplateRenderer(
+                    context.with_source(source_path),
+                    variable_names=variable_names,
+                ),
+            )
+            for prefix, source_path in sorted(
+                source_paths.items(), key=lambda item: len(item[0]), reverse=True
+            )
+        )
+
+    def render(self, value: str, path: str) -> str:
+        for prefix, renderer in self._source_renderers:
+            if path == prefix or path.startswith(f"{prefix}."):
+                return renderer.render(value, path)
+        return super().render(value, path)
 
 
 def validate_template_syntax(

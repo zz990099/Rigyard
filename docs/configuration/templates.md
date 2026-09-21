@@ -8,6 +8,9 @@ Templates apply to configuration strings and paths. Expansion happens after runt
 | --- | --- |
 | `${WORKSPACE_ROOT}` | Absolute host path of the active workspace |
 | `${RIGYARD_ROOT}` | Absolute host directory containing the root `rigyard.yaml` |
+| `${RIGYARD_FILE}` | Absolute host path of the root `rigyard.yaml` |
+| `${SOURCE_DIR}` | Absolute host directory containing the source YAML for the selected definition |
+| `${SOURCE_FILE}` | Absolute host path of the source YAML for the selected definition |
 | `${env:NAME}` | Host environment variable; missing variables are errors at resolution time |
 | `${date:FORMAT}` | Local time captured at the start of the command |
 | `${utcdate:FORMAT}` | The same instant in UTC |
@@ -26,13 +29,49 @@ development:
     - ${PROJECT_ROOT}:${CONTAINER_PROJECT_ROOT}
 ```
 
-## Root path semantics
+## Configuration path semantics
 
-`WORKSPACE_ROOT` and `RIGYARD_ROOT` are host values known to Rigyard:
+Rigyard provides both stable root-manifest paths and definition-local source paths:
 
 - With `rigyard init`, `WORKSPACE_ROOT` is the directory that was initialized.
 - With direct `--config` use or a local `rigyard.yaml`, `WORKSPACE_ROOT` is the current directory.
 - `RIGYARD_ROOT` is always the parent directory of the actual root manifest.
+- `RIGYARD_FILE` is always the actual root manifest path.
+- `SOURCE_DIR` and `SOURCE_FILE` identify the YAML file containing the selected image,
+  container, build, test, task, or scenario definition.
+
+All five values are absolute, normalized host paths. For a definition in
+`config/scenarios.yaml`, a Compose file beside that source can be referenced without depending on
+the process working directory:
+
+```yaml
+robot-system:
+  compose:
+    file: ${SOURCE_DIR}/compose.yaml
+  instances:
+    robot:
+      service: robot
+      groups:
+        application: {command: [./start-robot]}
+  profiles:
+    development: {}
+```
+
+When a resource kind uses multiple source files, each definition receives its own source path.
+Selecting a duplicate definition with `--source` also selects the matching `SOURCE_DIR` and
+`SOURCE_FILE`. The general `rigyard resolve` command applies the same rule independently to every
+definition.
+
+Root-manifest fields such as `branding.logo_file` use the root manifest as their source. Global
+`variables` are also evaluated at the root manifest, so their meaning is stable regardless of
+which definition is selected:
+
+```yaml
+variables:
+  MANIFEST_ASSETS: ${SOURCE_DIR}/assets  # directory containing rigyard.yaml
+```
+
+Using `${SOURCE_DIR}` directly inside a source YAML instead refers to that source YAML's directory.
 
 Rigyard does not define or infer `PROJECT_ROOT`; project layout is user-owned semantics:
 
@@ -59,7 +98,10 @@ variables:
   CONFIG_ROOT: ${PROJECT_ROOT}/config
 ```
 
-Forward references and cycles fail. A user variable with the same name overrides `WORKSPACE_ROOT` or `RIGYARD_ROOT`; avoid overriding those names unless a project intentionally changes their semantics.
+Forward references and cycles fail. A user variable with the same name can override a built-in
+root while global variables are evaluated. Avoid all built-in names for user variables;
+`SOURCE_DIR` and `SOURCE_FILE` are restored to the selected definition's source while its fields
+are rendered.
 
 ## Date formats
 

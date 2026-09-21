@@ -41,14 +41,14 @@ class ExecuteTaskUseCase:
         now: datetime | None = None,
     ) -> TaskPlan:
         config = load_config(request.config_path)
-        template = find_definition(
+        match = find_definition(
             config,
             "tasks",
             task_name,
             request.source_path,
             request.config_path,
         )
-        if template is None:
+        if match is None:
             available = ", ".join(sorted(config.tasks)) or "none"
             raise SchemaValidationError(
                 f"unknown task {task_name!r}; configured tasks: {available}"
@@ -60,11 +60,11 @@ class ExecuteTaskUseCase:
                 now=now,
                 config_path=request.config_path,
                 variables=config.variables,
-            )
+            ).with_source(match.source_path)
         )
         spec, _ = resolve_template(
             config,
-            template,
+            match.value,
             request,
             f"tasks.{task_name}",
             TaskSpec,

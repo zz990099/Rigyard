@@ -41,14 +41,14 @@ class BuildProjectUseCase:
         now: datetime | None = None,
     ) -> BuildPlan:
         config = load_config(request.config_path)
-        template = find_definition(
+        match = find_definition(
             config,
             "builds",
             build_name,
             request.source_path,
             request.config_path,
         )
-        if template is None:
+        if match is None:
             available = ", ".join(sorted(config.builds)) or "none"
             raise SchemaValidationError(
                 f"unknown build {build_name!r}; configured builds: {available}"
@@ -60,11 +60,11 @@ class BuildProjectUseCase:
                 now=now,
                 config_path=request.config_path,
                 variables=config.variables,
-            )
+            ).with_source(match.source_path)
         )
         spec, _ = resolve_template(
             config,
-            template,
+            match.value,
             request,
             f"builds.{build_name}",
             BuildSpec,
