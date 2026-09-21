@@ -104,7 +104,7 @@ def test_plan_is_lazy_across_profiles_instances_and_groups(tmp_path: Path):
     assert [group.name for group in groups] == ["drivers"]
     assert dict(groups[0].environment) == {"ROS_DOMAIN_ID": "7"}
     assert groups[0].script == "/ros2_ws/drivers.sh"
-    assert plan.session.startswith("tc-scenario-test-robot-")
+    assert plan.session.startswith("rigyard-scenario-test-robot-")
     assert plan.mouse is True
 
 
@@ -277,7 +277,7 @@ def test_compose_plan_generates_a_stable_project_name(tmp_path: Path):
     assert isinstance(second, ScenarioPlan)
     assert first.compose is not None
     assert first.compose.project_name == second.compose.project_name
-    assert first.compose.project_name.startswith("tc-scenario-test-robot-development-")
+    assert first.compose.project_name.startswith("rigyard-scenario-test-robot-development-")
 
 
 def test_compose_plan_rejects_a_missing_file(tmp_path: Path):
@@ -1059,7 +1059,7 @@ def test_tmux_start_enables_mouse_and_pane_borders_by_default():
         (command[-2], command[-1]) for command in window_options
     ]
     assert any(
-        command[-2:] == ("pane-border-format", "#{pane_index}: #{@tc_group}")
+        command[-2:] == ("pane-border-format", "#{pane_index}: #{@rigyard_group}")
         for command in window_options
     )
     remain = [command for command in window_options if "remain-on-exit" in command]

@@ -25,7 +25,7 @@ flowchart TD
 - `config`: manifest and source YAML, error locations, and configuration assembly.
 - `parameters`: PromptValues, explicit value sources, dynamic candidates, and string templates.
 - `images`, `containers`, `builds`, `tests`, and `tasks`: strict specs, planners, services, and backend protocols.
-- `scenarios`: strict specs, planner, service, and the single tmux executor.
+- `scenarios`: strict specs, planner, orchestration, and a command gateway that normalizes Docker and tmux failures.
 - `application`: resource selection, value resolution, and plan coordination.
 - `cli`: direct commands and the one-shot interactive menu.
 - `providers`: adapters for Docker and other external systems.

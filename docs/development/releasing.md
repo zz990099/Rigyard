@@ -4,16 +4,16 @@ This process is intended for future PyPI wheel and source distribution releases.
 
 ## Release preparation
 
-1. Update the version and `CHANGELOG.md`.
+1. Update `src/rigyard/version.py` and `CHANGELOG.md`. Hatch reads the package version from this single source.
 2. Verify description, license, classifiers, and project URLs in `pyproject.toml`.
 3. Verify that README links are publicly reachable from PyPI.
-4. Run the test suite on every supported Python version.
+4. Run the test suite with coverage on every supported Python version.
 
 ## Local checks
 
 ```bash
 python -m ruff check .
-python -m pytest
+python -m pytest --cov=rigyard --cov-report=term-missing --cov-fail-under=80
 python -m build
 python -m twine check dist/*
 ```

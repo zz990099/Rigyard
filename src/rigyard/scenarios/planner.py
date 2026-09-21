@@ -137,7 +137,7 @@ def _runtime_name(config_file: Path, project_name: str, scene_name: str) -> str:
     source = f"{config_file}:{project_name}:{scene_name}"
     digest = hashlib.sha256(source.encode()).hexdigest()[:8]
     slug = re.sub(r"[^a-z0-9_-]+", "-", f"{project_name}-{scene_name}".lower()).strip("-")
-    return f"tc-{slug[:40]}-{digest}" if slug else f"tc-scene-{digest}"
+    return f"rigyard-{slug[:40]}-{digest}" if slug else f"rigyard-scene-{digest}"
 
 
 def _compose_project_name(
@@ -153,7 +153,7 @@ def _compose_project_name(
         "-",
         f"{project_name}-{scene_name}-{profile_name}".lower(),
     ).strip("-")
-    return f"tc-{slug[:40]}-{digest}" if slug else f"tc-compose-{digest}"
+    return f"rigyard-{slug[:40]}-{digest}" if slug else f"rigyard-compose-{digest}"
 
 
 def _resolve_path(project_dir: Path, configured: Path) -> Path:

@@ -22,6 +22,10 @@ This file records notable user-facing changes. Once releases begin, the project 
 
 ### Changed
 
+- Generated tmux sessions, Compose projects, and pane metadata now use the `rigyard` prefix.
+- CI now covers Python 3.10 through 3.13, enforces test coverage, and validates built wheel and
+  source-distribution artifacts.
+- Package metadata now reads its version exclusively from `src/rigyard/version.py`.
 - Complete Compose scene starts now remove the previous project containers and orphans before
   recreating them; partial instance starts remain incremental.
 - Build, test, and custom-task commands now start stopped target containers by default, with

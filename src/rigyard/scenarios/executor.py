@@ -27,7 +27,7 @@ from .process import (
 from .runtime import ScenarioCommandGateway
 
 PLACEHOLDER = "import time; time.sleep(86400)"
-PANE_GROUP_OPTION = "@tc_group"
+PANE_GROUP_OPTION = "@rigyard_group"
 PANE_BORDER_FORMAT = f"#{{pane_index}}: #{{{PANE_GROUP_OPTION}}}"
 # Give the pane program a moment to report an immediate failure before we look.
 STARTUP_GRACE_SECONDS = 0.4
@@ -114,7 +114,7 @@ class ScenarioExecutor:
                     # re-tiling the same pane is halved again and again until tmux
                     # answers "no space for new pane" (a window with 11 groups dies on a
                     # default 80x24 session). Tiling keeps every pane big enough for the
-                    # next split, which is what the legacy startup scripts did.
+                    # next split, which is what the earlier startup scripts did.
                     self._checked(
                         ("tmux", "select-layout", "-t", window, "tiled"),
                         f"cannot lay out tmux window {instance.name!r}",
@@ -441,6 +441,7 @@ class ScenarioExecutor:
 
     def _container_running(self, container: str) -> bool:
         return self.commands.container_running(container)
+
     def _wait_container_running(
         self,
         container: str,
@@ -459,10 +460,13 @@ class ScenarioExecutor:
 
     def _session_exists(self, session: str) -> bool:
         return self.commands.session_exists(session)
+
     def _window_exists(self, plan: ScenarioPlan, instance: ScenarioInstancePlan) -> bool:
         return self.commands.window_exists(plan.session, instance.name)
+
     def _panes(self, window: str) -> tuple[tuple[str, int], ...]:
         return self.commands.panes(window, PANE_GROUP_OPTION)
+
     def _window_target(self, plan: ScenarioPlan, instance: ScenarioInstancePlan) -> str:
         return f"{plan.session}:{instance.name}"
 

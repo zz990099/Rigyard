@@ -21,8 +21,8 @@ python -m pip install rigyard
 To install the current source tree:
 
 ```bash
-git clone https://github.com/zz990099/toolchain.git
-cd rigyard
+git clone https://github.com/zz990099/Rigyard.git
+cd Rigyard
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install .
