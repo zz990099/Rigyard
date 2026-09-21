@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from ...errors import BackendUnavailableError, ImageBuildError
+from ...execution import CommandRunner, SubprocessRunner
 from ...images.models import BuildStepResult, ImageBuildStep
 from .dockerfile import compose_dockerfile
-from ...execution import CommandRunner, SubprocessRunner
 
 
 class DockerImageBackend:

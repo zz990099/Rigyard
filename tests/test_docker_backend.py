@@ -3,9 +3,9 @@ from pathlib import Path
 import pytest
 
 from rigyard.errors import BackendUnavailableError, ImageBuildError
+from rigyard.execution import CommandResult
 from rigyard.images.models import ImageBuildStep
 from rigyard.providers.docker.image_backend import DockerImageBackend
-from rigyard.execution.runner import CommandResult
 
 
 class FakeRunner:
