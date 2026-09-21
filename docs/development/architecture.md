@@ -2,7 +2,7 @@
 
 ## Configuration assembly
 
-Schema version 3 separates the root manifest from domain sources. The loader resolves source paths relative to the manifest, retains each definition's source file and YAML location, and assembles an immutable `RigyardConfig`.
+Schema version 3 separates the root manifest from domain sources. The loader resolves source paths relative to the manifest, retains each definition's source file and YAML location, and assembles a `RigyardConfig` snapshot intended for read-only use. Its top-level resource mappings are immutable views; nested values are not recursively frozen.
 
 ```mermaid
 flowchart TD

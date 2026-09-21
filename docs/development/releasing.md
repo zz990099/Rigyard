@@ -13,6 +13,7 @@ This process is intended for future PyPI wheel and source distribution releases.
 
 ```bash
 python -m ruff check .
+python -m ruff format --check .
 python -m pytest --cov=rigyard --cov-report=term-missing --cov-fail-under=90
 python -m build
 python -m twine check dist/*
