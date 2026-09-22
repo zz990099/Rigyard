@@ -185,7 +185,7 @@ class TmuxSessionBackend:
             "DOCKER_TLS_VERIFY",
             "DOCKER_CERT_PATH",
         ):
-            command = ("tmux", "set-environment", "-t", session)
+            command: tuple[str, ...] = ("tmux", "set-environment", "-t", session)
             if key in self.environment:
                 command = (*command, key, self.environment[key])
             else:

@@ -10,3 +10,4 @@ from .models import TaskPlan, TaskResult
 class TaskBackend(Protocol):
     def execute(self, plan: TaskPlan) -> TaskResult:
         """Execute one fully materialized custom task plan."""
+        raise NotImplementedError

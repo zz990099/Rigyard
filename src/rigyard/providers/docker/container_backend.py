@@ -39,17 +39,17 @@ class DockerContainerBackend:
         args.extend(f"--device={value}" for value in plan.devices)
         args.extend(f"--group-add={value}" for value in plan.group_add)
         for mount in plan.mounts:
-            value = f"type={mount.type},source={mount.source},target={mount.target}"
+            mount_value = f"type={mount.type},source={mount.source},target={mount.target}"
             if mount.read_only:
-                value += ",readonly"
-            args.append(f"--mount={value}")
-        for flag, value in (
+                mount_value += ",readonly"
+            args.append(f"--mount={mount_value}")
+        for flag, option_value in (
             ("network", plan.network),
             ("ipc", plan.ipc),
             ("workdir", plan.workdir),
         ):
-            if value is not None:
-                args.append(f"--{flag}={value}")
+            if option_value is not None:
+                args.append(f"--{flag}={option_value}")
         args.extend(f"--env={key}={value}" for key, value in plan.environment)
         args.append(plan.image)
         args.extend(plan.command)

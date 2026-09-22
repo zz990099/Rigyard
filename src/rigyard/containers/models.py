@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -37,7 +38,7 @@ RuntimePath = PromptValue | Path
 RuntimeEnvironment = PromptValue | EnvironmentRef | str
 
 
-def _validate_environment(values: dict[str, object], field: str) -> None:
+def _validate_environment(values: Mapping[str, object], field: str) -> None:
     if any(not ENVIRONMENT_NAME.fullmatch(key) for key in values):
         raise ValueError(f"invalid {field} environment variable name")
 

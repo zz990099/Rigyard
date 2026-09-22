@@ -286,7 +286,8 @@ class MenuApp:
         selected = self.io.select("Test", [label for label, _ in actions], back_label="Back")
         if selected is None:
             return None
-        return self._execute_test(session, actions[selected][1])
+        self._execute_test(session, actions[selected][1])
+        return None
 
     def _execute_test(self, session: MenuSession, action: TestAction) -> None:
         title = "Run tests" if action == "run" else "Show test results"

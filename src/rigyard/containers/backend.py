@@ -8,6 +8,7 @@ from .models import ContainerCreateResult, ContainerHookPlan, ContainerHookResul
 class ContainerBackend(Protocol):
     def create(self, plan: ContainerRunPlan) -> ContainerCreateResult:
         """Create and start a container from a fully resolved plan."""
+        raise NotImplementedError
 
     def run_hook(
         self,
@@ -16,3 +17,4 @@ class ContainerBackend(Protocol):
         hook: ContainerHookPlan,
     ) -> ContainerHookResult:
         """Run one lifecycle hook in an already running container."""
+        raise NotImplementedError

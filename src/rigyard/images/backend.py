@@ -13,6 +13,7 @@ class ImageBuildBackend(Protocol):
 
     def build_step(self, step: ImageBuildStep) -> BuildStepResult:
         """Build exactly one fully materialized image step."""
+        raise NotImplementedError
 
     def tag_image(self, source: str, alias: str) -> None:
         """Add a tag to the completed image, raising on failure."""

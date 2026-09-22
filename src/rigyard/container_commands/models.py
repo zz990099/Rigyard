@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
@@ -100,7 +101,7 @@ class ContainerCommandPlan:
     start_container: bool = field(default=True, kw_only=True)
 
 
-def _validate_environment(values: dict[str, object], kind: str) -> None:
+def _validate_environment(values: Mapping[str, object], kind: str) -> None:
     invalid = sorted(name for name in values if not ENVIRONMENT_NAME.fullmatch(name))
     if invalid:
         raise ValueError(f"invalid {kind} environment variable name(s): {', '.join(invalid)}")

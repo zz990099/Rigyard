@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -37,7 +38,7 @@ def _validate_process_source(
             raise ValueError(f"{label} {name} entries must not be empty")
 
 
-def _validate_named_mapping(values: dict[str, object], label: str) -> None:
+def _validate_named_mapping(values: Mapping[str, object], label: str) -> None:
     invalid = sorted(name for name in values if not SCENARIO_NAME.fullmatch(name))
     if invalid:
         raise ValueError(f"invalid {label} name(s): {', '.join(invalid)}")

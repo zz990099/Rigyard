@@ -28,6 +28,7 @@ class CommandRunner(Protocol):
         environment: Mapping[str, str] | None = None,
     ) -> CommandResult:
         """Run argv directly without invoking a shell."""
+        raise NotImplementedError
 
 
 class SubprocessRunner:

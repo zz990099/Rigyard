@@ -229,11 +229,14 @@ class ScenarioExecutor:
                 raise ScenarioPlanError(f"scenario instance {instance.name!r} has no groups")
             group = instance.groups[0]
         else:
-            group = next((item for item in instance.groups if item.name == group_name), None)
-            if group is None:
+            selected_group = next(
+                (item for item in instance.groups if item.name == group_name), None
+            )
+            if selected_group is None:
                 raise ScenarioPlanError(
                     f"unknown scenario group {group_name!r} in instance {instance.name!r}"
                 )
+            group = selected_group
         if group.name not in panes:
             raise ScenarioExecutionError(f"tmux pane for group {group.name!r} is not running")
         return instance, group, panes[group.name]
@@ -291,11 +294,11 @@ class ScenarioExecutor:
                         target,
                         f"cannot capture startup failure for group {title!r}",
                     )
-                    code = state[1] if len(state) > 1 else "unknown"
+                    pane_exit_status = state[1] if len(state) > 1 else "unknown"
                     raise ScenarioExecutionError(
                         f"group {title!r} in instance {instance.name!r} exited during startup "
-                        f"(exit {code}); tmux session {plan.session!r} was kept for diagnosis: "
-                        + logs.stdout.strip()
+                        f"(exit {pane_exit_status}); tmux session {plan.session!r} was kept "
+                        "for diagnosis: " + logs.stdout.strip()
                     )
                 if not plan.keep_alive:
                     continue
@@ -303,11 +306,11 @@ class ScenarioExecutor:
                     target,
                     f"cannot capture startup output for group {title!r}",
                 )
-                code = startup_exit_code(logs.stdout, title)
-                if code is None:
+                startup_code = startup_exit_code(logs.stdout, title)
+                if startup_code is None:
                     continue
                 raise ScenarioExecutionError(
                     f"group {title!r} in instance {instance.name!r} exited during startup "
-                    f"(exit {code}); its pane fell back to a container shell, and "
+                    f"(exit {startup_code}); its pane fell back to a container shell, and "
                     f"tmux session {plan.session!r} was kept for diagnosis: " + logs.stdout.strip()
                 )

@@ -94,16 +94,18 @@ class ResolveParametersUseCase:
             formatter=self.formatter,
         )
         if not allow_missing:
-            for name, template in config.images.items():
-                materialize_as(template, f"images.{name}", context, ImageSpec, renderer)
-            for name, template in config.containers.items():
-                materialize_as(template, f"containers.{name}", context, ContainerSpec, renderer)
-            for name, template in config.builds.items():
-                materialize_as(template, f"builds.{name}", context, BuildSpec, renderer)
-            for name, template in config.tests.items():
-                materialize_as(template, f"tests.{name}", context, TestSpec, renderer)
-            for name, template in config.tasks.items():
-                materialize_as(template, f"tasks.{name}", context, TaskSpec, renderer)
+            for name, image_template in config.images.items():
+                materialize_as(image_template, f"images.{name}", context, ImageSpec, renderer)
+            for name, container_template in config.containers.items():
+                materialize_as(
+                    container_template, f"containers.{name}", context, ContainerSpec, renderer
+                )
+            for name, build_template in config.builds.items():
+                materialize_as(build_template, f"builds.{name}", context, BuildSpec, renderer)
+            for name, test_template in config.tests.items():
+                materialize_as(test_template, f"tests.{name}", context, TestSpec, renderer)
+            for name, task_template in config.tasks.items():
+                materialize_as(task_template, f"tasks.{name}", context, TaskSpec, renderer)
             for scene_name, scenario in config.scenarios.items():
                 if scenario.compose is not None:
                     materialize_as(

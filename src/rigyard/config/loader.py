@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 import yaml
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, RootModel, ValidationError
 from yaml.nodes import MappingNode, Node, SequenceNode
 
 from ..errors import ConfigIOError, SchemaValidationError, SourceLocation
@@ -27,6 +27,7 @@ from .models import (
 )
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
+RootModelT = TypeVar("RootModelT", bound=RootModel[Any])
 
 
 def _locations(node: Node, prefix: tuple[Any, ...] = ()) -> dict[tuple[Any, ...], tuple[int, int]]:
@@ -60,7 +61,7 @@ def _read_yaml(path: str | Path) -> tuple[Any, dict[tuple[Any, ...], tuple[int, 
             mark.line + 1 if mark else None,
             mark.column + 1 if mark else None,
         )
-        problem = exc.problem if hasattr(exc, "problem") else exc
+        problem = getattr(exc, "problem", exc)
         raise ConfigIOError(f"invalid YAML: {problem}", location) from exc
     locations = _locations(root) if root is not None else {}
     return data, locations
@@ -166,7 +167,7 @@ def _source_description(
 def _load_source_group(
     manifest_path: Path,
     configured: Path | tuple[Path, ...],
-    model: type[ModelT],
+    model: type[RootModelT],
     *,
     label: str,
 ) -> tuple[
@@ -209,7 +210,7 @@ def _load_source_group(
 def _load_optional_source_group(
     manifest_path: Path,
     configured: Path | tuple[Path, ...] | None,
-    model: type[ModelT],
+    model: type[RootModelT],
     *,
     label: str,
 ) -> tuple[
