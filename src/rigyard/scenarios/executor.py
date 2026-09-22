@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import os
-import sys
 import time
 from collections.abc import Callable, Mapping
 
 from ..errors import ScenarioExecutionError, ScenarioPlanError
-from ..execution import CommandResult, CommandRunner, SubprocessRunner
+from ..execution import CommandRunner, SubprocessRunner
 from .lifecycle import ComposeLifecycleBackend, ContainerLifecycleBackend
 from .models import (
     ScenarioGroupPlan,
@@ -25,10 +24,9 @@ from .process import (
     startup_exit_code,
 )
 from .runtime import ScenarioCommandGateway
+from .tmux import PANE_GROUP_OPTION as PANE_GROUP_OPTION
+from .tmux import TmuxSessionBackend
 
-PLACEHOLDER = "import time; time.sleep(86400)"
-PANE_GROUP_OPTION = "@rigyard_group"
-PANE_BORDER_FORMAT = f"#{{pane_index}}: #{{{PANE_GROUP_OPTION}}}"
 # Give the pane program a moment to report an immediate failure before we look.
 STARTUP_GRACE_SECONDS = 0.4
 
@@ -46,13 +44,14 @@ class ScenarioExecutor:
         self.environment = os.environ if environment is None else environment
         self.containers = ContainerLifecycleBackend(self.commands, sleep_fn)
         self.compose = ComposeLifecycleBackend(self.commands, self.environment)
+        self.tmux = TmuxSessionBackend(self.commands, self.runner, self.environment)
 
     def start(self, plan: ScenarioPlan) -> ScenarioResult:
-        self._require_tmux()
+        self.tmux.require()
         self.containers.require()
         if plan.compose is not None:
             self.compose.preflight(plan)
-        if self._session_exists(plan.session):
+        if self.tmux.session_exists(plan.session):
             self.stop(plan)
         if plan.compose is not None and not plan.partial:
             self.compose.remove(plan)
@@ -66,62 +65,17 @@ class ScenarioExecutor:
         try:
             for index, instance in enumerate(runtime_plan.instances):
                 # A partial start joins the session another instance already owns.
-                if self._session_exists(runtime_plan.session):
-                    create = (
-                        "tmux",
-                        "new-window",
-                        "-d",
-                        "-t",
-                        runtime_plan.session,
-                        "-n",
-                        instance.name,
-                    )
-                else:
-                    create = (
-                        "tmux",
-                        "new-session",
-                        "-d",
-                        "-s",
-                        runtime_plan.session,
-                        "-n",
-                        instance.name,
-                    )
-                    created_session = True
-                # Start a known live process instead of tmux's configurable default shell.
-                self._checked(
-                    (*create, sys.executable, "-c", PLACEHOLDER),
-                    f"cannot create tmux window {instance.name!r}",
+                created_session = (
+                    self.tmux.create_window(runtime_plan.session, instance.name) or created_session
                 )
                 created = True
                 if index == 0:
-                    self._sync_environment(runtime_plan)
-                    self._configure_session(runtime_plan)
+                    self.tmux.configure_session(runtime_plan.session, mouse=runtime_plan.mouse)
                 window = self._window_target(runtime_plan, instance)
-                self._configure_window(window)
+                self.tmux.configure_window(window)
                 for _ in instance.groups[1:]:
-                    self._checked(
-                        (
-                            "tmux",
-                            "split-window",
-                            "-d",
-                            "-t",
-                            window,
-                            sys.executable,
-                            "-c",
-                            PLACEHOLDER,
-                        ),
-                        f"cannot split tmux window {instance.name!r}",
-                    )
-                    # split-window always splits the window's current pane, so without
-                    # re-tiling the same pane is halved again and again until tmux
-                    # answers "no space for new pane" (a window with 11 groups dies on a
-                    # default 80x24 session). Tiling keeps every pane big enough for the
-                    # next split, which is what the earlier startup scripts did.
-                    self._checked(
-                        ("tmux", "select-layout", "-t", window, "tiled"),
-                        f"cannot lay out tmux window {instance.name!r}",
-                    )
-                panes = self._panes(window)
+                    self.tmux.split_window(window, instance.name)
+                panes = self.tmux.panes(window)
                 if len(panes) != len(instance.groups):
                     raise ScenarioExecutionError(
                         f"tmux window {instance.name!r} has {len(panes)} pane(s) "
@@ -131,38 +85,13 @@ class ScenarioExecutor:
                     zip(instance.groups, panes, strict=True)
                 ):
                     target = f"{window}.{pane_index}"
-                    self._checked(
-                        (
-                            "tmux",
-                            "respawn-pane",
-                            "-k",
-                            "-t",
-                            target,
-                            *self._pane_command(runtime_plan, instance, group),
-                        ),
-                        f"cannot start tmux pane {group.name!r}",
-                    )
-                    self._checked(
-                        (
-                            "tmux",
-                            "set-option",
-                            "-p",
-                            "-t",
-                            target,
-                            PANE_GROUP_OPTION,
-                            group.name,
-                        ),
-                        f"cannot tag tmux pane {group.name!r}",
-                    )
-                    self._checked(
-                        ("tmux", "select-pane", "-t", target, "-T", group.name),
-                        f"cannot title tmux pane {group.name!r}",
+                    self.tmux.start_pane(
+                        target,
+                        self._pane_command(runtime_plan, instance, group),
+                        group.name,
                     )
                     self._wait_for_next(instance.startup, group_index, len(instance.groups))
-                self._checked(
-                    ("tmux", "select-layout", "-t", window, "tiled"),
-                    f"cannot lay out tmux window {instance.name!r}",
-                )
+                self.tmux.tile(window, instance.name)
                 self._wait_for_next(runtime_plan.startup, index, len(runtime_plan.instances))
         except Exception:
             if created:
@@ -180,7 +109,7 @@ class ScenarioExecutor:
             raise ScenarioPlanError("scene down is only available for Compose-managed scenarios")
         if plan.partial:
             raise ScenarioPlanError("scene down does not support partial instance selection")
-        self._require_tmux()
+        self.tmux.require()
         self.containers.require()
         self.compose.require()
         self.stop(plan)
@@ -188,64 +117,40 @@ class ScenarioExecutor:
         return ScenarioResult(plan.scene_name, plan.profile_name, "down")
 
     def stop(self, plan: ScenarioPlan) -> ScenarioResult:
-        self._require_tmux()
-        if not self._session_exists(plan.session):
+        self.tmux.require()
+        if not self.tmux.session_exists(plan.session):
             return ScenarioResult(plan.scene_name, plan.profile_name, "not running")
         running = [instance for instance in plan.instances if self._window_exists(plan, instance)]
         self._interrupt(plan, running)
         if running and plan.stop_grace_seconds:
             self.sleep_fn(plan.stop_grace_seconds)
         if not plan.partial:
-            self._checked(
-                ("tmux", "kill-session", "-t", plan.session),
-                f"cannot stop tmux session {plan.session!r}",
-            )
+            self.tmux.kill_session(plan.session)
             return ScenarioResult(plan.scene_name, plan.profile_name, "stopped")
         for instance in running:
             if self._window_exists(plan, instance):
-                self._checked(
-                    ("tmux", "kill-window", "-t", self._window_target(plan, instance)),
-                    f"cannot stop tmux window {instance.name!r}",
-                )
+                self.tmux.kill_window(self._window_target(plan, instance), instance.name)
         detail = "stopped" if running else "not running"
         return ScenarioResult(plan.scene_name, plan.profile_name, detail)
 
     def _interrupt(self, plan: ScenarioPlan, instances: list[ScenarioInstancePlan]) -> None:
         for instance in instances:
             window = self._window_target(plan, instance)
-            for _, pane_index in self._panes(window):
-                self.runner.run(
-                    ("tmux", "send-keys", "-t", f"{window}.{pane_index}", "C-c"),
-                    capture=True,
-                )
+            for _, pane_index in self.tmux.panes(window):
+                self.tmux.interrupt(f"{window}.{pane_index}")
 
     def _clean_up(self, plan: ScenarioPlan, created_session: bool) -> None:
         if created_session:
-            self.runner.run(("tmux", "kill-session", "-t", plan.session), capture=True)
+            self.tmux.kill_session(plan.session, checked=False)
             return
         for instance in plan.instances:
-            self.runner.run(
-                ("tmux", "kill-window", "-t", self._window_target(plan, instance)),
-                capture=True,
-            )
+            self.tmux.kill_window(self._window_target(plan, instance), instance.name, checked=False)
 
     def status(self, plan: ScenarioPlan) -> ScenarioResult:
-        self._require_tmux()
-        if not self._session_exists(plan.session):
+        self.tmux.require()
+        if not self.tmux.session_exists(plan.session):
             return ScenarioResult(plan.scene_name, plan.profile_name, "not running")
-        result = self._checked(
-            (
-                "tmux",
-                "list-panes",
-                "-s",
-                "-t",
-                plan.session,
-                "-F",
-                "#{window_name}.#{pane_index} #{pane_title} "
-                "dead=#{pane_dead} exit=#{pane_exit_status}",
-            ),
-            f"cannot inspect tmux session {plan.session!r}",
-        )
+        result = self.tmux.status(plan.session)
         return ScenarioResult(plan.scene_name, plan.profile_name, result.stdout.strip())
 
     def attach(
@@ -254,8 +159,8 @@ class ScenarioExecutor:
         instance_name: str | None = None,
         group_name: str | None = None,
     ) -> ScenarioResult:
-        self._require_tmux()
-        if not self._session_exists(plan.session):
+        self.tmux.require()
+        if not self.tmux.session_exists(plan.session):
             raise ScenarioExecutionError(f"tmux session {plan.session!r} is not running")
         target = plan.session
         if instance_name is not None or group_name is not None:
@@ -264,21 +169,10 @@ class ScenarioExecutor:
             if not self._window_exists(plan, instance):
                 raise ScenarioExecutionError(f"tmux window {instance.name!r} is not running")
             target = window
-            self._checked(
-                ("tmux", "select-window", "-t", window),
-                f"cannot select tmux window {instance.name!r}",
-            )
+            self.tmux.select_window(window, instance.name)
             target = f"{window}.{index}"
-            self._checked(
-                ("tmux", "select-pane", "-t", target),
-                f"cannot select tmux pane {group.name!r}",
-            )
-        attach_command = "switch-client" if self.environment.get("TMUX") else "attach-session"
-        self._checked(
-            ("tmux", attach_command, "-t", plan.session),
-            f"cannot attach tmux session {plan.session!r}",
-            capture=False,
-        )
+            self.tmux.select_pane(target, group.name)
+        self.tmux.attach(plan.session)
         return ScenarioResult(plan.scene_name, plan.profile_name, f"detached from {target}")
 
     def logs(
@@ -291,35 +185,18 @@ class ScenarioExecutor:
     ) -> ScenarioResult:
         if follow:
             return self.attach(plan, instance_name, group_name)
-        self._require_tmux()
-        if not self._session_exists(plan.session):
+        self.tmux.require()
+        if not self.tmux.session_exists(plan.session):
             raise ScenarioExecutionError(f"tmux session {plan.session!r} is not running")
         instance, group, index = self._resolve_pane(plan, instance_name, group_name)
         target = f"{self._window_target(plan, instance)}.{index}"
-        result = self._checked(
-            ("tmux", "capture-pane", "-p", "-t", target, "-S", "-"),
-            f"cannot capture logs for group {group.name!r}",
-        )
+        result = self.tmux.capture(target, f"cannot capture logs for group {group.name!r}")
         return ScenarioResult(plan.scene_name, plan.profile_name, result.stdout.rstrip())
-
-    # -- preflight ---------------------------------------------------------
-
-    def _require_tmux(self) -> None:
-        self._require(("tmux", "-V"), "tmux")
-
-    def _require(self, command: tuple[str, ...], label: str) -> None:
-        self.commands.require(command, label)
 
     # -- tmux inspection ---------------------------------------------------
 
-    def _session_exists(self, session: str) -> bool:
-        return self.commands.session_exists(session)
-
     def _window_exists(self, plan: ScenarioPlan, instance: ScenarioInstancePlan) -> bool:
-        return self.commands.window_exists(plan.session, instance.name)
-
-    def _panes(self, window: str) -> tuple[tuple[str, int], ...]:
-        return self.commands.panes(window, PANE_GROUP_OPTION)
+        return self.tmux.window_exists(plan.session, instance.name)
 
     def _window_target(self, plan: ScenarioPlan, instance: ScenarioInstancePlan) -> str:
         return f"{plan.session}:{instance.name}"
@@ -346,7 +223,7 @@ class ScenarioExecutor:
     ) -> tuple[ScenarioInstancePlan, ScenarioGroupPlan, int]:
         instance = self._instance(plan, instance_name)
         window = self._window_target(plan, instance)
-        panes = {title: index for title, index in self._panes(window)}
+        panes = {title: index for title, index in self.tmux.panes(window)}
         if group_name is None:
             if not instance.groups:
                 raise ScenarioPlanError(f"scenario instance {instance.name!r} has no groups")
@@ -390,12 +267,6 @@ class ScenarioExecutor:
         primary = self._docker_exec(plan, instance, group, argv=container_session_argv(group))
         return keep_alive_argv(primary, group.name, host_shell_argv(self.environment))
 
-    def _configure_session(self, plan: ScenarioPlan) -> None:
-        self._checked(
-            ("tmux", "set-option", "-t", plan.session, "mouse", "on" if plan.mouse else "off"),
-            "cannot configure tmux mouse mode",
-        )
-
     def _wait_for_next(
         self,
         startup: ScenarioStartupPlan,
@@ -405,58 +276,19 @@ class ScenarioExecutor:
         if startup.mode == "sequential" and startup.interval_seconds > 0 and index + 1 < count:
             self.sleep_fn(startup.interval_seconds)
 
-    def _configure_window(self, window: str) -> None:
-        for command, message in (
-            (("set-option", "-w", "-t", window, "remain-on-exit", "on"), "remain-on-exit"),
-            (("set-option", "-w", "-t", window, "pane-border-status", "top"), "pane border"),
-            (
-                ("set-option", "-w", "-t", window, "pane-border-format", PANE_BORDER_FORMAT),
-                "pane border format",
-            ),
-        ):
-            self._checked(("tmux", *command), f"cannot configure tmux {message}")
-
-    def _sync_environment(self, plan: ScenarioPlan) -> None:
-        # A persistent tmux server may have stale PATH or Docker connection settings.
-        for key in (
-            "PATH",
-            "HOME",
-            "DOCKER_HOST",
-            "DOCKER_CONTEXT",
-            "DOCKER_CONFIG",
-            "DOCKER_TLS_VERIFY",
-            "DOCKER_CERT_PATH",
-        ):
-            command = ("tmux", "set-environment", "-t", plan.session)
-            if key in self.environment:
-                command = (*command, key, self.environment[key])
-            else:
-                command = (*command, "-r", key)
-            self._checked(command, f"cannot configure tmux environment {key!r}")
-
     def _check_started_panes(self, plan: ScenarioPlan) -> None:
         self.sleep_fn(STARTUP_GRACE_SECONDS)
         for instance in plan.instances:
             window = self._window_target(plan, instance)
             if not self._window_exists(plan, instance):
                 continue
-            for title, pane_index in self._panes(window):
+            for title, pane_index in self.tmux.panes(window):
                 target = f"{window}.{pane_index}"
-                result = self._checked(
-                    (
-                        "tmux",
-                        "display-message",
-                        "-p",
-                        "-t",
-                        target,
-                        "#{pane_dead} #{pane_exit_status}",
-                    ),
-                    f"cannot inspect startup of group {title!r}",
-                )
+                result = self.tmux.startup_state(target, title)
                 state = result.stdout.split()
                 if state and state[0] == "1":
-                    logs = self._checked(
-                        ("tmux", "capture-pane", "-p", "-t", target, "-S", "-"),
+                    logs = self.tmux.capture(
+                        target,
                         f"cannot capture startup failure for group {title!r}",
                     )
                     code = state[1] if len(state) > 1 else "unknown"
@@ -467,8 +299,8 @@ class ScenarioExecutor:
                     )
                 if not plan.keep_alive:
                     continue
-                logs = self._checked(
-                    ("tmux", "capture-pane", "-p", "-t", target, "-S", "-"),
+                logs = self.tmux.capture(
+                    target,
                     f"cannot capture startup output for group {title!r}",
                 )
                 code = startup_exit_code(logs.stdout, title)
@@ -479,18 +311,3 @@ class ScenarioExecutor:
                     f"(exit {code}); its pane fell back to a container shell, and "
                     f"tmux session {plan.session!r} was kept for diagnosis: " + logs.stdout.strip()
                 )
-
-    def _checked(
-        self,
-        command: tuple[str, ...],
-        message: str,
-        *,
-        capture: bool = True,
-        environment: Mapping[str, str] | None = None,
-    ) -> CommandResult:
-        return self.commands.checked(
-            command,
-            message,
-            capture=capture,
-            environment=environment,
-        )

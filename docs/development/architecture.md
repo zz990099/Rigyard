@@ -25,7 +25,8 @@ flowchart TD
 - `config`: manifest and source YAML, error locations, and configuration assembly.
 - `parameters`: PromptValues, explicit value sources, dynamic candidates, and string templates.
 - `images`, `containers`, `builds`, `tests`, and `tasks`: strict specs, planners, services, and backend protocols.
-- `scenarios`: strict specs, planner, tmux orchestration, Docker/Compose lifecycle backends, and a command gateway that normalizes process failures.
+- `container_commands`: shared fields and execution planning for build, test, and task commands; each domain retains its own script and result semantics.
+- `scenarios`: strict specs, planner, scenario orchestration, dedicated tmux and Docker/Compose lifecycle backends, and a command gateway that normalizes process failures.
 - `application`: resource selection, value resolution, and plan coordination.
 - `cli`: direct commands and the one-shot interactive menu.
 - `providers`: adapters for Docker and other external systems.
@@ -48,8 +49,8 @@ Business modules materialize parameters, normalize paths, and validate constrain
 
 ## Scenario boundary
 
-tmux is the only scenario process entry point: scenarios map to sessions, instances to windows, and groups to panes. `ScenarioExecutor` owns that orchestration while dedicated lifecycle backends manage existing Docker containers and Compose projects. Compose mode uses a stable project name to manage development containers. Compose handles development container lifecycle only; scenarios are not production deployment orchestration.
+tmux is the only scenario process entry point: scenarios map to sessions, instances to windows, and groups to panes. `ScenarioExecutor` owns startup and shutdown orchestration, while `TmuxSessionBackend` encapsulates session, window, and pane commands and dedicated lifecycle backends manage existing Docker containers and Compose projects. Compose mode uses a stable project name to manage development containers. Compose handles development container lifecycle only; scenarios are not production deployment orchestration.
 
 ## Container scripts
 
-Build, test, and custom-task scripts are container paths executed through `docker exec`. Test and task output is streamed without interpretation. A container hook script is a host project file read and hashed during planning, then sent to the container interpreter over stdin. None of these paths uses an implicit host shell.
+Build, test, and custom-task scripts are container paths executed through `docker exec`. Their domain planners delegate common command normalization to `container_commands` and then add domain-specific identity and result data. Test and task output is streamed without interpretation. A container hook script is a host project file read and hashed during planning, then sent to the container interpreter over stdin. None of these paths uses an implicit host shell.

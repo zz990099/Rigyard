@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..execution.docker_exec import docker_exec_command
+from ..container_commands import plan_container_command
 from .models import TestAction, TestPlan, TestSpec
 
 
@@ -14,28 +14,15 @@ class TestPlanner:
         spec: TestSpec,
     ) -> TestPlan:
         action_spec = spec.run if action == "run" else spec.report
-        command = docker_exec_command(
-            container=spec.container,
+        common = plan_container_command(
+            spec,
             program=(*action_spec.interpreter, str(action_spec.script)),
             interpreter=action_spec.interpreter,
-            setup=spec.setup,
-            workdir=spec.workdir,
-            user=spec.user,
-            environment=spec.environment,
-            tty=spec.tty,
+            timeout_seconds=action_spec.timeout_seconds,
         )
         return TestPlan(
+            **vars(common),
             test_name=test_name,
             action=action,
-            container=spec.container,
             script=action_spec.script,
-            command=command,
-            workdir=spec.workdir,
-            user=spec.user,
-            setup=spec.setup,
-            environment=tuple(sorted(spec.environment.items())),
-            environment_overrides=tuple(sorted(spec.environment)),
-            timeout_seconds=action_spec.timeout_seconds,
-            tty=spec.tty,
-            start_container=spec.start_container,
         )
