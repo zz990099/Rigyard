@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import datetime
+from typing import Literal
 
 from ..errors import SchemaValidationError
 from ..parameters.models import PromptValue
@@ -18,14 +19,17 @@ from ..scenarios.models import (
     ScenarioInstanceTemplate,
     ScenarioPlan,
     ScenarioProfileSpec,
+    ScenarioProfileTemplate,
     ScenarioStartupSpec,
     ScenarioTemplate,
 )
 from ..scenarios.planner import ScenarioPlanner
 from .definitions import find_definition
 from .parameters import resolve_selected_prompts
-from .project import project_context
+from .project import ProjectContext, project_context
 from .requests import ResolutionRequest
+
+ScenarioOperation = Literal["start", "stop", "down", "status", "attach", "logs"]
 
 
 class PlanScenarioUseCase:
@@ -43,7 +47,7 @@ class PlanScenarioUseCase:
         profile_name: str | None,
         request: ResolutionRequest,
         *,
-        resolve_group_runtime: bool = True,
+        operation: ScenarioOperation = "start",
         instances: Sequence[str] | None = None,
         environment: Mapping[str, str] | None = None,
         now: datetime | None = None,
@@ -73,6 +77,13 @@ class PlanScenarioUseCase:
                 f"unknown scenario {scene_name!r}; configured scenarios: {available}"
             )
         scenario = match.value
+        profile_name = _select_profile_name(scene_name, scenario, profile_name)
+        if profile_name not in scenario.profiles:
+            available = ", ".join(sorted(scenario.profiles)) or "none"
+            raise SchemaValidationError(
+                f"unknown profile {profile_name!r} for scenario {scene_name!r}; "
+                f"configured profiles: {available}"
+            )
         renderer = StringTemplateRenderer(
             TemplateContext.capture(
                 project.environment,
@@ -81,14 +92,18 @@ class PlanScenarioUseCase:
                 variables=config.variables,
             ).with_source(match.source_path)
         )
-        compose_managed = scenario.compose is not None
-        profile_name = _select_profile_name(scene_name, scenario, profile_name)
-        if profile_name not in scenario.profiles:
-            available = ", ".join(sorted(scenario.profiles)) or "none"
-            raise SchemaValidationError(
-                f"unknown profile {profile_name!r} for scenario {scene_name!r}; "
-                f"configured profiles: {available}"
+        if operation != "start":
+            return self._plan_control(
+                scene_name,
+                profile_name,
+                scenario,
+                operation,
+                instances,
+                request,
+                project,
+                renderer,
             )
+        compose_managed = scenario.compose is not None
 
         instances_prefix = f"scenarios.{scene_name}.instances"
         profile_prefix = f"scenarios.{scene_name}.profiles.{profile_name}"
@@ -101,9 +116,7 @@ class PlanScenarioUseCase:
             if scenario.compose is not None
             else {}
         )
-        startup_prompts = (
-            collect_prompts(scenario.startup, startup_prefix) if resolve_group_runtime else {}
-        )
+        startup_prompts = collect_prompts(scenario.startup, startup_prefix)
         instance_prompts = {
             path: value
             for name, instance in scenario.instances.items()
@@ -161,15 +174,12 @@ class PlanScenarioUseCase:
                 selected.update(collect_prompts(instance.service, f"{prefix}.service"))
             else:
                 selected.update(collect_prompts(instance.container, f"{prefix}.container"))
-            if resolve_group_runtime:
-                selected.update(collect_prompts(instance.enabled, f"{prefix}.enabled"))
-                selected.update(collect_prompts(instance.startup, f"{prefix}.startup"))
-                for group_name in enabled_groups[name]:
-                    selected.update(
-                        collect_prompts(
-                            instance.groups[group_name], f"{prefix}.groups.{group_name}"
-                        )
-                    )
+            selected.update(collect_prompts(instance.enabled, f"{prefix}.enabled"))
+            selected.update(collect_prompts(instance.startup, f"{prefix}.startup"))
+            for group_name in enabled_groups[name]:
+                selected.update(
+                    collect_prompts(instance.groups[group_name], f"{prefix}.groups.{group_name}")
+                )
         context = resolve_selected_prompts(
             config,
             selected,
@@ -195,12 +205,9 @@ class PlanScenarioUseCase:
                 if group_name not in enabled_groups[name]:
                     continue
                 group_prefix = f"{prefix}.groups.{group_name}"
-                if resolve_group_runtime:
-                    groups[group_name] = materialize_as(
-                        group, group_prefix, context, ScenarioGroupSpec, renderer
-                    )
-                else:
-                    groups[group_name] = ScenarioGroupSpec(script=":")
+                groups[group_name] = materialize_as(
+                    group, group_prefix, context, ScenarioGroupSpec, renderer
+                )
             if not groups:
                 raise SchemaValidationError(f"scenario instance {name!r} has no enabled groups")
             if compose_managed:
@@ -208,16 +215,12 @@ class PlanScenarioUseCase:
                     raise SchemaValidationError(f"scenario instance {name!r} requires service")
                 planned[name] = ScenarioInstanceSpec(
                     service=materialize(template.service, f"{prefix}.service", context, renderer),
-                    startup=(
-                        materialize_as(
-                            template.startup,
-                            f"{prefix}.startup",
-                            context,
-                            ScenarioStartupSpec,
-                            renderer,
-                        )
-                        if resolve_group_runtime
-                        else ScenarioStartupSpec()
+                    startup=materialize_as(
+                        template.startup,
+                        f"{prefix}.startup",
+                        context,
+                        ScenarioStartupSpec,
+                        renderer,
                     ),
                     groups=groups,
                 )
@@ -228,16 +231,12 @@ class PlanScenarioUseCase:
                     container=materialize(
                         template.container, f"{prefix}.container", context, renderer
                     ),
-                    startup=(
-                        materialize_as(
-                            template.startup,
-                            f"{prefix}.startup",
-                            context,
-                            ScenarioStartupSpec,
-                            renderer,
-                        )
-                        if resolve_group_runtime
-                        else ScenarioStartupSpec()
+                    startup=materialize_as(
+                        template.startup,
+                        f"{prefix}.startup",
+                        context,
+                        ScenarioStartupSpec,
+                        renderer,
                     ),
                     groups=groups,
                 )
@@ -260,16 +259,12 @@ class PlanScenarioUseCase:
             if scenario.compose is not None
             else None
         )
-        startup = (
-            materialize_as(
-                scenario.startup,
-                startup_prefix,
-                context,
-                ScenarioStartupSpec,
-                renderer,
-            )
-            if resolve_group_runtime
-            else ScenarioStartupSpec()
+        startup = materialize_as(
+            scenario.startup,
+            startup_prefix,
+            context,
+            ScenarioStartupSpec,
+            renderer,
         )
         return ScenarioPlanner().create_plan(
             scene_name,
@@ -280,6 +275,83 @@ class PlanScenarioUseCase:
             startup,
             project.config_path,
             config.metadata.name,
+            partial=bool(instances),
+        )
+
+    def _plan_control(
+        self,
+        scene_name: str,
+        profile_name: str,
+        scenario: ScenarioTemplate,
+        operation: ScenarioOperation,
+        instances: Sequence[str] | None,
+        request: ResolutionRequest,
+        project: ProjectContext,
+        renderer: StringTemplateRenderer,
+    ) -> ScenarioPlan:
+        profile_prefix = f"scenarios.{scene_name}.profiles.{profile_name}"
+        compose_prefix = f"scenarios.{scene_name}.compose"
+        profile_template = scenario.profiles[profile_name]
+        needs_stop_grace = operation in {"stop", "down"}
+        control_profile = ScenarioProfileTemplate(
+            session=profile_template.session,
+            attach=False,
+            stop_grace_seconds=(profile_template.stop_grace_seconds if needs_stop_grace else 0),
+            restart_container="never",
+            mouse=False,
+            keep_alive=False,
+        )
+        selected = collect_prompts(control_profile, profile_prefix)
+        if operation == "down" and scenario.compose is not None:
+            selected.update(collect_prompts(scenario.compose, compose_prefix))
+        context = resolve_selected_prompts(
+            project.config,
+            selected,
+            ResolutionRequest(
+                request.config_path,
+                request.values_path,
+                request.overrides,
+                request.interactive,
+                request.input_fn,
+                project=project,
+            ),
+            renderer=renderer,
+            sources=self.sources,
+            formatter=self.formatter,
+        )
+        profile = materialize_as(
+            control_profile,
+            profile_prefix,
+            context,
+            ScenarioProfileSpec,
+            renderer,
+        )
+        compose = (
+            materialize_as(
+                scenario.compose,
+                compose_prefix,
+                context,
+                ScenarioComposeSpec,
+                renderer,
+            )
+            if operation == "down" and scenario.compose is not None
+            else None
+        )
+        selected_names = _select_control_instances(scene_name, scenario.instances, instances)
+        groups = (
+            {name: tuple(scenario.instances[name].groups) for name in selected_names}
+            if operation in {"attach", "logs"}
+            else {}
+        )
+        return ScenarioPlanner().create_control_plan(
+            scene_name,
+            profile_name,
+            selected_names,
+            groups,
+            profile,
+            compose,
+            project.config_path,
+            project.config.metadata.name,
             partial=bool(instances),
         )
 
@@ -315,6 +387,25 @@ def _select_instances(
         wanted = set(requested)
         return [name for name in names if name in wanted]
     return [name for name in names if enabled[name]]
+
+
+def _select_control_instances(
+    scene_name: str,
+    templates: Mapping[str, ScenarioInstanceTemplate],
+    requested: Sequence[str] | None,
+) -> list[str]:
+    names = list(templates)
+    if not requested:
+        return names
+    unknown = [name for name in requested if name not in templates]
+    if unknown:
+        available = ", ".join(sorted(templates)) or "none"
+        raise SchemaValidationError(
+            f"unknown instance(s) for scenario {scene_name!r}: {', '.join(unknown)}; "
+            f"configured instances: {available}"
+        )
+    wanted = set(requested)
+    return [name for name in names if name in wanted]
 
 
 def _enabled(value: object, context: Mapping[str, object], path: str) -> bool:

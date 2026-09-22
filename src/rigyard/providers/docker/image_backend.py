@@ -16,8 +16,8 @@ class DockerImageBackend:
         command = ("docker", "version", "--format", "{{.Server.Version}}")
         try:
             result = self.runner.run(command, capture=True)
-        except FileNotFoundError as exc:
-            raise BackendUnavailableError("Docker CLI executable was not found") from exc
+        except OSError as exc:
+            raise BackendUnavailableError(f"cannot execute Docker: {exc}") from exc
         if result.returncode != 0:
             detail = _detail(result.stderr, result.stdout)
             raise BackendUnavailableError(
@@ -48,8 +48,8 @@ class DockerImageBackend:
                 argv,
                 stdin=compose_dockerfile(step.base_image, step.dockerfile_fragment),
             )
-        except FileNotFoundError as exc:
-            raise BackendUnavailableError("Docker CLI executable was not found") from exc
+        except OSError as exc:
+            raise BackendUnavailableError(f"cannot execute Docker build: {exc}") from exc
         if result.returncode != 0:
             detail = _detail(result.stderr, result.stdout)
             raise ImageBuildError(

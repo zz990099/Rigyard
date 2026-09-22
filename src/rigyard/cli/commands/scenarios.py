@@ -102,7 +102,7 @@ def _plan(
             input_fn=args.input_fn,
             source_path=args.source,
         ),
-        resolve_group_runtime=args.scene_command == "start",
+        operation=args.scene_command,
         instances=_selected_instances(args),
     )
 

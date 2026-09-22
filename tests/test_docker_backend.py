@@ -68,6 +68,23 @@ def test_unavailable_daemon_has_backend_error() -> None:
         backend.check_available()
 
 
+@pytest.mark.parametrize(
+    ("method", "message"),
+    [("check_available", "cannot execute Docker"), ("build_step", "cannot execute Docker build")],
+)
+def test_os_errors_are_normalized_as_backend_errors(method, message) -> None:
+    class BrokenRunner:
+        def run(self, *_args, **_kwargs):
+            raise PermissionError("permission denied")
+
+    backend = DockerImageBackend(BrokenRunner())
+    with pytest.raises(BackendUnavailableError, match=f"{message}.*permission denied"):
+        if method == "check_available":
+            backend.check_available()
+        else:
+            backend.build_step(step())
+
+
 def test_failed_layer_has_build_context() -> None:
     backend = DockerImageBackend(FakeRunner([CommandResult(9, stderr="build failed")]))
     with pytest.raises(ImageBuildError, match="layer 1 .*system.*exit 9.*build failed"):

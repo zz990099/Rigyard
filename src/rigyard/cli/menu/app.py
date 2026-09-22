@@ -429,7 +429,7 @@ class MenuApp:
             scene_name,
             profile_name,
             self._request(session, group.path, interactive=False),
-            resolve_group_runtime=False,
+            operation="stop",
         )
         for line in describe_scenario_target(plan):
             self.io.write_field(line)
@@ -453,7 +453,7 @@ class MenuApp:
             scene_name,
             profile_name,
             self._request(session, group.path, interactive=False),
-            resolve_group_runtime=False,
+            operation="down",
         )
         for line in describe_scenario_target(plan):
             self.io.write_field(line)

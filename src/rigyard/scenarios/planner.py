@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from ..errors import ScenarioPlanError
@@ -68,22 +69,13 @@ class ScenarioPlanner:
                         "for Compose-managed scenarios"
                     )
                 _validate_compose_service_name(instance.service)
-        compose_plan = None
-        if compose is not None:
-            compose_file = _resolve_path(config_file.parent, compose.file)
-            if not compose_file.is_file():
-                raise ScenarioPlanError(f"Compose file is not a file: {compose_file}")
-            compose_project = compose.project_name or _compose_project_name(
-                config_file, project_name, scene_name, profile_name
-            )
-            _validate_compose_project(compose_project)
-            compose_plan = ScenarioComposePlan(
-                compose_file,
-                compose_project,
-                compose.wait_timeout_seconds,
-                tuple(sorted(compose.environment.items())),
-            )
-            _validate_compose_environment(compose_plan.environment)
+        compose_plan = _compose_plan(
+            compose,
+            config_file,
+            project_name,
+            scene_name,
+            profile_name,
+        )
         session = profile.session or _runtime_name(config_file, project_name, scene_name)
         _validate_tmux_name(session)
         return ScenarioPlan(
@@ -99,6 +91,65 @@ class ScenarioPlanner:
             keep_alive=profile.keep_alive,
             partial=partial,
             startup=_startup_plan(startup),
+        )
+
+    def create_control_plan(
+        self,
+        scene_name: str,
+        profile_name: str,
+        instance_names: Sequence[str],
+        groups: Mapping[str, Sequence[str]],
+        profile: ScenarioProfileSpec,
+        compose: ScenarioComposeSpec | None,
+        config_path: str | Path,
+        project_name: str,
+        *,
+        partial: bool = False,
+    ) -> ScenarioPlan:
+        config_file = Path(config_path).resolve()
+        planned = tuple(
+            ScenarioInstancePlan(
+                name=name,
+                container=None,
+                groups=tuple(
+                    ScenarioGroupPlan(
+                        name=group_name,
+                        script=None,
+                        interpreter=(),
+                        user=None,
+                        workdir=None,
+                        environment=(),
+                    )
+                    for group_name in groups.get(name, ())
+                ),
+            )
+            for name in instance_names
+        )
+        if not planned:
+            raise ScenarioPlanError(f"scenario {scene_name!r} has no configured instances")
+        for instance in planned:
+            _validate_window_name(instance.name)
+        compose_plan = _compose_plan(
+            compose,
+            config_file,
+            project_name,
+            scene_name,
+            profile_name,
+        )
+        session = profile.session or _runtime_name(config_file, project_name, scene_name)
+        _validate_tmux_name(session)
+        return ScenarioPlan(
+            scene_name=scene_name,
+            profile_name=profile_name,
+            session=session,
+            attach=False,
+            stop_grace_seconds=profile.stop_grace_seconds,
+            instances=planned,
+            compose=compose_plan,
+            restart_container="never",
+            mouse=False,
+            keep_alive=False,
+            partial=partial,
         )
 
 
@@ -130,6 +181,32 @@ def _instance_plan(name: str, instance: ScenarioInstanceSpec) -> ScenarioInstanc
 
 def _startup_plan(startup: ScenarioStartupSpec) -> ScenarioStartupPlan:
     return ScenarioStartupPlan(startup.mode, startup.interval_seconds)
+
+
+def _compose_plan(
+    compose: ScenarioComposeSpec | None,
+    config_file: Path,
+    project_name: str,
+    scene_name: str,
+    profile_name: str,
+) -> ScenarioComposePlan | None:
+    if compose is None:
+        return None
+    compose_file = _resolve_path(config_file.parent, compose.file)
+    if not compose_file.is_file():
+        raise ScenarioPlanError(f"Compose file is not a file: {compose_file}")
+    compose_project = compose.project_name or _compose_project_name(
+        config_file, project_name, scene_name, profile_name
+    )
+    _validate_compose_project(compose_project)
+    plan = ScenarioComposePlan(
+        compose_file,
+        compose_project,
+        compose.wait_timeout_seconds,
+        tuple(sorted(compose.environment.items())),
+    )
+    _validate_compose_environment(plan.environment)
+    return plan
 
 
 def _runtime_name(config_file: Path, project_name: str, scene_name: str) -> str:

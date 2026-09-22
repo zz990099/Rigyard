@@ -567,27 +567,90 @@ def test_cli_scene_reports_an_ambiguous_profile_choice(tmp_path: Path, capsys):
     assert "needs a profile" in capsys.readouterr().err
 
 
-def test_management_plan_resolves_instance_container(tmp_path: Path):
+@pytest.mark.parametrize("operation", ["stop", "status"])
+def test_management_plan_skips_execution_runtime_values(tmp_path: Path, operation):
     config = project(
         tmp_path,
         """robot:
   instances:
     robot1:
-      container: {default: robot-dev, prompt: {mode: input, message: Container}}
-      groups: {drivers: {script: /run.sh}}
+      container: {prompt: {mode: input, message: Container}}
+      groups:
+        drivers:
+          enabled: {prompt: {mode: confirm, message: Drivers}}
+          script: {prompt: {mode: input, message: Script}}
   profiles:
-    development: {attach: false}
+    development:
+      attach: {prompt: {mode: confirm, message: Attach}}
 """,
     )
     plan = PlanScenarioUseCase().plan(
         "robot",
         "development",
         ResolutionRequest(config, interactive=False),
-        resolve_group_runtime=False,
+        operation=operation,
     )
     assert isinstance(plan, ScenarioPlan)
-    assert plan.instances[0].container == "robot-dev"
+    assert plan.instances[0].container is None
+    assert plan.instances[0].groups == ()
+
+
+@pytest.mark.parametrize("operation", ["attach", "logs"])
+def test_pane_management_uses_static_group_names_without_runtime_values(tmp_path: Path, operation):
+    config = project(
+        tmp_path,
+        """robot:
+  instances:
+    robot1:
+      container: {prompt: {mode: input, message: Container}}
+      groups:
+        drivers:
+          enabled: {prompt: {mode: confirm, message: Drivers}}
+          script: {prompt: {mode: input, message: Script}}
+  profiles:
+    development:
+      attach: {prompt: {mode: confirm, message: Attach}}
+""",
+    )
+    plan = PlanScenarioUseCase().plan(
+        "robot",
+        "development",
+        ResolutionRequest(config, interactive=False),
+        operation=operation,
+        instances=["robot1"],
+    )
+    assert plan.instances[0].container is None
     assert [group.name for group in plan.instances[0].groups] == ["drivers"]
+
+
+def test_down_resolves_compose_control_values_only(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """robot:
+  compose: {file: compose.yaml, project_name: robot-debug}
+  instances:
+    robot1:
+      service: {prompt: {mode: input, message: Service}}
+      groups:
+        drivers:
+          enabled: {prompt: {mode: confirm, message: Drivers}}
+          script: {prompt: {mode: input, message: Script}}
+  profiles:
+    development:
+      attach: {prompt: {mode: confirm, message: Attach}}
+""",
+    )
+    write(tmp_path / "compose.yaml", "services: {robot: {image: robot}}\n")
+    plan = PlanScenarioUseCase().plan(
+        "robot",
+        "development",
+        ResolutionRequest(config, interactive=False),
+        operation="down",
+    )
+    assert plan.compose is not None
+    assert plan.compose.project_name == "robot-debug"
+    assert plan.instances[0].service is None
+    assert plan.instances[0].groups == ()
 
 
 def test_group_requires_exactly_one_of_script_or_command(tmp_path: Path):
