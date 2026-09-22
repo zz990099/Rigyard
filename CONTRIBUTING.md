@@ -22,6 +22,9 @@ Run these checks before submitting a change:
 
 ```bash
 python -m ruff check .
+python -m ruff format --check .
+python -m mypy src/rigyard
+python -m pyright src/rigyard
 python -m pytest
 python -m pip install build twine
 python -m build
