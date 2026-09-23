@@ -74,6 +74,7 @@ class BuildImageUseCase:
             renderer,
             self.sources,
             self.formatter,
+            environment=project.environment,
         )
         return ImageBuildPlanner().create_plan(
             request.image_name,

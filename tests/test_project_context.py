@@ -66,3 +66,40 @@ def test_build_image_request_preserves_project_context(tmp_path: Path):
     request = BuildImageRequest(config_path, "development", project=project).resolution_request()
 
     assert request.project is project
+
+
+def test_runtime_environment_uses_the_same_snapshot_as_templates(tmp_path: Path, monkeypatch):
+    config_path = write(
+        tmp_path / "rigyard.yaml",
+        "version: 3\nmetadata: {name: snapshot-test}\nsources: {builds: builds.yaml}\n",
+    )
+    write(
+        tmp_path / "builds.yaml",
+        """native:
+  container:
+    prompt: {mode: input, message: Container}
+  script: /workspace/${env:USER}/build.sh
+""",
+    )
+    parameter = "RIGYARD_PARAM_BUILDS_NATIVE_CONTAINER"
+    project = ProjectContext.capture(
+        config_path,
+        environment={"USER": "alice", parameter: "dev-alice"},
+    )
+    monkeypatch.setenv("USER", "bob")
+    monkeypatch.setenv(parameter, "dev-bob")
+
+    use_case = BuildProjectUseCase(backend=None)
+    request = ResolutionRequest(config_path, interactive=False, project=project)
+    plan = use_case.plan("native", request)
+    override = use_case.plan(
+        "native",
+        request,
+        environment={"USER": "charlie", parameter: "dev-charlie"},
+    )
+
+    assert (plan.container, plan.script) == ("dev-alice", Path("/workspace/alice/build.sh"))
+    assert (override.container, override.script) == (
+        "dev-charlie",
+        Path("/workspace/charlie/build.sh"),
+    )

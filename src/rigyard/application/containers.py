@@ -73,6 +73,7 @@ class CreateContainerUseCase:
             renderer,
             self.sources,
             self.formatter,
+            environment=project.environment,
         )
         return ContainerRunPlanner().plan(
             container_name,

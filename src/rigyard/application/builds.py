@@ -75,6 +75,7 @@ class BuildProjectUseCase:
             renderer,
             self.sources,
             self.formatter,
+            environment=project.environment,
         )
         return BuildPlanner().create_plan(
             build_name,

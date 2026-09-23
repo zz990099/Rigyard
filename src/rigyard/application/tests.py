@@ -76,6 +76,7 @@ class ExecuteTestUseCase:
             renderer,
             self.sources,
             self.formatter,
+            environment=project.environment,
         )
         return TestPlanner().create_plan(test_name, action, spec)
 

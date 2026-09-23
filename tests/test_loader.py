@@ -119,6 +119,49 @@ def test_duplicate_definitions_across_sources_are_allowed(tmp_path: Path):
     ]
 
 
+@pytest.mark.parametrize(
+    ("name", "content", "load"),
+    [
+        (
+            "rigyard.yaml",
+            "version: 3\nmetadata: {name: first, name: second}\nsources: {containers: x}\n",
+            load_config,
+        ),
+        (
+            "values.yaml",
+            "tasks:\n  build: {container: first, container: second}\n",
+            load_values,
+        ),
+    ],
+)
+def test_duplicate_yaml_keys_report_both_positions(tmp_path: Path, name, content, load):
+    path = write(tmp_path / name, content)
+
+    with pytest.raises(ConfigIOError) as error:
+        load(path)
+
+    assert "duplicate key" in str(error.value)
+    assert "first defined at line" in str(error.value)
+    assert str(path) in str(error.value)
+
+
+def test_duplicate_key_in_definition_source_is_rejected(tmp_path: Path):
+    config = manifest(tmp_path, "  containers: containers.yaml")
+    write(tmp_path / "containers.yaml", "dev: {image: first}\ndev: {image: second}\n")
+
+    with pytest.raises(ConfigIOError, match="duplicate key 'dev'"):
+        load_config(config)
+
+
+def test_yaml_merge_can_override_a_default(tmp_path: Path):
+    path = write(
+        tmp_path / "values.yaml",
+        "defaults: &defaults {container: old}\nselected: {<<: *defaults, container: new}\n",
+    )
+
+    assert load_values(path)["selected"]["container"] == "new"
+
+
 def test_source_description_must_be_a_non_empty_string(tmp_path: Path):
     config = manifest(tmp_path, "  containers: config/containers.yaml")
     write(tmp_path / "config/containers.yaml", "description: []\ndev: {image: ubuntu}\n")

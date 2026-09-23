@@ -9,7 +9,8 @@ from typing import Any, TypeVar
 
 import yaml
 from pydantic import BaseModel, RootModel, ValidationError
-from yaml.nodes import MappingNode, Node, SequenceNode
+from yaml.constructor import ConstructorError
+from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from ..errors import ConfigIOError, SchemaValidationError, SourceLocation
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
@@ -28,6 +29,28 @@ from .models import (
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 RootModelT = TypeVar("RootModelT", bound=RootModel[Any])
+
+
+class UniqueKeySafeLoader(yaml.SafeLoader):
+    """Reject ambiguous mappings while retaining PyYAML's safe constructors."""
+
+    def construct_mapping(self, node: MappingNode, deep: bool = False) -> dict[Any, Any]:
+        seen: dict[Any, tuple[int, int]] = {}
+        for key_node, _ in node.value:
+            # A merge key is handled by SafeLoader; only explicit scalar keys are checked.
+            if not isinstance(key_node, ScalarNode) or key_node.tag == "tag:yaml.org,2002:merge":
+                continue
+            key = self.construct_object(key_node, deep=deep)
+            if key in seen:
+                line, column = seen[key]
+                raise ConstructorError(
+                    None,
+                    None,
+                    f"duplicate key {key!r} (first defined at line {line}, column {column})",
+                    key_node.start_mark,
+                )
+            seen[key] = (key_node.start_mark.line + 1, key_node.start_mark.column + 1)
+        return super().construct_mapping(node, deep=deep)
 
 
 def _locations(node: Node, prefix: tuple[Any, ...] = ()) -> dict[tuple[Any, ...], tuple[int, int]]:
@@ -52,7 +75,7 @@ def _read_yaml(path: str | Path) -> tuple[Any, dict[tuple[Any, ...], tuple[int, 
         raise ConfigIOError(str(exc), SourceLocation(file_path)) from exc
 
     try:
-        data = yaml.safe_load(text)
+        data = yaml.load(text, Loader=UniqueKeySafeLoader)
         root = yaml.compose(text, Loader=yaml.SafeLoader)
     except yaml.YAMLError as exc:
         mark = getattr(exc, "problem_mark", None)

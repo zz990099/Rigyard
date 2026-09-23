@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -92,6 +92,7 @@ class ResolveParametersUseCase:
             renderer=renderer,
             sources=self.sources,
             formatter=self.formatter,
+            environment=project.environment,
         )
         if not allow_missing:
             for name, image_template in config.images.items():
@@ -155,6 +156,7 @@ def resolve_prompts(
     renderer: StringTemplateRenderer | None = None,
     sources: DynamicSources | None = None,
     formatter: Formatter | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> ResolvedContext:
     prompts = (
         _collect_config_prompts(template)
@@ -169,6 +171,7 @@ def resolve_prompts(
         formatter=formatter,
     ).resolve(
         values=values,
+        environ=environment if environment is not None else _request_environment(request),
         overrides=request.overrides,
         interactive=request.interactive,
         input_fn=request.input_fn,
@@ -194,6 +197,7 @@ def resolve_template(
     renderer: StringTemplateRenderer | None = None,
     sources: DynamicSources | None = None,
     formatter: Formatter | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> tuple[ModelT, ResolvedContext]:
     selected = collect_prompts(template, prefix)
     available = collect_prompts(root)
@@ -211,6 +215,7 @@ def resolve_template(
         formatter=formatter,
     ).resolve(
         values={key: value for key, value in flat_values.items() if key in selected},
+        environ=environment if environment is not None else _request_environment(request),
         overrides={key: value for key, value in request.overrides.items() if key in selected},
         interactive=request.interactive,
         input_fn=request.input_fn,
@@ -226,6 +231,7 @@ def resolve_selected_prompts(
     renderer: StringTemplateRenderer | None = None,
     sources: DynamicSources | None = None,
     formatter: Formatter | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> ResolvedContext:
     """Resolve an explicitly composed set of prompt paths from one config root."""
 
@@ -242,10 +248,15 @@ def resolve_selected_prompts(
         formatter=formatter,
     ).resolve(
         values={key: value for key, value in flat_values.items() if key in selected},
+        environ=environment if environment is not None else _request_environment(request),
         overrides={key: value for key, value in request.overrides.items() if key in selected},
         interactive=request.interactive,
         input_fn=request.input_fn,
     )
+
+
+def _request_environment(request: ResolutionRequest) -> Mapping[str, str] | None:
+    return request.project.environment if request.project is not None else None
 
 
 def default_display_renderer(

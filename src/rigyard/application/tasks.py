@@ -75,6 +75,7 @@ class ExecuteTaskUseCase:
             renderer,
             self.sources,
             self.formatter,
+            environment=project.environment,
         )
         return TaskPlanner().create_plan(task_name, spec)
 
