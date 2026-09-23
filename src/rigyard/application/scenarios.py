@@ -139,6 +139,7 @@ class PlanScenarioUseCase:
             renderer=renderer,
             sources=self.sources,
             formatter=self.formatter,
+            environment=project.environment,
         )
         selected_names = _select_instances(
             scene_name,
@@ -194,6 +195,7 @@ class PlanScenarioUseCase:
             renderer=renderer,
             sources=self.sources,
             formatter=self.formatter,
+            environment=project.environment,
         )
 
         planned: dict[str, ScenarioInstanceSpec] = {}
@@ -318,6 +320,7 @@ class PlanScenarioUseCase:
             renderer=renderer,
             sources=self.sources,
             formatter=self.formatter,
+            environment=project.environment,
         )
         profile = materialize_as(
             control_profile,

@@ -34,13 +34,25 @@ RootModelT = TypeVar("RootModelT", bound=RootModel[Any])
 class UniqueKeySafeLoader(yaml.SafeLoader):
     """Reject ambiguous mappings while retaining PyYAML's safe constructors."""
 
-    def construct_mapping(self, node: MappingNode, deep: bool = False) -> dict[Any, Any]:
+    def __init__(self, stream: str) -> None:
+        super().__init__(stream)
+        self._checked_mappings: set[MappingNode] = set()
+
+    def flatten_mapping(self, node: MappingNode) -> None:
+        # Validate each original mapping before merge expansion mutates its keys.
+        # SafeLoader recursively calls this method for inline and aliased merge sources.
+        if node not in self._checked_mappings:
+            self._check_keys(node)
+            self._checked_mappings.add(node)
+        super().flatten_mapping(node)
+
+    def _check_keys(self, node: MappingNode) -> None:
         seen: dict[Any, tuple[int, int]] = {}
         for key_node, _ in node.value:
             # A merge key is handled by SafeLoader; only explicit scalar keys are checked.
             if not isinstance(key_node, ScalarNode) or key_node.tag == "tag:yaml.org,2002:merge":
                 continue
-            key = self.construct_object(key_node, deep=deep)
+            key = self.construct_object(key_node)
             if key in seen:
                 line, column = seen[key]
                 raise ConstructorError(
@@ -50,7 +62,6 @@ class UniqueKeySafeLoader(yaml.SafeLoader):
                     key_node.start_mark,
                 )
             seen[key] = (key_node.start_mark.line + 1, key_node.start_mark.column + 1)
-        return super().construct_mapping(node, deep=deep)
 
 
 def _locations(node: Node, prefix: tuple[Any, ...] = ()) -> dict[tuple[Any, ...], tuple[int, int]]:

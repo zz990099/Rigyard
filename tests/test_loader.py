@@ -162,6 +162,36 @@ def test_yaml_merge_can_override_a_default(tmp_path: Path):
     assert load_values(path)["selected"]["container"] == "new"
 
 
+@pytest.mark.parametrize(
+    "content",
+    [
+        "item: {<<: {x: 1, x: 2}}\n",
+        "item: {<<: [{x: 1}, {y: 1, y: 2}]}\n",
+        "item: {<<: {<<: {x: 1, x: 2}}}\n",
+    ],
+)
+def test_duplicate_keys_in_merge_sources_are_rejected(tmp_path: Path, content):
+    with pytest.raises(ConfigIOError, match="duplicate key"):
+        load_values(write(tmp_path / "values.yaml", content))
+
+
+def test_merged_anchor_can_be_reused_without_false_duplicates(tmp_path: Path):
+    path = write(
+        tmp_path / "values.yaml",
+        "item: {<<: &derived {<<: {x: 1}, x: 2}}\n"
+        "alias: *derived\n"
+        "merged: {<<: *derived, x: 3}\n"
+        "sequence: {<<: [*derived, {x: 4}]}\n",
+    )
+
+    assert load_values(path) == {
+        "item": {"x": 2},
+        "alias": {"x": 2},
+        "merged": {"x": 3},
+        "sequence": {"x": 2},
+    }
+
+
 def test_source_description_must_be_a_non_empty_string(tmp_path: Path):
     config = manifest(tmp_path, "  containers: config/containers.yaml")
     write(tmp_path / "config/containers.yaml", "description: []\ndev: {image: ubuntu}\n")
