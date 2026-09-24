@@ -7,7 +7,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import replace
 
 from ..errors import ScenarioExecutionError, ScenarioPlanError
-from .models import ScenarioInstancePlan, ScenarioPlan
+from .models import ScenarioInstancePlan, ScenarioPlan, ScenarioTarget
 from .runtime import ScenarioCommandGateway
 
 
@@ -136,7 +136,7 @@ class ComposeLifecycleBackend:
             ),
         )
 
-    def remove(self, plan: ScenarioPlan) -> None:
+    def remove(self, plan: ScenarioTarget) -> None:
         self.commands.checked(
             (*self._base(plan), "down", "--remove-orphans"),
             "Docker Compose down failed",
@@ -153,7 +153,7 @@ class ComposeLifecycleBackend:
         return tuple(dict.fromkeys(self._service(instance) for instance in plan.instances))
 
     @staticmethod
-    def _base(plan: ScenarioPlan) -> tuple[str, ...]:
+    def _base(plan: ScenarioTarget) -> tuple[str, ...]:
         if plan.compose is None:
             raise ScenarioPlanError("scenario is not managed by Docker Compose")
         return (
@@ -165,7 +165,7 @@ class ComposeLifecycleBackend:
             plan.compose.project_name,
         )
 
-    def _environment(self, plan: ScenarioPlan) -> dict[str, str]:
+    def _environment(self, plan: ScenarioTarget) -> dict[str, str]:
         if plan.compose is None:
             raise ScenarioPlanError("scenario is not managed by Docker Compose")
         return {**self.environment, **dict(plan.compose.environment)}

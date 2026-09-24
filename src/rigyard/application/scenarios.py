@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, overload
 
 from pydantic import TypeAdapter, ValidationError
 
@@ -17,6 +17,7 @@ from ..parameters.sources import DynamicSources
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from ..scenarios.models import (
     ScenarioComposeSpec,
+    ScenarioControlPlan,
     ScenarioGroupSpec,
     ScenarioInstanceSpec,
     ScenarioInstanceTemplate,
@@ -24,9 +25,11 @@ from ..scenarios.models import (
     ScenarioProfileSpec,
     ScenarioProfileTemplate,
     ScenarioStartupSpec,
+    ScenarioTarget,
     ScenarioTemplate,
 )
 from ..scenarios.planner import ScenarioPlanner
+from ..scenarios.records import FileRunStore, select_recorded_target
 from .definitions import find_definition
 from .parameters import resolve_selected_prompts
 from .project import ProjectContext, project_context
@@ -44,6 +47,32 @@ class PlanScenarioUseCase:
         self.sources = dict(sources or {})
         self.formatter = formatter
 
+    @overload
+    def plan(
+        self,
+        scene_name: str,
+        profile_name: str | None,
+        request: ResolutionRequest,
+        *,
+        operation: Literal["start"] = "start",
+        instances: Sequence[str] | None = None,
+        environment: Mapping[str, str] | None = None,
+        now: datetime | None = None,
+    ) -> ScenarioPlan: ...
+
+    @overload
+    def plan(
+        self,
+        scene_name: str,
+        profile_name: str | None,
+        request: ResolutionRequest,
+        *,
+        operation: Literal["stop", "down", "status", "attach", "logs"],
+        instances: Sequence[str] | None = None,
+        environment: Mapping[str, str] | None = None,
+        now: datetime | None = None,
+    ) -> ScenarioControlPlan: ...
+
     def plan(
         self,
         scene_name: str,
@@ -54,7 +83,13 @@ class PlanScenarioUseCase:
         instances: Sequence[str] | None = None,
         environment: Mapping[str, str] | None = None,
         now: datetime | None = None,
-    ) -> ScenarioPlan:
+    ) -> ScenarioTarget:
+        if operation != "start":
+            record = FileRunStore(
+                request.project.config_path if request.project is not None else request.config_path
+            ).find(scene_name, profile_name, request.source_path)
+            if record is not None:
+                return select_recorded_target(record, instances)
         project = project_context(
             request.config_path,
             request.project,
@@ -308,7 +343,7 @@ class PlanScenarioUseCase:
         project: ProjectContext,
         renderer: StringTemplateRenderer,
         source_path: Path,
-    ) -> ScenarioPlan:
+    ) -> ScenarioControlPlan:
         profile_prefix = f"scenarios.{scene_name}.profiles.{profile_name}"
         compose_prefix = f"scenarios.{scene_name}.compose"
         profile_template = scenario.profiles[profile_name]

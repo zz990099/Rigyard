@@ -11,9 +11,12 @@ from .identity import ScenarioIdentity
 from .models import (
     ScenarioComposePlan,
     ScenarioComposeSpec,
+    ScenarioControlPlan,
     ScenarioGroupPlan,
+    ScenarioGroupTarget,
     ScenarioInstancePlan,
     ScenarioInstanceSpec,
+    ScenarioInstanceTarget,
     ScenarioPlan,
     ScenarioProfileSpec,
     ScenarioStartupPlan,
@@ -110,25 +113,16 @@ class ScenarioPlanner:
         *,
         partial: bool = False,
         source_path: Path | None = None,
-    ) -> ScenarioPlan:
+    ) -> ScenarioControlPlan:
         config_file = Path(config_path).resolve()
         identity = ScenarioIdentity(
             config_file, (source_path or config_file).resolve(), scene_name, profile_name
         )
         planned = tuple(
-            ScenarioInstancePlan(
+            ScenarioInstanceTarget(
                 name=name,
-                container=None,
                 groups=tuple(
-                    ScenarioGroupPlan(
-                        name=group_name,
-                        script=None,
-                        interpreter=(),
-                        user=None,
-                        workdir=None,
-                        environment=(),
-                    )
-                    for group_name in groups.get(name, ())
+                    ScenarioGroupTarget(name=group_name) for group_name in groups.get(name, ())
                 ),
             )
             for name in instance_names
@@ -145,17 +139,13 @@ class ScenarioPlanner:
         )
         session = profile.session or identity.runtime_name(project_name)
         _validate_tmux_name(session)
-        return ScenarioPlan(
+        return ScenarioControlPlan(
             scene_name=scene_name,
             profile_name=profile_name,
             session=session,
-            attach=False,
             stop_grace_seconds=profile.stop_grace_seconds,
             instances=planned,
             compose=compose_plan,
-            restart_container="never",
-            mouse=False,
-            keep_alive=False,
             partial=partial,
             identity=identity,
         )

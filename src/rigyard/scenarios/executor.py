@@ -6,16 +6,19 @@ import os
 import time
 from collections.abc import Callable, Mapping
 
-from ..errors import ScenarioExecutionError, ScenarioPlanError
+from ..errors import RigyardError, ScenarioExecutionError, ScenarioPlanError
 from ..execution import CommandRunner, SubprocessRunner
-from .lifecycle import ComposeLifecycleBackend, ContainerLifecycleBackend
 from .models import (
     ScenarioGroupPlan,
+    ScenarioGroupTarget,
     ScenarioInstancePlan,
+    ScenarioInstanceTarget,
     ScenarioPlan,
     ScenarioResult,
     ScenarioStartupPlan,
+    ScenarioTarget,
 )
+from .ports import ComposeRuntime, ContainerRuntime, SessionRuntime
 from .process import (
     container_session_argv,
     host_shell_argv,
@@ -23,9 +26,7 @@ from .process import (
     process_argv,
     startup_exit_code,
 )
-from .runtime import ScenarioCommandGateway
 from .tmux import PANE_GROUP_OPTION as PANE_GROUP_OPTION
-from .tmux import TmuxSessionBackend
 
 # Give the pane program a moment to report an immediate failure before we look.
 STARTUP_GRACE_SECONDS = 0.4
@@ -37,14 +38,20 @@ class ScenarioExecutor:
         runner: CommandRunner | None = None,
         sleep_fn: Callable[[float], None] = time.sleep,
         environment: Mapping[str, str] | None = None,
+        *,
+        containers: ContainerRuntime | None = None,
+        compose: ComposeRuntime | None = None,
+        tmux: SessionRuntime | None = None,
     ) -> None:
         self.runner = runner or SubprocessRunner()
-        self.commands = ScenarioCommandGateway(self.runner)
         self.sleep_fn = sleep_fn
         self.environment = os.environ if environment is None else environment
-        self.containers = ContainerLifecycleBackend(self.commands, sleep_fn)
-        self.compose = ComposeLifecycleBackend(self.commands, self.environment)
-        self.tmux = TmuxSessionBackend(self.commands, self.runner, self.environment)
+        from .assembly import runtime_backends
+
+        defaults = runtime_backends(self.runner, self.environment, sleep_fn)
+        self.containers = containers if containers is not None else defaults[0]
+        self.compose = compose if compose is not None else defaults[1]
+        self.tmux = tmux if tmux is not None else defaults[2]
 
     def start(self, plan: ScenarioPlan) -> ScenarioResult:
         self.tmux.require()
@@ -93,9 +100,12 @@ class ScenarioExecutor:
                     self._wait_for_next(instance.startup, group_index, len(instance.groups))
                 self.tmux.tile(window, instance.name)
                 self._wait_for_next(runtime_plan.startup, index, len(runtime_plan.instances))
-        except Exception:
+        except BaseException as failure:
             if created:
-                self._clean_up(runtime_plan, created_session)
+                try:
+                    self._clean_up(runtime_plan, created_session)
+                except (OSError, RigyardError) as cleanup_error:
+                    raise failure from cleanup_error
             raise
 
         self._check_started_panes(runtime_plan)
@@ -104,7 +114,7 @@ class ScenarioExecutor:
             self.attach(runtime_plan)
         return result
 
-    def down(self, plan: ScenarioPlan) -> ScenarioResult:
+    def down(self, plan: ScenarioTarget) -> ScenarioResult:
         if plan.compose is None:
             raise ScenarioPlanError("scene down is only available for Compose-managed scenarios")
         if plan.partial:
@@ -116,11 +126,13 @@ class ScenarioExecutor:
         self.compose.remove(plan)
         return ScenarioResult(plan.scene_name, plan.profile_name, "down")
 
-    def stop(self, plan: ScenarioPlan) -> ScenarioResult:
+    def stop(self, plan: ScenarioTarget) -> ScenarioResult:
         self.tmux.require()
         if not self.tmux.session_exists(plan.session):
             return ScenarioResult(plan.scene_name, plan.profile_name, "not running")
-        running = [instance for instance in plan.instances if self._window_exists(plan, instance)]
+        running: list[ScenarioInstancePlan | ScenarioInstanceTarget] = [
+            instance for instance in plan.instances if self._window_exists(plan, instance)
+        ]
         self._interrupt(plan, running)
         if running and plan.stop_grace_seconds:
             self.sleep_fn(plan.stop_grace_seconds)
@@ -133,7 +145,9 @@ class ScenarioExecutor:
         detail = "stopped" if running else "not running"
         return ScenarioResult(plan.scene_name, plan.profile_name, detail)
 
-    def _interrupt(self, plan: ScenarioPlan, instances: list[ScenarioInstancePlan]) -> None:
+    def _interrupt(
+        self, plan: ScenarioTarget, instances: list[ScenarioInstancePlan | ScenarioInstanceTarget]
+    ) -> None:
         for instance in instances:
             window = self._window_target(plan, instance)
             for _, pane_index in self.tmux.panes(window):
@@ -146,7 +160,7 @@ class ScenarioExecutor:
         for instance in plan.instances:
             self.tmux.kill_window(self._window_target(plan, instance), instance.name, checked=False)
 
-    def status(self, plan: ScenarioPlan) -> ScenarioResult:
+    def status(self, plan: ScenarioTarget) -> ScenarioResult:
         self.tmux.require()
         if not self.tmux.session_exists(plan.session):
             return ScenarioResult(plan.scene_name, plan.profile_name, "not running")
@@ -164,7 +178,7 @@ class ScenarioExecutor:
 
     def attach(
         self,
-        plan: ScenarioPlan,
+        plan: ScenarioTarget,
         instance_name: str | None = None,
         group_name: str | None = None,
     ) -> ScenarioResult:
@@ -186,7 +200,7 @@ class ScenarioExecutor:
 
     def logs(
         self,
-        plan: ScenarioPlan,
+        plan: ScenarioTarget,
         instance_name: str | None = None,
         group_name: str | None = None,
         *,
@@ -204,13 +218,19 @@ class ScenarioExecutor:
 
     # -- tmux inspection ---------------------------------------------------
 
-    def _window_exists(self, plan: ScenarioPlan, instance: ScenarioInstancePlan) -> bool:
+    def _window_exists(
+        self, plan: ScenarioTarget, instance: ScenarioInstancePlan | ScenarioInstanceTarget
+    ) -> bool:
         return self.tmux.window_exists(plan.session, instance.name)
 
-    def _window_target(self, plan: ScenarioPlan, instance: ScenarioInstancePlan) -> str:
+    def _window_target(
+        self, plan: ScenarioTarget, instance: ScenarioInstancePlan | ScenarioInstanceTarget
+    ) -> str:
         return f"{plan.session}:{instance.name}"
 
-    def _instance(self, plan: ScenarioPlan, name: str | None) -> ScenarioInstancePlan:
+    def _instance(
+        self, plan: ScenarioTarget, name: str | None
+    ) -> ScenarioInstancePlan | ScenarioInstanceTarget:
         if name is None:
             if len(plan.instances) != 1:
                 available = ", ".join(instance.name for instance in plan.instances)
@@ -226,10 +246,12 @@ class ScenarioExecutor:
 
     def _resolve_pane(
         self,
-        plan: ScenarioPlan,
+        plan: ScenarioTarget,
         instance_name: str | None,
         group_name: str | None,
-    ) -> tuple[ScenarioInstancePlan, ScenarioGroupPlan, int]:
+    ) -> tuple[
+        ScenarioInstancePlan | ScenarioInstanceTarget, ScenarioGroupPlan | ScenarioGroupTarget, int
+    ]:
         instance = self._instance(plan, instance_name)
         window = self._window_target(plan, instance)
         panes = {title: index for title, index in self.tmux.panes(window)}

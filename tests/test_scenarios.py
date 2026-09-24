@@ -20,6 +20,7 @@ from rigyard.execution import CommandResult
 from rigyard.scenarios.executor import PANE_GROUP_OPTION, ScenarioExecutor
 from rigyard.scenarios.models import (
     ScenarioComposePlan,
+    ScenarioControlPlan,
     ScenarioGroupPlan,
     ScenarioInstancePlan,
     ScenarioPlan,
@@ -591,8 +592,8 @@ def test_management_plan_skips_execution_runtime_values(tmp_path: Path, operatio
         ResolutionRequest(config, interactive=False),
         operation=operation,
     )
-    assert isinstance(plan, ScenarioPlan)
-    assert plan.instances[0].container is None
+    assert isinstance(plan, ScenarioControlPlan)
+    assert not hasattr(plan.instances[0], "container")
     assert plan.instances[0].groups == ()
 
 
@@ -620,7 +621,7 @@ def test_pane_management_uses_static_group_names_without_runtime_values(tmp_path
         operation=operation,
         instances=["robot1"],
     )
-    assert plan.instances[0].container is None
+    assert not hasattr(plan.instances[0], "container")
     assert [group.name for group in plan.instances[0].groups] == ["drivers"]
 
 
@@ -650,7 +651,7 @@ def test_down_resolves_compose_control_values_only(tmp_path: Path):
     )
     assert plan.compose is not None
     assert plan.compose.project_name == "robot-debug"
-    assert plan.instances[0].service is None
+    assert not hasattr(plan.instances[0], "service")
     assert plan.instances[0].groups == ()
 
 

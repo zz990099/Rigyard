@@ -10,7 +10,7 @@ from typing import Any
 from ...application.requests import ResolutionRequest
 from ...application.scenarios import PlanScenarioUseCase
 from ...providers.docker import docker_sources
-from ...scenarios.models import ScenarioPlan
+from ...scenarios.models import ScenarioPlan, ScenarioTarget
 from ...scenarios.service import ScenarioService
 from ..common import parse_overrides, print_fields, say
 from ..scenario_output import describe_scenario
@@ -86,7 +86,7 @@ def _operation(
 def _plan(
     args: argparse.Namespace,
     parser: argparse.ArgumentParser,
-) -> ScenarioPlan:
+) -> ScenarioTarget:
     try:
         overrides = parse_overrides(args.sets)
     except argparse.ArgumentTypeError as exc:
@@ -119,6 +119,7 @@ def _service() -> ScenarioService:
 
 def _start(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     plan = _plan(args, parser)
+    assert isinstance(plan, ScenarioPlan)
     if args.no_attach:
         plan = replace(plan, attach=plan.attach and not args.no_attach)
     if args.dry_run:

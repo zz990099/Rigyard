@@ -334,3 +334,50 @@ class ScenarioResult:
     scene_name: str
     profile_name: str
     detail: str = ""
+
+
+@dataclass(frozen=True)
+class ScenarioGroupTarget:
+    name: str
+
+
+@dataclass(frozen=True)
+class ScenarioInstanceTarget:
+    name: str
+    groups: tuple[ScenarioGroupTarget, ...] = ()
+
+
+@dataclass(frozen=True)
+class ScenarioControlPlan:
+    """Runtime addresses for control operations, without executable scripts or placeholders."""
+
+    scene_name: str
+    profile_name: str
+    session: str
+    stop_grace_seconds: int
+    instances: tuple[ScenarioInstanceTarget, ...]
+    compose: ScenarioComposePlan | None = None
+    partial: bool = False
+    identity: ScenarioIdentity | None = None
+
+    @classmethod
+    def from_start(cls, plan: ScenarioPlan) -> ScenarioControlPlan:
+        return cls(
+            plan.scene_name,
+            plan.profile_name,
+            plan.session,
+            plan.stop_grace_seconds,
+            tuple(
+                ScenarioInstanceTarget(
+                    instance.name,
+                    tuple(ScenarioGroupTarget(group.name) for group in instance.groups),
+                )
+                for instance in plan.instances
+            ),
+            plan.compose,
+            plan.partial,
+            plan.identity,
+        )
+
+
+ScenarioTarget = ScenarioPlan | ScenarioControlPlan

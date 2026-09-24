@@ -251,3 +251,29 @@ when these configurations should run independently.
 Generated names changed from the earlier scene-only tmux naming scheme. Stop old
 sessions and remove old Compose projects with the previous version before upgrading;
 Rigyard does not automatically remove resources with legacy names.
+
+### Recorded runs and control operations
+
+A successful start records its resolved control target under
+`.rigyard/runs/` beside the manifest. Records contain the actual session name,
+selected instance/group names, Compose project/file/environment, and lifecycle state;
+they do not contain group scripts, commands, or group environment values. Records are
+atomically replaced with owner-only file permissions. Keep this directory out of Git.
+
+`stop`, `status`, `attach`, `logs`, and `down` first use this record, even if the
+Rigyard configuration has since changed or is missing. Pane indexes are discovered
+from live tmux group tags rather than cached indexes. Use `--source` and a profile
+when more than one recorded run matches. Recorded identity settings take precedence
+over new runtime overrides for control operations. Without a record, control planning
+falls back to the current configuration, allowing management of pre-existing sessions.
+
+Partial starts merge their instance targets into the existing run record. Lifecycle
+mutations are serialized per project; interactive attachment releases that lock.
+Failed starts retain a `failed` record and any diagnostic resources preserved by the
+executor. Use `stop` to close panes or `down` to remove a Compose environment. `stop`
+retains the record so Compose cleanup remains available; successful `down` removes it.
+Compose cleanup still requires the recorded Compose file and a working Docker context.
+
+A start cannot reuse session/project names owned by another recorded run. If explicit
+runtime names change, stop the existing run first (or use `down` for an existing Compose
+project). Directly constructed Python plans without an identity remain unrecorded.

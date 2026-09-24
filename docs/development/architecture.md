@@ -66,3 +66,16 @@ to select a source. Internal provenance is never exposed as a runtime parameter 
 `application.resolution.resolve_definition` shares selection, template context, and
 spec materialization across images, containers, builds, tests, and tasks. Each feature
 keeps its own planner and execution semantics.
+
+## Scenario runtime boundary and recovery
+
+`ScenarioPlan` carries executable startup data; `ScenarioControlPlan` carries only
+runtime addresses. `ScenarioService` records lifecycle state and coordinates atomic
+record updates with project-level locking. Control planning consults those records
+before loading the current manifest. The startup executor retains its diagnostic
+failure behavior; records preserve the target needed to stop or remove failed runs.
+
+`ContainerRuntime`, `ComposeRuntime`, `SessionRuntime`, and `ScenarioBackend` are
+injectable protocols. `scenarios.assembly` wires their Docker/tmux implementations.
+This separates lifecycle policy from process transport without requiring a plugin
+framework. Backend tests can exercise actual orchestration with in-memory adapters.

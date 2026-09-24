@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from ..scenarios.models import ScenarioPlan, ScenarioStartupPlan
+from ..scenarios.models import ScenarioPlan, ScenarioStartupPlan, ScenarioTarget
 from .style import Line, field, line
 
 
-def describe_scenario_target(plan: ScenarioPlan) -> tuple[Line, ...]:
+def describe_scenario_target(plan: ScenarioTarget) -> tuple[Line, ...]:
     """Short rendering for scene management actions such as stop and down."""
 
     return (
