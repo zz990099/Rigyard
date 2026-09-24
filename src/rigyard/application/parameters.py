@@ -47,8 +47,13 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 class ValidateConfigUseCase:
-    def execute(self, config_path: str | Path) -> RigyardConfig:
-        config = load_config(config_path)
+    def execute(
+        self,
+        config_path: str | Path,
+        *,
+        workspace_root: str | Path | None = None,
+    ) -> RigyardConfig:
+        config = load_config(config_path, workspace_root=workspace_root)
         _validate_config_templates(config, config_path)
         return config
 
@@ -58,8 +63,10 @@ class InspectParametersUseCase:
         self,
         config_path: str | Path,
         source_path: Path | None = None,
+        *,
+        workspace_root: str | Path | None = None,
     ) -> dict[str, Any]:
-        config = load_config(config_path)
+        config = load_config(config_path, workspace_root=workspace_root)
         _validate_config_templates(config, config_path)
         prompts = _collect_config_prompts(config, Path(config_path), source_path)
         return {
@@ -80,12 +87,17 @@ class ResolveParametersUseCase:
     def execute(
         self, request: ResolutionRequest, *, allow_missing: bool = False
     ) -> ResolvedContext:
-        project = project_context(request.config_path, request.project)
+        project = project_context(
+            request.config_path,
+            request.project,
+            workspace_root=request.workspace_root,
+        )
         config = project.config
         template_context = TemplateContext.capture(
             project.environment,
             now=project.timestamp,
             config_path=project.config_path,
+            workspace_root=project.workspace_root,
             variables=config.variables,
         )
         renderer = SourceAwareStringTemplateRenderer(

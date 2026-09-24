@@ -95,6 +95,7 @@ class PlanScenarioUseCase:
             request.project,
             environment=environment,
             timestamp=now,
+            workspace_root=request.workspace_root,
         )
         config = project.config
         if scene_name not in config.scenarios:

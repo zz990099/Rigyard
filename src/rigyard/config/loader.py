@@ -152,7 +152,11 @@ def _source_paths(manifest_path: Path, configured: Path | tuple[Path, ...]) -> t
     return (_source_path(manifest_path, configured),)
 
 
-def _load_branding(manifest_path: Path, manifest: RigyardManifest) -> RigyardBranding:
+def _load_branding(
+    manifest_path: Path,
+    manifest: RigyardManifest,
+    workspace_root: str | Path | None,
+) -> RigyardBranding:
     configured = manifest.branding
     if configured.logo_file is None:
         return RigyardBranding(logo=configured.logo)
@@ -161,6 +165,7 @@ def _load_branding(manifest_path: Path, manifest: RigyardManifest) -> RigyardBra
         TemplateContext.capture(
             os.environ,
             config_path=manifest_path,
+            workspace_root=workspace_root,
             variables=manifest.variables,
         )
     )
@@ -237,10 +242,14 @@ def _load_optional_source_group(
     return _load_source_group(manifest_path, configured, model, label=label)
 
 
-def load_config(path: str | Path) -> RigyardConfig:
+def load_config(
+    path: str | Path,
+    *,
+    workspace_root: str | Path | None = None,
+) -> RigyardConfig:
     manifest_path = Path(path).resolve()
     manifest = _validate_file(manifest_path, RigyardManifest, label="manifest")
-    branding = _load_branding(manifest_path, manifest)
+    branding = _load_branding(manifest_path, manifest, workspace_root)
     image_files = _load_optional_source_group(
         manifest_path, manifest.sources.images, ImageDefinitions, label="image source"
     )

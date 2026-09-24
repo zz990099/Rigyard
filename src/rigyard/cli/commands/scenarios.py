@@ -101,6 +101,7 @@ def _plan(
             interactive=not args.non_interactive,
             input_fn=args.input_fn,
             source_path=args.source,
+            workspace_root=args.workspace_root,
         ),
         operation=args.scene_command,
         instances=_selected_instances(args),

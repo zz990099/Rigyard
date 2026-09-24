@@ -83,12 +83,18 @@ class MenuApp:
         self,
         config_path: str | Path = Path("rigyard.yaml"),
         values_path: str | Path | None = None,
+        *,
+        workspace_root: str | Path | None = None,
     ) -> int:
         config_file = Path(config_path)
         values_file = Path(values_path) if values_path is not None else None
-        config = ValidateConfigUseCase().execute(config_file)
+        config = ValidateConfigUseCase().execute(config_file, workspace_root=workspace_root)
         session = MenuSession(
-            ProjectContext.capture(config_file, config=config),
+            ProjectContext.capture(
+                config_file,
+                config=config,
+                workspace_root=workspace_root,
+            ),
             values_file,
         )
 

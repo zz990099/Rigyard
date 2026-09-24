@@ -60,18 +60,23 @@ def resolution_request(
         interactive=not args.non_interactive,
         input_fn=args.input_fn,
         source_path=getattr(args, "source", None),
+        workspace_root=args.workspace_root,
     )
 
 
 def _validate(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
-    ValidateConfigUseCase().execute(args.config_path)
+    ValidateConfigUseCase().execute(args.config_path, workspace_root=args.workspace_root)
     say(args.style, f"OK: {args.config_path}", stream=args.output)
     return 0
 
 
 def _inspect(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
     emit(
-        InspectParametersUseCase().execute(args.config_path, args.source),
+        InspectParametersUseCase().execute(
+            args.config_path,
+            args.source,
+            workspace_root=args.workspace_root,
+        ),
         args.format,
         stream=args.output,
     )

@@ -38,6 +38,7 @@ def resolve_definition(
             project.environment,
             now=project.timestamp,
             config_path=project.config_path,
+            workspace_root=project.workspace_root,
             variables=project.config.variables,
         ).with_source(match.source_path)
     )

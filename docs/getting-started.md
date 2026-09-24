@@ -58,10 +58,12 @@ rigyard init -f examples/robot-development/rigyard.yaml
 robot validate
 ```
 
-The binding applies only to that directory; Rigyard does not search parent directories. This
-example configures `workspace.command_alias: robot`. With the Python environment that provides
-Rigyard active, initialization installs `robot` into that environment's scripts directory. A CLI
-option can override or disable it:
+The binding applies to that directory and all of its descendants. Rigyard searches upward for the
+nearest `.rigyard/context.yaml`, so nested workspaces remain independent. This example configures
+`workspace.command_alias: robot`. With the Python environment that provides Rigyard active,
+initialization installs a generic `robot` command into that environment's scripts directory. The
+command discovers the workspace at runtime and can be shared by multiple workspaces. A CLI option
+can override or disable it:
 
 ```bash
 rigyard init -f examples/robot-development/rigyard.yaml --alias xxxbot

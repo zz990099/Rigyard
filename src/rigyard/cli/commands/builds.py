@@ -42,6 +42,7 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             interactive=not args.non_interactive,
             input_fn=args.input_fn,
             source_path=args.source,
+            workspace_root=args.workspace_root,
         ),
     )
     if args.dry_run:

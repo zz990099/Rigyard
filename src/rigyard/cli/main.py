@@ -89,11 +89,17 @@ def run(
             resolution = resolve_config(args.config_path)
             args.config_resolution = resolution
             args.config_path = resolution.config_path
-            return MenuApp(io).run(args.config_path, args.values)
+            args.workspace_root = resolution.workspace_root
+            return MenuApp(io).run(
+                args.config_path,
+                args.values,
+                workspace_root=args.workspace_root,
+            )
         if args.command != "init":
             resolution = resolve_config(args.config_path)
             args.config_resolution = resolution
             args.config_path = resolution.config_path
+            args.workspace_root = resolution.workspace_root
         return args.handler(args, parser)
     except RigyardError as exc:
         print(error_style.render("error", f"Error: {exc}"), file=error_stream)

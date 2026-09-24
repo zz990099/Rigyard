@@ -41,6 +41,7 @@ class CreateContainerUseCase:
             request.project,
             environment=environment,
             timestamp=now,
+            workspace_root=request.workspace_root,
         )
         spec = resolve_definition(
             project,

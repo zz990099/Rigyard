@@ -102,7 +102,9 @@ Names must begin with a letter, may contain letters, digits, `_` and `-`, and ca
 Use `rigyard init --alias NAME` to override the configured name or `rigyard init --no-alias` to
 initialize without creating it. Rigyard verifies that its running Python interpreter belongs to the
 active environment; it does not write aliases to system directories, pipx shims, or
-`~/.local/bin`. See [Workspace initialization](../reference/cli.md#workspace-initialization).
+`~/.local/bin`. The generated command does not contain a configuration path: it discovers the
+nearest current-or-parent workspace on every invocation, so one alias can serve multiple workspaces
+that share the Python environment. See [Workspace initialization](../reference/cli.md#workspace-initialization).
 
 ## Definition names
 

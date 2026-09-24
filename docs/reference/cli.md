@@ -77,7 +77,10 @@ rigyard init -f PATH [--force] [--alias NAME | --no-alias]
 rigyard alias remove [NAME]
 ```
 
-The command validates the configuration and writes `.rigyard/context.yaml` in the current directory. Resolution order is explicit `--config`, current-directory binding, then current-directory `rigyard.yaml`. Parent directories are not searched.
+The command validates the configuration and writes `.rigyard/context.yaml` in the current directory.
+Resolution order is explicit `--config`, the nearest current-or-parent workspace binding, then
+current-directory `rigyard.yaml`. This makes a workspace available throughout its directory tree;
+the nearest binding wins when workspaces are nested.
 
 When the manifest is inside the workspace, the binding records a relative path so the same checkout can use different host and container mount roots. Rebinding the same configuration is idempotent; changing it requires `--force`.
 
@@ -90,17 +93,20 @@ rigyard init -f src/robot/.rigyard/rigyard.yaml
 robot build native
 ```
 
-Rigyard requires the active environment to provide the running Rigyard interpreter, then binds the
-wrapper to that interpreter and an absolute configuration path. Deactivating the environment removes
-its scripts directory from normal command lookup. Rigyard does not modify `PATH` or write to a
-user-wide bin directory. Existing files and symbolic links are protected unless `--force`
-explicitly replaces them during initialization.
+Rigyard requires the active environment to provide the running Rigyard interpreter. The wrapper
+invokes that interpreter without embedding a workspace or configuration path; every invocation
+discovers the nearest workspace from its current directory. The same alias can therefore be shared
+by multiple workspaces in one Python environment. Initializing a current alias is idempotent, and
+initializing over a legacy Rigyard alias automatically upgrades its old absolute-path wrapper.
+Deactivating the environment removes its scripts directory from normal command lookup. Rigyard does
+not modify `PATH` or write to a user-wide bin directory. Unmanaged files and symbolic links remain
+protected unless `--force` explicitly replaces them during initialization.
 
 `rigyard alias remove` uses `workspace.command_alias`; pass `NAME` to remove an alias that was
-created with a CLI override. Removal is idempotent and only accepts a regular file carrying Rigyard's
-generated marker for the selected configuration. It refuses unrelated files, symbolic links, and
-aliases belonging to another project. Project moves require re-running `rigyard init --force`
-because environment aliases store an absolute configuration path.
+created with a CLI override. Removal is idempotent and only accepts a regular file carrying a
+recognized Rigyard marker. It refuses unrelated files and symbolic links. Because an alias is shared
+at the Python-environment level, removing it makes that command unavailable to every workspace using
+the same alias name.
 
 ## Interactive menu
 

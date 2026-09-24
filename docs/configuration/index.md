@@ -53,10 +53,12 @@ Different sources may define the same resource name. The menu asks for a source 
 Rigyard selects the root manifest in this order:
 
 1. Global `--config/-f PATH`.
-2. The workspace binding in `.rigyard/context.yaml` in the current directory.
-3. `rigyard.yaml` in the current directory.
+2. The nearest workspace binding found by checking `.rigyard/context.yaml` in the current directory
+   and then each parent directory.
+3. `rigyard.yaml` in the current directory when no workspace binding exists.
 
-Workspace bindings apply only to the current directory. Parent directories are not searched. See [Workspace initialization](../reference/cli.md#workspace-initialization).
+The nearest binding wins for nested workspaces. Relative paths in a binding are resolved from the
+directory containing its `.rigyard` directory. See [Workspace initialization](../reference/cli.md#workspace-initialization).
 
 Use `rigyard context` to print the current directory, the selection source, the workspace marker
 when one is active, the resolved root manifest, and every loaded source file. This is useful when

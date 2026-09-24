@@ -122,8 +122,9 @@ rigyard init -f path/to/rigyard.yaml
 robot build native
 ```
 
-Configured aliases are installed in the active Conda or virtual environment. They are available as
-bare commands while that environment is active and can be removed with `rigyard alias remove`.
+Configured aliases are installed in the active Conda or virtual environment. They are generic
+commands that discover the nearest current-or-parent workspace at runtime, so the same alias can be
+shared by multiple workspaces. They can be removed with `rigyard alias remove`.
 
 ## Documentation
 

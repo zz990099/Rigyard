@@ -50,12 +50,12 @@ def register_workspace_commands(commands: Any) -> None:
 
     alias = commands.add_parser(
         "alias",
-        help="manage the current project's environment command alias",
+        help="manage a Rigyard environment command alias",
     )
     alias_commands = alias.add_subparsers(dest="alias_command", required=True)
     remove = alias_commands.add_parser(
         "remove",
-        help="remove an alias generated for this configuration",
+        help="remove a Rigyard-generated alias",
     )
     remove.add_argument(
         "name",
@@ -90,7 +90,11 @@ def _initialize(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
 
 
 def _remove_alias(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
-    result = remove_environment_alias(args.config_path, args.name)
+    result = remove_environment_alias(
+        args.config_path,
+        args.name,
+        workspace_root=args.workspace_root,
+    )
     message = (
         f"Removed environment command alias: {result.path}"
         if result.removed
@@ -102,10 +106,14 @@ def _remove_alias(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
 
 def _show_context(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
     resolution: ConfigResolution = args.config_resolution
-    config = load_config(resolution.config_path)
+    config = load_config(
+        resolution.config_path,
+        workspace_root=resolution.workspace_root,
+    )
     fields = [
         f"Current directory: {resolution.current_directory}",
         f"Resolution source: {resolution.source}",
+        f"Workspace root: {resolution.workspace_root}",
     ]
     if resolution.workspace_marker is not None:
         fields.append(f"Workspace marker: {resolution.workspace_marker}")
