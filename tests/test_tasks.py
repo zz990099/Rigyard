@@ -202,10 +202,10 @@ def test_backend_streams_task_output_without_capture():
     result = DockerExecTaskBackend(runner).execute(plan)
 
     assert result.task_name == "clean"
-    assert runner.calls[1] == (
-        plan.command,
-        {"capture": False, "timeout_seconds": 30},
-    )
+    command, options = runner.calls[1]
+    assert command[:3] == plan.command[:3]
+    assert command[-3:] == plan.command[-3:]
+    assert options == {"capture": False, "timeout_seconds": 30}
 
 
 def test_backend_reports_process_and_infrastructure_errors():
@@ -216,7 +216,13 @@ def test_backend_reports_process_and_infrastructure_errors():
         )
     with pytest.raises(CommandFailure, match="timed out after 30 seconds"):
         DockerExecTaskBackend(
-            FakeRunner([ProcessResult(0, "true\n"), subprocess.TimeoutExpired(plan.command, 30)])
+            FakeRunner(
+                [
+                    ProcessResult(0, "true\n"),
+                    subprocess.TimeoutExpired(plan.command, 30),
+                    ProcessResult(0),
+                ]
+            )
         ).execute(plan)
     with pytest.raises(BackendUnavailableError, match="cannot execute Docker"):
         DockerExecTaskBackend(FakeRunner([FileNotFoundError("missing")])).execute(plan)

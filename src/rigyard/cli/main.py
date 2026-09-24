@@ -10,7 +10,7 @@ from typing import TextIO
 
 from ..errors import RigyardError
 from ..version import __version__
-from ..workspace import resolve_config_path
+from ..workspace import resolve_config
 from .commands.builds import register_build_commands
 from .commands.containers import register_container_commands
 from .commands.images import register_image_commands
@@ -86,14 +86,21 @@ def run(
             if not io.is_interactive:
                 parser.print_help(file=output_stream)
                 return 2
-            args.config_path = resolve_config_path(args.config_path)
+            resolution = resolve_config(args.config_path)
+            args.config_resolution = resolution
+            args.config_path = resolution.config_path
             return MenuApp(io).run(args.config_path, args.values)
         if args.command != "init":
-            args.config_path = resolve_config_path(args.config_path)
+            resolution = resolve_config(args.config_path)
+            args.config_resolution = resolution
+            args.config_path = resolution.config_path
         return args.handler(args, parser)
     except RigyardError as exc:
         print(error_style.render("error", f"Error: {exc}"), file=error_stream)
         return exc.exit_code
+    except KeyboardInterrupt:
+        print(error_style.render("warning", "Interrupted"), file=error_stream)
+        return 130
 
 
 def main() -> None:

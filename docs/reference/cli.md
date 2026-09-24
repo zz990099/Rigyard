@@ -19,12 +19,14 @@ With no command, Rigyard opens the one-shot interactive menu. When stdin is not 
 
 ```bash
 rigyard validate
+rigyard context
 rigyard inspect [--format json|yaml]
 rigyard resolve [--values FILE] [--set PATH=VALUE] \
   [--non-interactive] [--with-sources] [--format json|yaml]
 ```
 
 - `validate` checks all configuration and template syntax.
+- `context` shows why a manifest was selected and lists every loaded source file.
 - `inspect` lists inline runtime parameters.
 - `resolve` resolves all runtime parameters; `--with-sources` includes value origins.
 
@@ -50,6 +52,10 @@ Common resolution options:
 | `--non-interactive` | Disable prompts and fail on missing values |
 
 `image build` executes directly and currently has no `--dry-run`. Container creation, project builds, test actions, custom tasks, and scenario start support plan previews. Test and task commands stream user-defined stdout and stderr unchanged; Rigyard does not parse or format their output.
+
+Project builds, test actions, custom tasks, and container lifecycle hooks run in a tracked
+container process group. Interrupting Rigyard or reaching the configured timeout first sends
+`SIGTERM`, then uses `SIGKILL` if the group does not stop within the grace period.
 
 Scenario actions:
 

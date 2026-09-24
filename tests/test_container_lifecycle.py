@@ -133,7 +133,7 @@ def test_service_runs_hooks_in_order_through_docker_exec(tmp_path: Path):
         (LifecyclePhase.POST_START, "verify-rigyard"),
     ]
     prepare_command, prepare_options = runner.calls[2]
-    assert prepare_command == (
+    assert prepare_command[:8] == (
         "docker",
         "exec",
         "-i",
@@ -142,9 +142,9 @@ def test_service_runs_hooks_in_order_through_docker_exec(tmp_path: Path):
         "--env=SYSROOT=/opt/sysroot",
         "--env=TOKEN=host-secret",
         "abc123",
-        "/bin/bash",
-        "-eu",
     )
+    assert prepare_command[-2:] == ("/bin/bash", "-eu")
+    assert "rigyard-exec-" in prepare_command[-3]
     assert prepare_options == {
         "stdin": "echo prepare\n",
         "capture": True,
@@ -173,6 +173,7 @@ def test_hook_timeout_reports_retained_container(tmp_path: Path):
     runner = QueueRunner(
         CommandResult(0, "abc123\n"),
         subprocess.TimeoutExpired(("docker", "exec"), 120),
+        CommandResult(0),
     )
     with pytest.raises(ContainerLifecycleError, match="timed out.*kept for diagnosis"):
         ContainerCreateService(DockerContainerBackend(runner)).create(plan)

@@ -12,7 +12,12 @@ from ...containers.models import (
     ContainerRunPlan,
 )
 from ...errors import BackendUnavailableError, ContainerCreateError, ContainerLifecycleError
-from ...execution import CommandRunner, SubprocessRunner
+from ...execution import (
+    CommandRunner,
+    SubprocessRunner,
+    cancel_docker_exec,
+    cancellable_docker_exec,
+)
 
 
 class DockerContainerBackend:
@@ -119,22 +124,40 @@ class DockerContainerBackend:
         container_id: str,
         hook: ContainerHookPlan,
     ) -> ContainerHookResult:
+        invocation = cancellable_docker_exec(
+            self.hook_command(container_id, hook),
+            container_id,
+        )
         try:
             result = self.runner.run(
-                self.hook_command(container_id, hook),
+                invocation.command,
                 stdin=hook.script_content,
                 capture=True,
                 timeout_seconds=hook.timeout_seconds,
             )
         except subprocess.TimeoutExpired as exc:
+            cancellation_error = cancel_docker_exec(self.runner, invocation.cancel_command)
+            suffix = f"; {cancellation_error}" if cancellation_error else ""
             raise ContainerLifecycleError(
                 self._hook_error(
                     container_name,
                     container_id,
                     hook,
-                    f"timed out after {hook.timeout_seconds} seconds",
+                    f"timed out after {hook.timeout_seconds} seconds{suffix}",
                 )
             ) from exc
+        except KeyboardInterrupt as exc:
+            cancellation_error = cancel_docker_exec(self.runner, invocation.cancel_command)
+            if cancellation_error:
+                raise ContainerLifecycleError(
+                    self._hook_error(
+                        container_name,
+                        container_id,
+                        hook,
+                        f"was interrupted; {cancellation_error}",
+                    )
+                ) from exc
+            raise
         except OSError as exc:
             raise ContainerLifecycleError(
                 self._hook_error(

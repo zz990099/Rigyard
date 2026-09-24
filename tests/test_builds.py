@@ -290,14 +290,14 @@ def test_user_is_passed_to_docker_exec(tmp_path: Path):
 
 
 class FakeRunner:
-    def __init__(self, outcomes: list[CommandResult | Exception]) -> None:
+    def __init__(self, outcomes: list[CommandResult | BaseException]) -> None:
         self.outcomes = list(outcomes)
         self.calls = []
 
     def run(self, command, **kwargs):
         self.calls.append((command, kwargs))
         outcome = self.outcomes.pop(0)
-        if isinstance(outcome, Exception):
+        if isinstance(outcome, BaseException):
             raise outcome
         return outcome
 
@@ -352,7 +352,8 @@ def test_auto_tty_is_allocated_only_for_terminal_output():
     redirected_backend = DockerExecBuildBackend(redirected_runner)
     redirected_backend.executor.is_terminal = lambda: False
     redirected_backend.execute(plan)
-    assert redirected_runner.calls[1][0] == plan.command
+    assert redirected_runner.calls[1][0][:5] == plan.command[:5]
+    assert redirected_runner.calls[1][0][-3:] == plan.command[-3:]
 
 
 def test_plan_lines_keep_their_text_and_carry_roles():
@@ -387,7 +388,10 @@ def test_docker_exec_backend_checks_container_and_executes():
     assert inspect_command == ("docker", "inspect", "--format={{.State.Running}}", "dev")
     assert inspect_kwargs["capture"] is True
     exec_command, exec_kwargs = runner.calls[1]
-    assert exec_command == plan.command
+    assert exec_command[:5] == plan.command[:5]
+    assert exec_command[-3:] == plan.command[-3:]
+    assert exec_command[5:8] == ("/bin/sh", "-c", exec_command[7])
+    assert "rigyard-exec-" in exec_command[-4]
     assert exec_kwargs["timeout_seconds"] == 30
     assert exec_kwargs.get("capture", False) is False
     assert "environment" not in exec_kwargs
@@ -414,12 +418,13 @@ def test_docker_exec_backend_starts_stopped_container_before_exec():
 
     DockerExecBuildBackend(runner).execute(plan)
 
-    assert [call[0] for call in runner.calls] == [
+    assert [call[0] for call in runner.calls[:3]] == [
         ("docker", "inspect", "--format={{.State.Running}}", "dev"),
         ("docker", "start", "dev"),
         ("docker", "inspect", "--format={{.State.Running}}", "dev"),
-        plan.command,
     ]
+    assert runner.calls[3][0][:5] == plan.command[:5]
+    assert runner.calls[3][0][-3:] == plan.command[-3:]
 
 
 def test_docker_exec_backend_can_require_an_already_running_container():
@@ -463,6 +468,7 @@ def test_docker_exec_backend_reports_exit_timeout_and_docker_errors():
                 [
                     CommandResult(0, "true\n"),
                     subprocess.TimeoutExpired(plan.command, 30),
+                    CommandResult(0),
                 ]
             )
         ).execute(plan)
@@ -472,6 +478,19 @@ def test_docker_exec_backend_reports_exit_timeout_and_docker_errors():
         DockerExecBuildBackend(
             FakeRunner([CommandResult(0, "true\n"), FileNotFoundError("missing")])
         ).execute(plan)
+
+
+def test_docker_exec_backend_cancels_container_process_on_interrupt():
+    plan = sample_plan()
+    runner = FakeRunner([CommandResult(0, "true\n"), KeyboardInterrupt(), CommandResult(0)])
+
+    with pytest.raises(KeyboardInterrupt):
+        DockerExecBuildBackend(runner).execute(plan)
+
+    cancel_command, cancel_options = runner.calls[2]
+    assert cancel_command[:3] == ("docker", "exec", "dev")
+    assert "rigyard-cancel" in cancel_command
+    assert cancel_options == {"capture": True, "timeout_seconds": 5}
 
 
 def test_cli_dry_run_resolves_build_without_executing(tmp_path: Path, monkeypatch, capsys):

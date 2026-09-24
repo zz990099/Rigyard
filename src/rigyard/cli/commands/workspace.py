@@ -6,7 +6,8 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-from ...workspace import initialize_workspace, remove_environment_alias
+from ...config.loader import load_config
+from ...workspace import ConfigResolution, initialize_workspace, remove_environment_alias
 from ..common import print_fields
 
 
@@ -40,6 +41,12 @@ def register_workspace_commands(commands: Any) -> None:
         help="do not create the command alias configured by the manifest",
     )
     initialize.set_defaults(handler=_initialize)
+
+    context = commands.add_parser(
+        "context",
+        help="show how the active configuration was selected",
+    )
+    context.set_defaults(handler=_show_context)
 
     alias = commands.add_parser(
         "alias",
@@ -90,4 +97,20 @@ def _remove_alias(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
         else f"Environment command alias already absent: {result.path}"
     )
     print_fields(args.style, (message,), stream=args.output)
+    return 0
+
+
+def _show_context(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
+    resolution: ConfigResolution = args.config_resolution
+    config = load_config(resolution.config_path)
+    fields = [
+        f"Current directory: {resolution.current_directory}",
+        f"Resolution source: {resolution.source}",
+    ]
+    if resolution.workspace_marker is not None:
+        fields.append(f"Workspace marker: {resolution.workspace_marker}")
+    fields.append(f"Configuration: {resolution.config_path}")
+    for kind, groups in config.source_files.items():
+        fields.extend(f"Source [{kind}]: {group.path}" for group in groups)
+    print_fields(args.style, fields, stream=args.output)
     return 0

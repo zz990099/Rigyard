@@ -9,7 +9,7 @@ import sysconfig
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 
@@ -42,6 +42,16 @@ class AliasRemoval:
     removed: bool
 
 
+@dataclass(frozen=True)
+class ConfigResolution:
+    """Explain how one invocation selected its root manifest."""
+
+    config_path: Path
+    source: Literal["explicit", "workspace", "default"]
+    current_directory: Path
+    workspace_marker: Path | None = None
+
+
 def workspace_file(root: str | Path) -> Path:
     return Path(root).resolve() / WORKSPACE_DIR / WORKSPACE_FILE
 
@@ -53,14 +63,37 @@ def resolve_config_path(
 ) -> Path:
     """Resolve the manifest without searching any parent directories."""
 
+    return resolve_config(explicit_path, root=root).config_path
+
+
+def resolve_config(
+    explicit_path: str | Path | None,
+    *,
+    root: str | Path | None = None,
+) -> ConfigResolution:
+    """Resolve the manifest and retain the source of the selection for diagnostics."""
+
     workspace_root = Path.cwd().resolve() if root is None else Path(root).resolve()
     if explicit_path is not None:
-        return _resolve_from_root(workspace_root, Path(explicit_path).expanduser())
+        return ConfigResolution(
+            _resolve_from_root(workspace_root, Path(explicit_path).expanduser()),
+            "explicit",
+            workspace_root,
+        )
 
     marker = workspace_file(workspace_root)
     if marker.is_file():
-        return _read_workspace_config(marker, workspace_root)
-    return (workspace_root / DEFAULT_CONFIG_FILE).resolve()
+        return ConfigResolution(
+            _read_workspace_config(marker, workspace_root),
+            "workspace",
+            workspace_root,
+            marker,
+        )
+    return ConfigResolution(
+        (workspace_root / DEFAULT_CONFIG_FILE).resolve(),
+        "default",
+        workspace_root,
+    )
 
 
 def initialize_workspace(

@@ -8,7 +8,7 @@ import yaml
 from rigyard import workspace as workspace_module
 from rigyard.cli.main import run
 from rigyard.errors import WorkspaceError
-from rigyard.workspace import initialize_workspace, resolve_config_path
+from rigyard.workspace import initialize_workspace, resolve_config, resolve_config_path
 
 
 def write(path: Path, text: str) -> Path:
@@ -89,6 +89,37 @@ def test_explicit_config_overrides_workspace_binding(tmp_path: Path, monkeypatch
 
     assert run(["--config", str(explicit), "validate"]) == 0
     assert f"OK: {explicit.resolve()}" in capsys.readouterr().out
+
+
+def test_context_explains_workspace_configuration_and_sources(tmp_path: Path, monkeypatch, capsys):
+    workspace = tmp_path / "workspace"
+    manifest = project(workspace / "config")
+    workspace.mkdir(exist_ok=True)
+    initialize_workspace(manifest, root=workspace)
+    monkeypatch.chdir(workspace)
+
+    resolution = resolve_config(None)
+    assert resolution.source == "workspace"
+    assert resolution.workspace_marker == workspace / ".rigyard/context.yaml"
+    assert run(["context"]) == 0
+
+    output = capsys.readouterr().out
+    assert f"Current directory: {workspace}" in output
+    assert "Resolution source: workspace" in output
+    assert f"Workspace marker: {workspace / '.rigyard/context.yaml'}" in output
+    assert f"Configuration: {manifest.resolve()}" in output
+    assert f"Source [images]: {(workspace / 'config/images.yaml').resolve()}" in output
+
+
+def test_context_reports_explicit_and_default_resolution(tmp_path: Path):
+    explicit = project(tmp_path / "project")
+
+    selected = resolve_config(explicit, root=tmp_path)
+    default = resolve_config(None, root=tmp_path)
+
+    assert (selected.source, selected.config_path) == ("explicit", explicit.resolve())
+    assert selected.workspace_marker is None
+    assert (default.source, default.config_path) == ("default", tmp_path / "rigyard.yaml")
 
 
 def test_reinitialization_is_idempotent_and_requires_force_for_change(

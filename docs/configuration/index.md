@@ -58,6 +58,10 @@ Rigyard selects the root manifest in this order:
 
 Workspace bindings apply only to the current directory. Parent directories are not searched. See [Workspace initialization](../reference/cli.md#workspace-initialization).
 
+Use `rigyard context` to print the current directory, the selection source, the workspace marker
+when one is active, the resolved root manifest, and every loaded source file. This is useful when
+several workspaces share one Python environment.
+
 ## Path bases
 
 Unless a feature guide says otherwise, relative host paths are resolved from the directory containing the root manifest:

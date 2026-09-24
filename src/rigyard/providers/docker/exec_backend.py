@@ -7,7 +7,13 @@ import sys
 from collections.abc import Callable
 
 from ...errors import BackendUnavailableError
-from ...execution import CommandRunner, SubprocessRunner, TtyMode
+from ...execution import (
+    CommandRunner,
+    SubprocessRunner,
+    TtyMode,
+    cancel_docker_exec,
+    cancellable_docker_exec,
+)
 
 
 class DockerExecError(Exception):
@@ -37,16 +43,26 @@ class DockerExecExecutor:
         self._ensure_container(container, start_container=start_container)
         if tty == "auto" and self.is_terminal():
             command = _with_tty(command)
+        invocation = cancellable_docker_exec(command, container)
         try:
             result = self.runner.run(
-                command,
+                invocation.command,
                 capture=False,
                 timeout_seconds=timeout_seconds,
             )
         except subprocess.TimeoutExpired as exc:
+            cancellation_error = cancel_docker_exec(self.runner, invocation.cancel_command)
+            suffix = f"; {cancellation_error}" if cancellation_error else ""
             raise DockerExecError(
-                f"{action_label} timed out after {timeout_seconds} seconds"
+                f"{action_label} timed out after {timeout_seconds} seconds{suffix}"
             ) from exc
+        except KeyboardInterrupt as exc:
+            cancellation_error = cancel_docker_exec(self.runner, invocation.cancel_command)
+            if cancellation_error:
+                raise DockerExecError(
+                    f"{action_label} was interrupted; {cancellation_error}"
+                ) from exc
+            raise
         except OSError as exc:
             raise BackendUnavailableError(f"cannot execute {unavailable_label}: {exc}") from exc
         if result.returncode:
