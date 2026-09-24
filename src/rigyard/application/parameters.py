@@ -200,7 +200,10 @@ def resolve_template(
     environment: Mapping[str, str] | None = None,
 ) -> tuple[ModelT, ResolvedContext]:
     selected = collect_prompts(template, prefix)
-    available = collect_prompts(root)
+    available = (
+        _collect_config_prompts(root) if isinstance(root, RigyardConfig) else collect_prompts(root)
+    )
+    available.update(selected)
     values = load_values(request.values_path) if request.values_path else {}
     flat_values = flatten_values(values)
     unknown_values = set(flat_values) - set(available)
@@ -235,7 +238,10 @@ def resolve_selected_prompts(
 ) -> ResolvedContext:
     """Resolve an explicitly composed set of prompt paths from one config root."""
 
-    available = collect_prompts(root)
+    available = (
+        _collect_config_prompts(root) if isinstance(root, RigyardConfig) else collect_prompts(root)
+    )
+    available.update(selected)
     values = load_values(request.values_path) if request.values_path else {}
     flat_values = flatten_values(values)
     unknown = (set(flat_values) | set(request.overrides)) - set(available)

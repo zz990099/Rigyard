@@ -127,14 +127,14 @@ class TmuxSessionBackend:
         else:
             self.runner.run(command, capture=True)
 
-    def status(self, session: str) -> CommandResult:
+    def status(self, session: str, window: str | None = None) -> CommandResult:
         return self.commands.checked(
             (
                 "tmux",
                 "list-panes",
-                "-s",
+                *(("-s",) if window is None else ()),
                 "-t",
-                session,
+                session if window is None else f"{session}:{window}",
                 "-F",
                 "#{window_name}.#{pane_index} #{pane_title} "
                 "dead=#{pane_dead} exit=#{pane_exit_status}",

@@ -7,7 +7,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from ..errors import SchemaValidationError
+from pydantic import TypeAdapter, ValidationError
+
+from ..errors import ResolutionError, SchemaValidationError
 from ..parameters.models import PromptValue
 from ..parameters.prompt import Formatter
 from ..parameters.resolver import collect_prompts, materialize, materialize_as
@@ -119,24 +121,17 @@ class PlanScenarioUseCase:
             else {}
         )
         startup_prompts = collect_prompts(scenario.startup, startup_prefix)
+        candidate_names = _select_control_instances(scene_name, scenario.instances, instances)
         instance_prompts = {
             path: value
-            for name, instance in scenario.instances.items()
+            for name in candidate_names
             for path, value in collect_prompts(
-                instance.enabled, f"{instances_prefix}.{name}.enabled"
+                scenario.instances[name].enabled, f"{instances_prefix}.{name}.enabled"
             ).items()
         }
-        group_prompts = {
-            path: value
-            for name, instance in scenario.instances.items()
-            for group_name, group in instance.groups.items()
-            for path, value in collect_prompts(
-                group.enabled, f"{instances_prefix}.{name}.groups.{group_name}.enabled"
-            ).items()
-        }
-        selection_context = resolve_selected_prompts(
+        instance_context = resolve_selected_prompts(
             config,
-            {**profile_prompts, **compose_prompts, **instance_prompts, **group_prompts},
+            instance_prompts,
             request,
             renderer=renderer,
             sources=self.sources,
@@ -145,10 +140,27 @@ class PlanScenarioUseCase:
         )
         selected_names = _select_instances(
             scene_name,
-            scenario.instances,
+            {name: scenario.instances[name] for name in candidate_names},
             instances,
-            selection_context,
+            instance_context,
             instances_prefix,
+        )
+        group_prompts = {
+            path: value
+            for name in selected_names
+            for group_name, group in scenario.instances[name].groups.items()
+            for path, value in collect_prompts(
+                group.enabled, f"{instances_prefix}.{name}.groups.{group_name}.enabled"
+            ).items()
+        }
+        group_context = resolve_selected_prompts(
+            config,
+            group_prompts,
+            request,
+            renderer=renderer,
+            sources=self.sources,
+            formatter=self.formatter,
+            environment=project.environment,
         )
         enabled_groups = {
             name: {
@@ -156,11 +168,11 @@ class PlanScenarioUseCase:
                 for group_name, group in scenario.instances[name].groups.items()
                 if _enabled(
                     group.enabled,
-                    selection_context,
+                    group_context,
                     f"{instances_prefix}.{name}.groups.{group_name}.enabled",
                 )
             }
-            for name in scenario.instances
+            for name in selected_names
         }
 
         selected = {
@@ -189,7 +201,7 @@ class PlanScenarioUseCase:
             ResolutionRequest(
                 request.config_path,
                 request.values_path,
-                {**request.overrides, **selection_context.as_dict()},
+                {**request.overrides, **instance_context.as_dict(), **group_context.as_dict()},
                 request.interactive,
                 request.input_fn,
                 project=project,
@@ -418,7 +430,10 @@ def _select_control_instances(
 
 def _enabled(value: object, context: Mapping[str, object], path: str) -> bool:
     resolved = context[path] if isinstance(value, PromptValue) else value
-    return bool(resolved)
+    try:
+        return TypeAdapter(bool).validate_python(resolved)
+    except ValidationError as exc:
+        raise ResolutionError(f"invalid enabled value for {path}: expected a boolean") from exc
 
 
 def _select_profile_name(

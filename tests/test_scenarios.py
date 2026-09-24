@@ -872,6 +872,15 @@ class FakeTmux:
             titles = self.panes.get(window)
             if titles is None:
                 return CommandResult(1, stderr="no such window\n")
+            if "#{window_name}" in command[-1]:
+                return CommandResult(
+                    0,
+                    "\n".join(
+                        f"{window}.{index} {title} dead=0 exit="
+                        for index, title in enumerate(titles)
+                    )
+                    + "\n",
+                )
             return CommandResult(
                 0, "\n".join(f"{title} {index}" for index, title in enumerate(titles)) + "\n"
             )
@@ -2078,3 +2087,55 @@ def test_runtime_identity_is_shared_and_isolates_profiles_and_sources(tmp_path: 
     second = ScenarioIdentity(config, tmp_path / "b.yaml", "robot", "development")
     assert first.runtime_name("demo") != second.runtime_name("demo")
     assert first.key == ScenarioIdentity(config, tmp_path / "a.yaml", "robot", "development").key
+
+
+def test_selected_instance_ignores_disabled_and_unselected_prompts(tmp_path: Path):
+    config = project(
+        tmp_path,
+        """robot:
+  instances:
+    chosen:
+      container: c1
+      groups: {run: {command: [sleep, "60"]}}
+    unused:
+      enabled: false
+      container: c2
+      groups:
+        run:
+          enabled: {prompt: {mode: confirm, message: Enable}}
+          command: [sleep, "60"]
+    another:
+      enabled: {prompt: {mode: confirm, message: Enable}}
+      container: c3
+      groups: {run: {command: [sleep, "60"]}}
+  profiles: {dev: {attach: false}}
+""",
+    )
+    plan = PlanScenarioUseCase().plan(
+        "robot", "dev", ResolutionRequest(config, interactive=False), instances=["chosen"]
+    )
+    assert [item.name for item in plan.instances] == ["chosen"]
+
+
+def test_string_false_enabled_default_is_not_truthy(tmp_path: Path):
+    config = project(
+        tmp_path,
+        scenario_yaml().replace(
+            "enabled: false", 'enabled: {default: "false", prompt: {mode: input, message: Enable}}'
+        ),
+    )
+    plan = PlanScenarioUseCase().plan(
+        "robot", "development", ResolutionRequest(config, interactive=False)
+    )
+    assert [group.name for group in plan.instances[0].groups] == ["drivers"]
+
+
+def test_partial_status_only_reports_selected_instances():
+    fake = FakeTmux(session=True, windows=("robot1", "robot2"))
+    result = executor(fake).status(scenario_plan(instance("robot2"), partial=True))
+    assert "robot2.0" in result.detail
+    assert "robot1" not in result.detail
+    assert (
+        executor(fake).status(scenario_plan(instance("absent"), partial=True)).detail
+        == "not running"
+    )

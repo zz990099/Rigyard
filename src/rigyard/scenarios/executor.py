@@ -150,6 +150,15 @@ class ScenarioExecutor:
         self.tmux.require()
         if not self.tmux.session_exists(plan.session):
             return ScenarioResult(plan.scene_name, plan.profile_name, "not running")
+        if plan.partial:
+            details = [
+                self.tmux.status(plan.session, instance.name).stdout.strip()
+                for instance in plan.instances
+                if self._window_exists(plan, instance)
+            ]
+            return ScenarioResult(
+                plan.scene_name, plan.profile_name, "\n".join(details) or "not running"
+            )
         result = self.tmux.status(plan.session)
         return ScenarioResult(plan.scene_name, plan.profile_name, result.stdout.strip())
 

@@ -284,3 +284,26 @@ def test_menu_shows_only_enabled_tasks_and_honours_confirmation(
     assert "Hidden task" not in rendered
     assert "cli-only" not in rendered
     assert ("Run this task now?" in rendered) is confirm
+
+
+def test_source_selected_prompt_accepts_explicit_override(tmp_path: Path):
+    config = tmp_path / "rigyard.yaml"
+    config.write_text("version: 3\nmetadata: {name: demo}\nsources: {tasks: [a.yaml, b.yaml]}\n")
+    (tmp_path / "a.yaml").write_text("run: {container: a, script: /run.sh}\n")
+    (tmp_path / "b.yaml").write_text(
+        "run:\n  container: {prompt: {mode: input, message: Container}}\n  script: /run.sh\n"
+    )
+    from rigyard.application.requests import ResolutionRequest
+    from rigyard.application.tasks import ExecuteTaskUseCase
+    from rigyard.providers.docker import DockerExecTaskBackend
+
+    plan = ExecuteTaskUseCase(DockerExecTaskBackend()).plan(
+        "run",
+        ResolutionRequest(
+            config,
+            interactive=False,
+            source_path=Path("b.yaml"),
+            overrides={"tasks.run.container": "b"},
+        ),
+    )
+    assert plan.container == "b"
