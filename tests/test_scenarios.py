@@ -278,6 +278,7 @@ def test_compose_plan_generates_a_stable_project_name(tmp_path: Path):
     assert isinstance(second, ScenarioPlan)
     assert first.compose is not None
     assert first.compose.project_name == second.compose.project_name
+    assert first.compose.project_name == first.session
     assert first.compose.project_name.startswith("rigyard-scenario-test-robot-development-")
 
 
@@ -2051,3 +2052,29 @@ def test_tmux_runner_os_error_is_actionable():
 
     with pytest.raises(Exception, match="cannot execute tmux"):
         ScenarioExecutor(Broken()).start(scenario_plan(instance()))
+
+
+def test_runtime_identity_is_shared_and_isolates_profiles_and_sources(tmp_path: Path):
+    config = project(
+        tmp_path,
+        scenario_yaml().replace(
+            "    development:\n      attach: false",
+            "    development: {attach: false}\n    testing: {attach: false}",
+        ),
+    )
+    use_case = PlanScenarioUseCase()
+    request = ResolutionRequest(config, interactive=False)
+    development = use_case.plan("robot", "development", request)
+    testing = use_case.plan("robot", "testing", request)
+    assert development.session != testing.session
+    for profile in ("development", "testing"):
+        start = use_case.plan("robot", profile, request)
+        stop = use_case.plan("robot", profile, request, operation="stop")
+        assert start.identity == stop.identity
+        assert start.session == stop.session
+    from rigyard.scenarios.identity import ScenarioIdentity
+
+    first = ScenarioIdentity(config, tmp_path / "a.yaml", "robot", "development")
+    second = ScenarioIdentity(config, tmp_path / "b.yaml", "robot", "development")
+    assert first.runtime_name("demo") != second.runtime_name("demo")
+    assert first.key == ScenarioIdentity(config, tmp_path / "a.yaml", "robot", "development").key

@@ -11,6 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 
 from ..parameters.models import PromptValue
+from .identity import ScenarioIdentity
 
 SCENARIO_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*$")
 ENVIRONMENT_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -325,6 +326,7 @@ class ScenarioPlan:
     keep_alive: bool = True
     partial: bool = False
     startup: ScenarioStartupPlan = ScenarioStartupPlan()
+    identity: ScenarioIdentity | None = None
 
 
 @dataclass(frozen=True)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import datetime
+from pathlib import Path
 from typing import Literal
 
 from ..errors import SchemaValidationError
@@ -102,6 +103,7 @@ class PlanScenarioUseCase:
                 request,
                 project,
                 renderer,
+                match.source_path,
             )
         compose_managed = scenario.compose is not None
 
@@ -278,6 +280,7 @@ class PlanScenarioUseCase:
             project.config_path,
             config.metadata.name,
             partial=bool(instances),
+            source_path=match.source_path,
         )
 
     def _plan_control(
@@ -290,6 +293,7 @@ class PlanScenarioUseCase:
         request: ResolutionRequest,
         project: ProjectContext,
         renderer: StringTemplateRenderer,
+        source_path: Path,
     ) -> ScenarioPlan:
         profile_prefix = f"scenarios.{scene_name}.profiles.{profile_name}"
         compose_prefix = f"scenarios.{scene_name}.compose"
@@ -356,6 +360,7 @@ class PlanScenarioUseCase:
             project.config_path,
             project.config.metadata.name,
             partial=bool(instances),
+            source_path=source_path,
         )
 
 

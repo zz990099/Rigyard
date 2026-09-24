@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from ..errors import ScenarioPlanError
+from .identity import ScenarioIdentity
 from .models import (
     ScenarioComposePlan,
     ScenarioComposeSpec,
@@ -37,6 +37,7 @@ class ScenarioPlanner:
         project_name: str,
         *,
         partial: bool = False,
+        source_path: Path | None = None,
     ) -> ScenarioPlan:
         planned = tuple(
             _instance_plan(name, instance)
@@ -50,6 +51,9 @@ class ScenarioPlanner:
                 _validate_group_text(group)
 
         config_file = Path(config_path).resolve()
+        identity = ScenarioIdentity(
+            config_file, (source_path or config_file).resolve(), scene_name, profile_name
+        )
         for instance in planned:
             _validate_window_name(instance.name)
             if compose is None:
@@ -73,10 +77,9 @@ class ScenarioPlanner:
             compose,
             config_file,
             project_name,
-            scene_name,
-            profile_name,
+            identity,
         )
-        session = profile.session or _runtime_name(config_file, project_name, scene_name)
+        session = profile.session or identity.runtime_name(project_name)
         _validate_tmux_name(session)
         return ScenarioPlan(
             scene_name=scene_name,
@@ -90,6 +93,7 @@ class ScenarioPlanner:
             mouse=profile.mouse,
             keep_alive=profile.keep_alive,
             partial=partial,
+            identity=identity,
             startup=_startup_plan(startup),
         )
 
@@ -105,8 +109,12 @@ class ScenarioPlanner:
         project_name: str,
         *,
         partial: bool = False,
+        source_path: Path | None = None,
     ) -> ScenarioPlan:
         config_file = Path(config_path).resolve()
+        identity = ScenarioIdentity(
+            config_file, (source_path or config_file).resolve(), scene_name, profile_name
+        )
         planned = tuple(
             ScenarioInstancePlan(
                 name=name,
@@ -133,10 +141,9 @@ class ScenarioPlanner:
             compose,
             config_file,
             project_name,
-            scene_name,
-            profile_name,
+            identity,
         )
-        session = profile.session or _runtime_name(config_file, project_name, scene_name)
+        session = profile.session or identity.runtime_name(project_name)
         _validate_tmux_name(session)
         return ScenarioPlan(
             scene_name=scene_name,
@@ -150,6 +157,7 @@ class ScenarioPlanner:
             mouse=False,
             keep_alive=False,
             partial=partial,
+            identity=identity,
         )
 
 
@@ -187,17 +195,14 @@ def _compose_plan(
     compose: ScenarioComposeSpec | None,
     config_file: Path,
     project_name: str,
-    scene_name: str,
-    profile_name: str,
+    identity: ScenarioIdentity,
 ) -> ScenarioComposePlan | None:
     if compose is None:
         return None
     compose_file = _resolve_path(config_file.parent, compose.file)
     if not compose_file.is_file():
         raise ScenarioPlanError(f"Compose file is not a file: {compose_file}")
-    compose_project = compose.project_name or _compose_project_name(
-        config_file, project_name, scene_name, profile_name
-    )
+    compose_project = compose.project_name or identity.runtime_name(project_name)
     _validate_compose_project(compose_project)
     plan = ScenarioComposePlan(
         compose_file,
@@ -207,29 +212,6 @@ def _compose_plan(
     )
     _validate_compose_environment(plan.environment)
     return plan
-
-
-def _runtime_name(config_file: Path, project_name: str, scene_name: str) -> str:
-    source = f"{config_file}:{project_name}:{scene_name}"
-    digest = hashlib.sha256(source.encode()).hexdigest()[:8]
-    slug = re.sub(r"[^a-z0-9_-]+", "-", f"{project_name}-{scene_name}".lower()).strip("-")
-    return f"rigyard-{slug[:40]}-{digest}" if slug else f"rigyard-scene-{digest}"
-
-
-def _compose_project_name(
-    config_file: Path,
-    project_name: str,
-    scene_name: str,
-    profile_name: str,
-) -> str:
-    source = f"{config_file}:{project_name}:{scene_name}:{profile_name}:compose"
-    digest = hashlib.sha256(source.encode()).hexdigest()[:8]
-    slug = re.sub(
-        r"[^a-z0-9_-]+",
-        "-",
-        f"{project_name}-{scene_name}-{profile_name}".lower(),
-    ).strip("-")
-    return f"rigyard-{slug[:40]}-{digest}" if slug else f"rigyard-compose-{digest}"
 
 
 def _resolve_path(project_dir: Path, configured: Path) -> Path:

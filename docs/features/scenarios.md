@@ -239,3 +239,15 @@ rigyard scene down robot-system development
 ```
 
 `attach` and group-specific `logs` must identify a unique instance; pass `--instance` in multi-instance scenarios. Stopping first sends Ctrl+C, waits for `stop_grace_seconds`, and then closes the target tmux objects.
+
+### Runtime identity
+
+Generated tmux and Compose names share one identity: the absolute manifest path,
+source file path, scene name, and profile name. Different profiles and same-named
+scenes from different sources therefore have separate runtime resources. Explicit
+`session` and `compose.project_name` values remain overrides; choose unique names
+when these configurations should run independently.
+
+Generated names changed from the earlier scene-only tmux naming scheme. Stop old
+sessions and remove old Compose projects with the previous version before upgrading;
+Rigyard does not automatically remove resources with legacy names.
