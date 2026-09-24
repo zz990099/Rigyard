@@ -80,6 +80,8 @@ class PlanScenarioUseCase:
                 f"unknown scenario {scene_name!r}; configured scenarios: {available}"
             )
         scenario = match.value
+        if not isinstance(scenario, ScenarioTemplate):
+            raise SchemaValidationError("selected definition is not a scenario")
         profile_name = _select_profile_name(scene_name, scenario, profile_name)
         if profile_name not in scenario.profiles:
             available = ", ".join(sorted(scenario.profiles)) or "none"

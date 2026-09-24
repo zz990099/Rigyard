@@ -54,3 +54,15 @@ tmux is the only scenario process entry point: scenarios map to sessions, instan
 ## Container scripts
 
 Build, test, and custom-task scripts are container paths executed through `docker exec`. Their domain planners delegate common command normalization to `container_commands` and then add domain-specific identity and result data. Test and task output is streamed without interpretation. A container hook script is a host project file read and hashed during planning, then sent to the container interpreter over stdin. None of these paths uses an implicit host shell.
+
+## Definition catalog
+
+`DefinitionCatalog` identifies resources by kind, source path, and name. Source
+entries are authoritative; top-level resource mappings are derived compatibility
+views. Resource execution, parameter discovery, and menu grouping use the catalog.
+Project-wide `inspect` and `resolve` reject ambiguous names and accept `--source`
+to select a source. Internal provenance is never exposed as a runtime parameter path.
+
+`application.resolution.resolve_definition` shares selection, template context, and
+spec materialization across images, containers, builds, tests, and tasks. Each feature
+keeps its own planner and execution semantics.

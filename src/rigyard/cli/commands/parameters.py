@@ -20,9 +20,11 @@ def register_parameter_commands(commands: Any) -> None:
     validate = commands.add_parser("validate", help="validate the Rigyard configuration")
     validate.set_defaults(handler=_validate)
     inspect = commands.add_parser("inspect", help="show inline runtime prompts")
+    inspect.add_argument("--source", type=Path, help="select one configuration source")
     inspect.add_argument("--format", choices=("json", "yaml"), default="yaml")
     inspect.set_defaults(handler=_inspect)
     resolve = commands.add_parser("resolve", help="resolve all inline runtime prompts")
+    resolve.add_argument("--source", type=Path, help="select one configuration source")
     add_resolution_arguments(resolve)
     resolve.add_argument("--with-sources", action="store_true")
     resolve.add_argument("--format", choices=("json", "yaml"), default="yaml")
@@ -57,6 +59,7 @@ def resolution_request(
         overrides,
         interactive=not args.non_interactive,
         input_fn=args.input_fn,
+        source_path=getattr(args, "source", None),
     )
 
 
@@ -67,7 +70,11 @@ def _validate(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
 
 
 def _inspect(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
-    emit(InspectParametersUseCase().execute(args.config_path), args.format, stream=args.output)
+    emit(
+        InspectParametersUseCase().execute(args.config_path, args.source),
+        args.format,
+        stream=args.output,
+    )
     return 0
 
 

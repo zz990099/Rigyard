@@ -5,18 +5,15 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import datetime
 
-from ..errors import ImageConfigError
 from ..images.backend import ImageBuildBackend
 from ..images.models import ImageBuildPlan, ImageBuildResult, ImageSpec
 from ..images.planner import ImageBuildPlanner
 from ..images.service import ImageBuildService
 from ..parameters.prompt import Formatter
 from ..parameters.sources import DynamicSources
-from ..parameters.templates import StringTemplateRenderer, TemplateContext
-from .definitions import find_definition
-from .parameters import resolve_template
 from .project import project_context
 from .requests import BuildImageRequest
+from .resolution import resolve_definition
 
 
 class BuildImageUseCase:
@@ -44,37 +41,14 @@ class BuildImageUseCase:
             environment=environment,
             timestamp=now,
         )
-        config = project.config
-        match = find_definition(
-            config,
+        spec = resolve_definition(
+            project,
+            request.resolution_request(),
             "images",
             request.image_name,
-            request.source_path,
-            project.config_path,
-        )
-        if match is None:
-            available = ", ".join(sorted(config.images)) or "none"
-            raise ImageConfigError(
-                f"unknown image {request.image_name!r}; configured images: {available}"
-            )
-        renderer = StringTemplateRenderer(
-            TemplateContext.capture(
-                project.environment,
-                now=project.timestamp,
-                config_path=project.config_path,
-                variables=config.variables,
-            ).with_source(match.source_path)
-        )
-        spec, _ = resolve_template(
-            config,
-            match.value,
-            request.resolution_request(),
-            f"images.{request.image_name}",
             ImageSpec,
-            renderer,
-            self.sources,
-            self.formatter,
-            environment=project.environment,
+            sources=self.sources,
+            formatter=self.formatter,
         )
         return ImageBuildPlanner().create_plan(
             request.image_name,

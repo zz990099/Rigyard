@@ -15,6 +15,7 @@ from ...application.requests import BuildImageRequest, ResolutionRequest
 from ...application.scenarios import PlanScenarioUseCase
 from ...application.tasks import ExecuteTaskUseCase
 from ...application.tests import ExecuteTestUseCase
+from ...config.catalog import DefinitionCatalog
 from ...config.models import SourceFileInfo
 from ...parameters.sources import DynamicSources
 from ...providers.docker import (
@@ -132,7 +133,7 @@ class MenuApp:
     ) -> tuple[SourceFileInfo, ...]:
         return tuple(
             group
-            for group in session.config.source_files.get(kind, ())
+            for group in DefinitionCatalog(session.config, session.config_path).groups(kind)
             if group.names
             and (requirement is None or any(requirement(group, name) for name in group.names))
         )

@@ -330,3 +330,26 @@ class RigyardConfig(BaseModel):
         return _freeze_mapping(
             {kind: _freeze_mapping(duplicates) for kind, duplicates in values.items()}
         )
+
+    @model_validator(mode="after")
+    def derive_resource_views(self) -> RigyardConfig:
+        """Keep compatibility mappings derived from the canonical source definitions."""
+        duplicates: dict[str, Mapping[str, tuple[Path, ...]]] = {}
+        for kind, groups in self.source_files.items():
+            if kind not in {"images", "containers", "builds", "tests", "tasks", "scenarios"}:
+                continue
+            if not groups:
+                duplicates[kind] = {}
+                continue
+            values: dict[str, Any] = {}
+            origins: dict[str, list[Path]] = {}
+            for group in groups:
+                for name, value in group.definitions.items():
+                    values.setdefault(name, value)
+                    origins.setdefault(name, []).append(group.path)
+            object.__setattr__(self, kind, _freeze_mapping(values))
+            duplicates[kind] = _freeze_mapping(
+                {name: tuple(paths) for name, paths in origins.items() if len(paths) > 1}
+            )
+        object.__setattr__(self, "duplicate_names", _freeze_mapping(duplicates))
+        return self

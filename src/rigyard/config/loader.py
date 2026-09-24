@@ -204,14 +204,7 @@ def _load_source_group(
     model: type[RootModelT],
     *,
     label: str,
-) -> tuple[
-    dict[str, Any],
-    tuple[SourceFileInfo, ...],
-    dict[str, tuple[Path, ...]],
-]:
-    definitions: dict[str, Any] = {}
-    origins: dict[str, Path] = {}
-    duplicates: dict[str, tuple[Path, ...]] = {}
+) -> tuple[SourceFileInfo, ...]:
     files: list[SourceFileInfo] = []
     for source in _source_paths(manifest_path, configured):
         data, locations = _read_yaml(source)
@@ -221,15 +214,6 @@ def _load_source_group(
         if isinstance(data, Mapping) and "description" in data:
             data = {key: value for key, value in data.items() if key != "description"}
         validated = _validate_data(source, data, locations, model, label=label)
-        for name in validated.root:
-            if name in origins:
-                paths = list(duplicates.get(name, (origins[name],)))
-                if source not in paths:
-                    paths.append(source)
-                duplicates[name] = tuple(paths)
-                continue
-            origins[name] = source
-            definitions[name] = validated.root[name]
         files.append(
             SourceFileInfo(
                 path=source,
@@ -238,7 +222,7 @@ def _load_source_group(
                 definitions=dict(validated.root),
             )
         )
-    return definitions, tuple(files), duplicates
+    return tuple(files)
 
 
 def _load_optional_source_group(
@@ -247,13 +231,9 @@ def _load_optional_source_group(
     model: type[RootModelT],
     *,
     label: str,
-) -> tuple[
-    dict[str, Any],
-    tuple[SourceFileInfo, ...],
-    dict[str, tuple[Path, ...]],
-]:
+) -> tuple[SourceFileInfo, ...]:
     if configured is None:
-        return {}, (), {}
+        return ()
     return _load_source_group(manifest_path, configured, model, label=label)
 
 
@@ -261,25 +241,25 @@ def load_config(path: str | Path) -> RigyardConfig:
     manifest_path = Path(path).resolve()
     manifest = _validate_file(manifest_path, RigyardManifest, label="manifest")
     branding = _load_branding(manifest_path, manifest)
-    images, image_files, image_duplicates = _load_optional_source_group(
+    image_files = _load_optional_source_group(
         manifest_path, manifest.sources.images, ImageDefinitions, label="image source"
     )
-    containers, container_files, container_duplicates = _load_optional_source_group(
+    container_files = _load_optional_source_group(
         manifest_path,
         manifest.sources.containers,
         ContainerDefinitions,
         label="container source",
     )
-    builds, build_files, build_duplicates = _load_optional_source_group(
+    build_files = _load_optional_source_group(
         manifest_path, manifest.sources.builds, BuildDefinitions, label="build source"
     )
-    tests, test_files, test_duplicates = _load_optional_source_group(
+    test_files = _load_optional_source_group(
         manifest_path, manifest.sources.tests, TestDefinitions, label="test source"
     )
-    tasks, task_files, task_duplicates = _load_optional_source_group(
+    task_files = _load_optional_source_group(
         manifest_path, manifest.sources.tasks, TaskDefinitions, label="task source"
     )
-    scenarios, scenario_files, scenario_duplicates = _load_optional_source_group(
+    scenario_files = _load_optional_source_group(
         manifest_path, manifest.sources.scenarios, ScenarioDefinitions, label="scenario source"
     )
     return RigyardConfig(
@@ -289,12 +269,6 @@ def load_config(path: str | Path) -> RigyardConfig:
         branding=branding,
         sources=manifest.sources,
         variables=manifest.variables,
-        images=images,
-        containers=containers,
-        builds=builds,
-        tests=tests,
-        tasks=tasks,
-        scenarios=scenarios,
         source_files={
             "images": image_files,
             "containers": container_files,
@@ -302,14 +276,6 @@ def load_config(path: str | Path) -> RigyardConfig:
             "tests": test_files,
             "tasks": task_files,
             "scenarios": scenario_files,
-        },
-        duplicate_names={
-            "images": image_duplicates,
-            "containers": container_duplicates,
-            "builds": build_duplicates,
-            "tests": test_duplicates,
-            "tasks": task_duplicates,
-            "scenarios": scenario_duplicates,
         },
     )
 

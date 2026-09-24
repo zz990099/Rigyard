@@ -9,6 +9,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from ..builds.models import BuildSpec
+from ..config.catalog import DefinitionCatalog
 from ..config.loader import load_config, load_values
 from ..config.models import RigyardConfig
 from ..containers.models import ContainerSpec
@@ -33,6 +34,8 @@ from ..scenarios.models import (
     ScenarioComposeSpec,
     ScenarioInstanceSpec,
     ScenarioProfileSpec,
+    ScenarioStartupSpec,
+    ScenarioTemplate,
 )
 from ..tasks.models import TaskSpec
 from ..tests.models import TestSpec
@@ -51,10 +54,14 @@ class ValidateConfigUseCase:
 
 
 class InspectParametersUseCase:
-    def execute(self, config_path: str | Path) -> dict[str, Any]:
+    def execute(
+        self,
+        config_path: str | Path,
+        source_path: Path | None = None,
+    ) -> dict[str, Any]:
         config = load_config(config_path)
         _validate_config_templates(config, config_path)
-        prompts = _collect_config_prompts(config)
+        prompts = _collect_config_prompts(config, Path(config_path), source_path)
         return {
             "version": config.version,
             "runtime_values": RuntimeValueResolver(prompts).inspect(),
@@ -83,7 +90,7 @@ class ResolveParametersUseCase:
         )
         renderer = SourceAwareStringTemplateRenderer(
             template_context,
-            definition_source_paths(config),
+            definition_source_paths(config, project.config_path, request.source_path),
         )
         context = resolve_prompts(
             config,
@@ -95,42 +102,52 @@ class ResolveParametersUseCase:
             environment=project.environment,
         )
         if not allow_missing:
-            for name, image_template in config.images.items():
-                materialize_as(image_template, f"images.{name}", context, ImageSpec, renderer)
-            for name, container_template in config.containers.items():
-                materialize_as(
-                    container_template, f"containers.{name}", context, ContainerSpec, renderer
-                )
-            for name, build_template in config.builds.items():
-                materialize_as(build_template, f"builds.{name}", context, BuildSpec, renderer)
-            for name, test_template in config.tests.items():
-                materialize_as(test_template, f"tests.{name}", context, TestSpec, renderer)
-            for name, task_template in config.tasks.items():
-                materialize_as(task_template, f"tasks.{name}", context, TaskSpec, renderer)
-            for scene_name, scenario in config.scenarios.items():
-                if scenario.compose is not None:
+            targets: dict[str, type[BaseModel]] = {
+                "images": ImageSpec,
+                "containers": ContainerSpec,
+                "builds": BuildSpec,
+                "tests": TestSpec,
+                "tasks": TaskSpec,
+            }
+            for entry in DefinitionCatalog(config, project.config_path).selected(
+                request.source_path
+            ):
+                if isinstance(entry.value, ScenarioTemplate):
+                    scenario = entry.value
+                    if scenario.compose is not None:
+                        materialize_as(
+                            scenario.compose,
+                            f"{entry.prefix}.compose",
+                            context,
+                            ScenarioComposeSpec,
+                            renderer,
+                        )
                     materialize_as(
-                        scenario.compose,
-                        f"scenarios.{scene_name}.compose",
+                        scenario.startup,
+                        f"{entry.prefix}.startup",
                         context,
-                        ScenarioComposeSpec,
+                        ScenarioStartupSpec,
                         renderer,
                     )
-                for instance_name, instance in scenario.instances.items():
+                    for name, instance in scenario.instances.items():
+                        materialize_as(
+                            instance,
+                            f"{entry.prefix}.instances.{name}",
+                            context,
+                            ScenarioInstanceSpec,
+                            renderer,
+                        )
+                    for name, profile in scenario.profiles.items():
+                        materialize_as(
+                            profile,
+                            f"{entry.prefix}.profiles.{name}",
+                            context,
+                            ScenarioProfileSpec,
+                            renderer,
+                        )
+                else:
                     materialize_as(
-                        instance,
-                        f"scenarios.{scene_name}.instances.{instance_name}",
-                        context,
-                        ScenarioInstanceSpec,
-                        renderer,
-                    )
-                for profile_name, profile in scenario.profiles.items():
-                    materialize_as(
-                        profile,
-                        f"scenarios.{scene_name}.profiles.{profile_name}",
-                        context,
-                        ScenarioProfileSpec,
-                        renderer,
+                        entry.value, entry.prefix, context, targets[entry.kind], renderer
                     )
         return context
 
@@ -141,10 +158,9 @@ def _validate_config_templates(config: RigyardConfig, config_path: str | Path) -
     for name, value in config.variables.items():
         StringTemplateRenderer(base, variable_names=previous).validate(value, f"variables.{name}")
         previous.append(name)
-    validate_template_syntax(
-        config,
-        renderer=StringTemplateRenderer(base, variable_names=config.variables),
-    )
+    renderer = StringTemplateRenderer(base, variable_names=config.variables)
+    for entry in DefinitionCatalog(config, Path(config_path)).entries:
+        validate_template_syntax(entry.value, entry.prefix, renderer=renderer)
 
 
 def resolve_prompts(
@@ -159,7 +175,7 @@ def resolve_prompts(
     environment: Mapping[str, str] | None = None,
 ) -> ResolvedContext:
     prompts = (
-        _collect_config_prompts(template)
+        _collect_config_prompts(template, request.config_path, request.source_path)
         if isinstance(template, RigyardConfig) and not prefix
         else collect_prompts(template, prefix)
     )
@@ -179,12 +195,23 @@ def resolve_prompts(
     )
 
 
-def _collect_config_prompts(config: RigyardConfig) -> dict[str, Any]:
-    """Collect public resource prompts without internal source provenance copies."""
-
+def _collect_config_prompts(
+    config: RigyardConfig,
+    config_path: Path,
+    source_path: Path | None = None,
+) -> dict[str, Any]:
     prompts: dict[str, Any] = {}
-    for kind in ("images", "containers", "builds", "tests", "tasks", "scenarios"):
-        prompts.update(collect_prompts(getattr(config, kind), kind))
+    for entry in DefinitionCatalog(config, config_path).selected(source_path):
+        prompts.update(collect_prompts(entry.value, entry.prefix))
+    return prompts
+
+
+def _available_prompts(root: BaseModel, request: ResolutionRequest) -> dict[str, Any]:
+    if not isinstance(root, RigyardConfig):
+        return collect_prompts(root)
+    prompts: dict[str, Any] = {}
+    for entry in DefinitionCatalog(root, request.config_path).entries:
+        prompts.update(collect_prompts(entry.value, entry.prefix))
     return prompts
 
 
@@ -200,28 +227,14 @@ def resolve_template(
     environment: Mapping[str, str] | None = None,
 ) -> tuple[ModelT, ResolvedContext]:
     selected = collect_prompts(template, prefix)
-    available = (
-        _collect_config_prompts(root) if isinstance(root, RigyardConfig) else collect_prompts(root)
-    )
-    available.update(selected)
-    values = load_values(request.values_path) if request.values_path else {}
-    flat_values = flatten_values(values)
-    unknown_values = set(flat_values) - set(available)
-    unknown_overrides = set(request.overrides) - set(available)
-    if unknown_values or unknown_overrides:
-        unknown = sorted(unknown_values | unknown_overrides)
-        raise ResolutionError(f"unknown runtime value(s): {', '.join(unknown)}")
-    context = RuntimeValueResolver(
+    context = resolve_selected_prompts(
+        root,
         selected,
-        render_default=default_display_renderer(renderer),
+        request,
+        renderer=renderer,
         sources=sources,
         formatter=formatter,
-    ).resolve(
-        values={key: value for key, value in flat_values.items() if key in selected},
-        environ=environment if environment is not None else _request_environment(request),
-        overrides={key: value for key, value in request.overrides.items() if key in selected},
-        interactive=request.interactive,
-        input_fn=request.input_fn,
+        environment=environment,
     )
     return materialize_as(template, prefix, context, target, renderer), context
 
@@ -238,9 +251,7 @@ def resolve_selected_prompts(
 ) -> ResolvedContext:
     """Resolve an explicitly composed set of prompt paths from one config root."""
 
-    available = (
-        _collect_config_prompts(root) if isinstance(root, RigyardConfig) else collect_prompts(root)
-    )
+    available = _available_prompts(root, request)
     available.update(selected)
     values = load_values(request.values_path) if request.values_path else {}
     flat_values = flatten_values(values)

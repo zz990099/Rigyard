@@ -9,14 +9,11 @@ from ..containers.backend import ContainerBackend
 from ..containers.models import ContainerCreateResult, ContainerRunPlan, ContainerSpec
 from ..containers.planner import ContainerRunPlanner
 from ..containers.service import ContainerCreateService
-from ..errors import SchemaValidationError
 from ..parameters.prompt import Formatter
 from ..parameters.sources import DynamicSources
-from ..parameters.templates import StringTemplateRenderer, TemplateContext
-from .definitions import find_definition
-from .parameters import resolve_template
 from .project import project_context
 from .requests import ResolutionRequest
+from .resolution import resolve_definition
 
 
 class CreateContainerUseCase:
@@ -45,41 +42,20 @@ class CreateContainerUseCase:
             environment=environment,
             timestamp=now,
         )
-        config = project.config
-        match = find_definition(
-            config,
+        spec = resolve_definition(
+            project,
+            request,
             "containers",
             container_name,
-            request.source_path,
-            project.config_path,
-        )
-        if match is None:
-            raise SchemaValidationError(f"unknown container {container_name!r}")
-        host_environment = dict(project.environment)
-        renderer = StringTemplateRenderer(
-            TemplateContext.capture(
-                host_environment,
-                now=project.timestamp,
-                config_path=project.config_path,
-                variables=config.variables,
-            ).with_source(match.source_path)
-        )
-        spec, _ = resolve_template(
-            config,
-            match.value,
-            request,
-            f"containers.{container_name}",
             ContainerSpec,
-            renderer,
-            self.sources,
-            self.formatter,
-            environment=project.environment,
+            sources=self.sources,
+            formatter=self.formatter,
         )
         return ContainerRunPlanner().plan(
             container_name,
             spec,
             project.config_path,
-            host_environment,
+            project.environment,
         )
 
     def execute(self, plan: ContainerRunPlan) -> ContainerCreateResult:

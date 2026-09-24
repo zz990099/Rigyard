@@ -5,18 +5,15 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import datetime
 
-from ..errors import SchemaValidationError
 from ..parameters.prompt import Formatter
 from ..parameters.sources import DynamicSources
-from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from ..tests.backend import TestBackend
 from ..tests.models import TestAction, TestPlan, TestResult, TestSpec
 from ..tests.planner import TestPlanner
 from ..tests.service import TestService
-from .definitions import find_definition
-from .parameters import resolve_template
 from .project import project_context
 from .requests import ResolutionRequest
+from .resolution import resolve_definition
 
 
 class ExecuteTestUseCase:
@@ -46,37 +43,14 @@ class ExecuteTestUseCase:
             environment=environment,
             timestamp=now,
         )
-        config = project.config
-        match = find_definition(
-            config,
+        spec = resolve_definition(
+            project,
+            request,
             "tests",
             test_name,
-            request.source_path,
-            project.config_path,
-        )
-        if match is None:
-            available = ", ".join(sorted(config.tests)) or "none"
-            raise SchemaValidationError(
-                f"unknown test {test_name!r}; configured tests: {available}"
-            )
-        renderer = StringTemplateRenderer(
-            TemplateContext.capture(
-                project.environment,
-                now=project.timestamp,
-                config_path=project.config_path,
-                variables=config.variables,
-            ).with_source(match.source_path)
-        )
-        spec, _ = resolve_template(
-            config,
-            match.value,
-            request,
-            f"tests.{test_name}",
             TestSpec,
-            renderer,
-            self.sources,
-            self.formatter,
-            environment=project.environment,
+            sources=self.sources,
+            formatter=self.formatter,
         )
         return TestPlanner().create_plan(test_name, action, spec)
 
