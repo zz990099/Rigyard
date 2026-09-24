@@ -10,7 +10,6 @@ from ..parameters.sources import DynamicSources
 from ..tasks.backend import TaskBackend
 from ..tasks.models import TaskPlan, TaskResult, TaskSpec
 from ..tasks.planner import TaskPlanner
-from ..tasks.service import TaskService
 from .project import project_context
 from .requests import ResolutionRequest
 from .resolution import resolve_definition
@@ -24,7 +23,7 @@ class ExecuteTaskUseCase:
         sources: DynamicSources | None = None,
         formatter: Formatter | None = None,
     ) -> None:
-        self.service = TaskService(backend)
+        self.backend = backend
         self.sources = dict(sources or {})
         self.formatter = formatter
 
@@ -54,4 +53,4 @@ class ExecuteTaskUseCase:
         return TaskPlanner().create_plan(task_name, spec)
 
     def execute(self, plan: TaskPlan) -> TaskResult:
-        return self.service.execute(plan)
+        return self.backend.execute(plan)

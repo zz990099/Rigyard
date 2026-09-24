@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Mapping
 from pathlib import Path
 
 from ..errors import ImageConfigError, ImagePlanError, SourceLocation
@@ -97,7 +98,7 @@ def _apply_build_proxy(
     network: NetworkMode | None,
     build_args: dict[str, Scalar],
     proxy_network: ProxyNetworkMode,
-    proxy_build_args: dict[str, Scalar],
+    proxy_build_args: Mapping[str, Scalar],
 ) -> NetworkMode:
     if network is not None and network != proxy_network:
         raise ImagePlanError(

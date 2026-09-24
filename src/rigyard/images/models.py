@@ -9,8 +9,9 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from ..immutable import FrozenModel
 from ..parameters.models import PromptValue
 
 BUILD_ARG_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -46,25 +47,25 @@ def _validate_proxy_build_args(values: Mapping[str, Any]) -> None:
         )
 
 
-class ImageBuildProxyTemplate(BaseModel):
+class ImageBuildProxyTemplate(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     enabled: PromptValue | bool = True
     network: RuntimeProxyNetworkMode = "host"
-    build_args: dict[str, RuntimeScalar] = Field(min_length=1)
+    build_args: Mapping[str, RuntimeScalar] = Field(min_length=1)
 
     @field_validator("build_args")
     @classmethod
-    def valid_build_args(cls, value: dict[str, RuntimeScalar]) -> dict[str, RuntimeScalar]:
+    def valid_build_args(cls, value: Mapping[str, RuntimeScalar]) -> Mapping[str, RuntimeScalar]:
         _validate_proxy_build_args(value)
         return value
 
 
-class ImageLayerTemplate(BaseModel):
+class ImageLayerTemplate(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     name: str
     dockerfile: Path | PromptValue
     network: RuntimeNetworkMode | None = None
-    build_args: dict[str, RuntimeScalar] = Field(default_factory=dict)
+    build_args: Mapping[str, RuntimeScalar] = Field(default_factory=dict)
 
     @field_validator("name")
     @classmethod
@@ -75,12 +76,12 @@ class ImageLayerTemplate(BaseModel):
 
     @field_validator("build_args")
     @classmethod
-    def valid_build_args(cls, value: dict[str, RuntimeScalar]) -> dict[str, RuntimeScalar]:
+    def valid_build_args(cls, value: Mapping[str, RuntimeScalar]) -> Mapping[str, RuntimeScalar]:
         _validate_build_arg_names(value)
         return value
 
 
-class ImageTemplate(BaseModel):
+class ImageTemplate(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     description: str | None = None
     base: RuntimeString
@@ -90,11 +91,11 @@ class ImageTemplate(BaseModel):
     network: RuntimeNetworkMode | None = None
     build_proxy: ImageBuildProxyTemplate | None = None
     layers: tuple[ImageLayerTemplate, ...] = Field(min_length=1)
-    build_args: dict[str, RuntimeScalar] = Field(default_factory=dict)
+    build_args: Mapping[str, RuntimeScalar] = Field(default_factory=dict)
 
     @field_validator("build_args")
     @classmethod
-    def valid_build_args(cls, value: dict[str, RuntimeScalar]) -> dict[str, RuntimeScalar]:
+    def valid_build_args(cls, value: Mapping[str, RuntimeScalar]) -> Mapping[str, RuntimeScalar]:
         _validate_build_arg_names(value)
         return value
 
@@ -107,28 +108,28 @@ class ImageTemplate(BaseModel):
         return self
 
 
-class ImageLayerSpec(BaseModel):
+class ImageLayerSpec(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     name: str
     dockerfile: Path
     network: NetworkMode | None = None
-    build_args: dict[str, Scalar] = Field(default_factory=dict)
+    build_args: Mapping[str, Scalar] = Field(default_factory=dict)
 
 
-class ImageBuildProxySpec(BaseModel):
+class ImageBuildProxySpec(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     enabled: bool = True
     network: ProxyNetworkMode = "host"
-    build_args: dict[str, Scalar] = Field(min_length=1)
+    build_args: Mapping[str, Scalar] = Field(min_length=1)
 
     @field_validator("build_args")
     @classmethod
-    def valid_build_args(cls, value: dict[str, Scalar]) -> dict[str, Scalar]:
+    def valid_build_args(cls, value: Mapping[str, Scalar]) -> Mapping[str, Scalar]:
         _validate_proxy_build_args(value)
         return value
 
 
-class ImageSpec(BaseModel):
+class ImageSpec(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     description: str | None = None
     base: str
@@ -138,7 +139,7 @@ class ImageSpec(BaseModel):
     network: NetworkMode | None = None
     build_proxy: ImageBuildProxySpec | None = None
     layers: tuple[ImageLayerSpec, ...] = Field(min_length=1)
-    build_args: dict[str, Scalar] = Field(default_factory=dict)
+    build_args: Mapping[str, Scalar] = Field(default_factory=dict)
 
 
 @dataclass(frozen=True)

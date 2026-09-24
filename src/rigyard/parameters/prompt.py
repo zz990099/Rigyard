@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any
 
+from ..immutable import thaw
 from .models import PromptMode, PromptSpec, PromptValue
 from .sources import DynamicOption
 
@@ -42,7 +43,7 @@ def prompt_for_value(
     format_text = formatter or _plain_text
     prompt = value.prompt
     if default_display is None and value.has_default:
-        default_display = str(value.default)
+        default_display = str(thaw(value.default))
     default_hint = (
         f" [{format_text('muted', str(default_display))}]" if default_display is not None else ""
     )
@@ -102,7 +103,7 @@ def _select_values_and_prompt(
     """Return the selectable values and the text shown for this select prompt."""
 
     if dynamic_options is None:
-        options = tuple(prompt.options or ())
+        options = tuple(thaw(option) for option in (prompt.options or ()))
         choices = ", ".join(f"{index}={option}" for index, option in enumerate(options, 1))
         shown = f" ({choices})" if choices else ""
         return options, f"{message}{shown}{default_hint}: "

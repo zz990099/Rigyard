@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from types import MappingProxyType
 from typing import Any
 
+from ..immutable import freeze
 from .project import ProjectContext
 
 InputFunction = Callable[[str], str]
@@ -29,7 +29,7 @@ class ResolutionRequest:
             object.__setattr__(self, "values_path", Path(self.values_path))
         if self.source_path is not None:
             object.__setattr__(self, "source_path", Path(self.source_path))
-        object.__setattr__(self, "overrides", MappingProxyType(dict(self.overrides)))
+        object.__setattr__(self, "overrides", freeze(self.overrides))
 
 
 @dataclass(frozen=True)
@@ -49,7 +49,7 @@ class BuildImageRequest:
             object.__setattr__(self, "values_path", Path(self.values_path))
         if self.source_path is not None:
             object.__setattr__(self, "source_path", Path(self.source_path))
-        object.__setattr__(self, "overrides", MappingProxyType(dict(self.overrides)))
+        object.__setattr__(self, "overrides", freeze(self.overrides))
 
     def resolution_request(self) -> ResolutionRequest:
         return ResolutionRequest(

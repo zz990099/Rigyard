@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import (
-    BaseModel,
     ConfigDict,
     Field,
     StrictBool,
@@ -18,13 +17,14 @@ from pydantic import (
     model_validator,
 )
 
+from ..immutable import FrozenModel
 from ..parameters.models import PromptValue
 
 ENVIRONMENT_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 HOOK_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*$")
 
 
-class EnvironmentRef(BaseModel):
+class EnvironmentRef(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env: str = Field(pattern=ENVIRONMENT_NAME.pattern)
     default: str | None = None
@@ -43,7 +43,7 @@ def _validate_environment(values: Mapping[str, object], field: str) -> None:
         raise ValueError(f"invalid {field} environment variable name")
 
 
-class ContainerHookTemplate(BaseModel):
+class ContainerHookTemplate(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str
@@ -51,7 +51,7 @@ class ContainerHookTemplate(BaseModel):
     interpreter: RuntimeList = ("/bin/sh", "-eu")
     user: RuntimeText | None = None
     workdir: RuntimeText | None = None
-    environment: dict[str, RuntimeEnvironment] = Field(default_factory=dict)
+    environment: Mapping[str, RuntimeEnvironment] = Field(default_factory=dict)
     timeout_seconds: RuntimeInteger = 300
 
     @field_validator("name")
@@ -71,13 +71,13 @@ class ContainerHookTemplate(BaseModel):
     @field_validator("environment")
     @classmethod
     def valid_environment(
-        cls, values: dict[str, RuntimeEnvironment]
-    ) -> dict[str, RuntimeEnvironment]:
+        cls, values: Mapping[str, RuntimeEnvironment]
+    ) -> Mapping[str, RuntimeEnvironment]:
         _validate_environment(values, "hook")
         return values
 
 
-class ContainerLifecycleTemplate(BaseModel):
+class ContainerLifecycleTemplate(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     post_create: tuple[ContainerHookTemplate, ...] = ()
@@ -95,7 +95,7 @@ class ContainerLifecycleTemplate(BaseModel):
         return self
 
 
-class ContainerTemplate(BaseModel):
+class ContainerTemplate(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     description: str | None = None
     image: RuntimeText
@@ -110,20 +110,20 @@ class ContainerTemplate(BaseModel):
     network: RuntimeText | None = None
     ipc: RuntimeText | None = None
     workdir: RuntimeText | None = None
-    environment: dict[str, RuntimeEnvironment] = Field(default_factory=dict)
+    environment: Mapping[str, RuntimeEnvironment] = Field(default_factory=dict)
     lifecycle: ContainerLifecycleTemplate = Field(default_factory=ContainerLifecycleTemplate)
     command: RuntimeList = ()
 
     @field_validator("environment")
     @classmethod
     def valid_environment(
-        cls, values: dict[str, RuntimeEnvironment]
-    ) -> dict[str, RuntimeEnvironment]:
+        cls, values: Mapping[str, RuntimeEnvironment]
+    ) -> Mapping[str, RuntimeEnvironment]:
         _validate_environment(values, "container")
         return values
 
 
-class ContainerHookSpec(BaseModel):
+class ContainerHookSpec(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str
@@ -131,18 +131,18 @@ class ContainerHookSpec(BaseModel):
     interpreter: tuple[str, ...] = Field(default=("/bin/sh", "-eu"), min_length=1)
     user: str | None = None
     workdir: str | None = None
-    environment: dict[str, str | EnvironmentRef] = Field(default_factory=dict)
+    environment: Mapping[str, str | EnvironmentRef] = Field(default_factory=dict)
     timeout_seconds: int = Field(default=300, gt=0, le=86400)
 
 
-class ContainerLifecycleSpec(BaseModel):
+class ContainerLifecycleSpec(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     post_create: tuple[ContainerHookSpec, ...] = ()
     post_start: tuple[ContainerHookSpec, ...] = ()
 
 
-class ContainerSpec(BaseModel):
+class ContainerSpec(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     description: str | None = None
     image: str
@@ -157,7 +157,7 @@ class ContainerSpec(BaseModel):
     network: str | None = None
     ipc: str | None = None
     workdir: str | None = None
-    environment: dict[str, str | EnvironmentRef] = Field(default_factory=dict)
+    environment: Mapping[str, str | EnvironmentRef] = Field(default_factory=dict)
     lifecycle: ContainerLifecycleSpec = Field(default_factory=ContainerLifecycleSpec)
     command: tuple[str, ...] = ()
 

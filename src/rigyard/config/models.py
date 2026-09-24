@@ -9,11 +9,12 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
+from pydantic import ConfigDict, Field, RootModel, field_validator, model_validator
 
 from ..builds.models import BuildTemplate
 from ..containers.models import ContainerTemplate
 from ..images.models import IMAGE_NAME, ImageTemplate
+from ..immutable import FrozenModel
 from ..scenarios.models import ScenarioTemplate
 from ..tasks.models import TaskTemplate
 from ..tests.models import TestTemplate
@@ -46,7 +47,7 @@ def _display_width(value: str) -> int:
     )
 
 
-class RigyardMetadata(BaseModel):
+class RigyardMetadata(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str
@@ -60,7 +61,7 @@ class RigyardMetadata(BaseModel):
         return value
 
 
-class RigyardWorkspace(BaseModel):
+class RigyardWorkspace(FrozenModel):
     """Optional defaults applied by ``rigyard init``."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -80,7 +81,7 @@ class RigyardWorkspace(BaseModel):
         return value
 
 
-class RigyardBranding(BaseModel):
+class RigyardBranding(FrozenModel):
     """Resolved terminal branding used by the interactive menu."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -131,7 +132,7 @@ class RigyardBrandingSource(RigyardBranding):
         return self
 
 
-class RigyardSources(BaseModel):
+class RigyardSources(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     images: Path | tuple[Path, ...] | None = None
@@ -167,7 +168,7 @@ class RigyardSources(BaseModel):
         return self
 
 
-class SourceFileInfo(BaseModel):
+class SourceFileInfo(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True, validate_default=True)
 
     path: Path
@@ -181,7 +182,7 @@ class SourceFileInfo(BaseModel):
         return _freeze_mapping(values)
 
 
-class RigyardManifest(BaseModel):
+class RigyardManifest(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True, validate_default=True)
 
     version: int
@@ -279,7 +280,7 @@ class ScenarioDefinitions(RootModel[dict[str, ScenarioTemplate]]):
         return value
 
 
-class RigyardConfig(BaseModel):
+class RigyardConfig(FrozenModel):
     """Fully loaded configuration with read-only resource mappings for application services."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, validate_default=True)

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from ..container_commands.models import (
     ContainerCommandPlan,
@@ -16,11 +16,12 @@ from ..container_commands.models import (
     RuntimeList,
     RuntimePath,
 )
+from ..immutable import FrozenModel
 
 TestAction = Literal["run", "report"]
 
 
-class TestActionTemplate(BaseModel):
+class TestActionTemplate(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     script: RuntimePath
@@ -43,7 +44,7 @@ class TestTemplate(ContainerCommandTemplate):
     report: TestActionTemplate
 
 
-class TestActionSpec(BaseModel):
+class TestActionSpec(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     script: Path

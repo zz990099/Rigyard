@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
+from pydantic import ConfigDict, Field, StrictBool, field_validator, model_validator
 
+from ..immutable import FrozenModel
 from ..parameters.models import PromptValue
 from .identity import ScenarioIdentity
 
@@ -45,7 +46,7 @@ def _validate_named_mapping(values: Mapping[str, object], label: str) -> None:
         raise ValueError(f"invalid {label} name(s): {', '.join(invalid)}")
 
 
-class ScenarioGroupTemplate(BaseModel):
+class ScenarioGroupTemplate(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     description: str | None = None
@@ -56,7 +57,7 @@ class ScenarioGroupTemplate(BaseModel):
     interpreter: RuntimeList = ("/bin/sh", "-eu")
     user: RuntimeText | None = None
     workdir: RuntimeText | None = None
-    environment: dict[str, RuntimeText] = Field(default_factory=dict)
+    environment: Mapping[str, RuntimeText] = Field(default_factory=dict)
 
     @field_validator("interpreter")
     @classmethod
@@ -74,7 +75,7 @@ class ScenarioGroupTemplate(BaseModel):
 
     @field_validator("environment")
     @classmethod
-    def valid_environment(cls, values: dict[str, RuntimeText]) -> dict[str, RuntimeText]:
+    def valid_environment(cls, values: Mapping[str, RuntimeText]) -> Mapping[str, RuntimeText]:
         invalid = sorted(name for name in values if not ENVIRONMENT_NAME.fullmatch(name))
         if invalid:
             raise ValueError(f"invalid scenario environment variable name(s): {', '.join(invalid)}")
@@ -86,7 +87,7 @@ class ScenarioGroupTemplate(BaseModel):
         return self
 
 
-class ScenarioStartupTemplate(BaseModel):
+class ScenarioStartupTemplate(FrozenModel):
     """Ordered launch policy for sibling tmux objects."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -95,7 +96,7 @@ class ScenarioStartupTemplate(BaseModel):
     interval_seconds: RuntimeInteger = 0
 
 
-class ScenarioInstanceTemplate(BaseModel):
+class ScenarioInstanceTemplate(FrozenModel):
     """One software system: one container or Compose service, one tmux window, several panes."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -105,7 +106,7 @@ class ScenarioInstanceTemplate(BaseModel):
     container: RuntimeText | None = None
     service: RuntimeText | None = None
     startup: ScenarioStartupTemplate = ScenarioStartupTemplate()
-    groups: dict[str, ScenarioGroupTemplate] = Field(min_length=1)
+    groups: Mapping[str, ScenarioGroupTemplate] = Field(min_length=1)
 
     @model_validator(mode="after")
     def exactly_one_target(self) -> ScenarioInstanceTemplate:
@@ -116,13 +117,13 @@ class ScenarioInstanceTemplate(BaseModel):
     @field_validator("groups")
     @classmethod
     def valid_group_names(
-        cls, values: dict[str, ScenarioGroupTemplate]
-    ) -> dict[str, ScenarioGroupTemplate]:
+        cls, values: Mapping[str, ScenarioGroupTemplate]
+    ) -> Mapping[str, ScenarioGroupTemplate]:
         _validate_named_mapping(values, "scenario group")
         return values
 
 
-class ScenarioProfileTemplate(BaseModel):
+class ScenarioProfileTemplate(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     session: RuntimeText | None = None
@@ -133,45 +134,45 @@ class ScenarioProfileTemplate(BaseModel):
     keep_alive: bool = True
 
 
-class ScenarioComposeTemplate(BaseModel):
+class ScenarioComposeTemplate(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     file: RuntimePath
     project_name: RuntimeText | None = None
     wait_timeout_seconds: RuntimeInteger = 60
-    environment: dict[str, RuntimeText] = Field(default_factory=dict)
+    environment: Mapping[str, RuntimeText] = Field(default_factory=dict)
 
     @field_validator("environment")
     @classmethod
-    def valid_environment(cls, values: dict[str, RuntimeText]) -> dict[str, RuntimeText]:
+    def valid_environment(cls, values: Mapping[str, RuntimeText]) -> Mapping[str, RuntimeText]:
         invalid = sorted(name for name in values if not ENVIRONMENT_NAME.fullmatch(name))
         if invalid:
             raise ValueError(f"invalid Compose environment variable name(s): {', '.join(invalid)}")
         return values
 
 
-class ScenarioTemplate(BaseModel):
+class ScenarioTemplate(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     description: str | None = None
     compose: ScenarioComposeTemplate | None = None
     startup: ScenarioStartupTemplate = ScenarioStartupTemplate()
-    instances: dict[str, ScenarioInstanceTemplate] = Field(min_length=1)
-    profiles: dict[str, ScenarioProfileTemplate] = Field(min_length=1)
+    instances: Mapping[str, ScenarioInstanceTemplate] = Field(min_length=1)
+    profiles: Mapping[str, ScenarioProfileTemplate] = Field(min_length=1)
 
     @field_validator("instances")
     @classmethod
     def valid_instance_names(
-        cls, values: dict[str, ScenarioInstanceTemplate]
-    ) -> dict[str, ScenarioInstanceTemplate]:
+        cls, values: Mapping[str, ScenarioInstanceTemplate]
+    ) -> Mapping[str, ScenarioInstanceTemplate]:
         _validate_named_mapping(values, "scenario instance")
         return values
 
     @field_validator("profiles")
     @classmethod
     def valid_profile_names(
-        cls, values: dict[str, ScenarioProfileTemplate]
-    ) -> dict[str, ScenarioProfileTemplate]:
+        cls, values: Mapping[str, ScenarioProfileTemplate]
+    ) -> Mapping[str, ScenarioProfileTemplate]:
         _validate_named_mapping(values, "scenario profile")
         return values
 
@@ -192,7 +193,7 @@ class ScenarioTemplate(BaseModel):
         return self
 
 
-class ScenarioGroupSpec(BaseModel):
+class ScenarioGroupSpec(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     description: str | None = None
@@ -203,7 +204,7 @@ class ScenarioGroupSpec(BaseModel):
     interpreter: tuple[str, ...] = Field(default=("/bin/sh", "-eu"), min_length=1)
     user: str | None = None
     workdir: str | None = None
-    environment: dict[str, str] = Field(default_factory=dict)
+    environment: Mapping[str, str] = Field(default_factory=dict)
 
     @field_validator("script")
     @classmethod
@@ -221,7 +222,7 @@ class ScenarioGroupSpec(BaseModel):
 
     @field_validator("environment")
     @classmethod
-    def valid_environment(cls, values: dict[str, str]) -> dict[str, str]:
+    def valid_environment(cls, values: Mapping[str, str]) -> Mapping[str, str]:
         invalid = sorted(name for name in values if not ENVIRONMENT_NAME.fullmatch(name))
         if invalid:
             raise ValueError(f"invalid scenario environment variable name(s): {', '.join(invalid)}")
@@ -233,14 +234,14 @@ class ScenarioGroupSpec(BaseModel):
         return self
 
 
-class ScenarioStartupSpec(BaseModel):
+class ScenarioStartupSpec(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     mode: StartupMode = "parallel"
     interval_seconds: int = Field(default=0, ge=0, le=3600)
 
 
-class ScenarioInstanceSpec(BaseModel):
+class ScenarioInstanceSpec(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     description: str | None = None
@@ -248,7 +249,7 @@ class ScenarioInstanceSpec(BaseModel):
     container: str | None = None
     service: str | None = None
     startup: ScenarioStartupSpec = ScenarioStartupSpec()
-    groups: dict[str, ScenarioGroupSpec] = Field(min_length=1)
+    groups: Mapping[str, ScenarioGroupSpec] = Field(min_length=1)
 
     @model_validator(mode="after")
     def exactly_one_target(self) -> ScenarioInstanceSpec:
@@ -257,7 +258,7 @@ class ScenarioInstanceSpec(BaseModel):
         return self
 
 
-class ScenarioProfileSpec(BaseModel):
+class ScenarioProfileSpec(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     session: str | None = None
@@ -268,13 +269,13 @@ class ScenarioProfileSpec(BaseModel):
     keep_alive: bool = True
 
 
-class ScenarioComposeSpec(BaseModel):
+class ScenarioComposeSpec(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     file: Path
     project_name: str | None = None
     wait_timeout_seconds: int = Field(default=60, ge=1, le=3600)
-    environment: dict[str, str] = Field(default_factory=dict)
+    environment: Mapping[str, str] = Field(default_factory=dict)
 
 
 @dataclass(frozen=True)

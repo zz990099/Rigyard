@@ -8,9 +8,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from ..execution import TtyMode
+from ..immutable import FrozenModel
 from ..parameters.models import PromptValue
 
 ENVIRONMENT_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -20,7 +21,7 @@ RuntimeList = PromptValue | tuple[str, ...]
 RuntimeInteger = PromptValue | int
 
 
-class ContainerCommandTemplate(BaseModel):
+class ContainerCommandTemplate(FrozenModel):
     """Runtime-resolvable fields shared by builds, tests, and tasks."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -31,7 +32,7 @@ class ContainerCommandTemplate(BaseModel):
     workdir: RuntimePath | None = None
     user: RuntimeText | None = None
     setup: RuntimeList = ()
-    environment: dict[str, RuntimeText] = Field(default_factory=dict)
+    environment: Mapping[str, RuntimeText] = Field(default_factory=dict)
     tty: TtyMode = "auto"
     start_container: bool = True
 
@@ -51,12 +52,12 @@ class ContainerCommandTemplate(BaseModel):
 
     @field_validator("environment")
     @classmethod
-    def valid_environment(cls, values: dict[str, RuntimeText]) -> dict[str, RuntimeText]:
+    def valid_environment(cls, values: Mapping[str, RuntimeText]) -> Mapping[str, RuntimeText]:
         _validate_environment(values, cls.command_kind)
         return values
 
 
-class ContainerCommandSpec(BaseModel):
+class ContainerCommandSpec(FrozenModel):
     """Resolved fields shared by container-backed command specs."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -67,7 +68,7 @@ class ContainerCommandSpec(BaseModel):
     workdir: Path | None = None
     user: str | None = None
     setup: tuple[str, ...] = ()
-    environment: dict[str, str] = Field(default_factory=dict)
+    environment: Mapping[str, str] = Field(default_factory=dict)
     tty: TtyMode = "auto"
     start_container: bool = True
 
@@ -80,7 +81,7 @@ class ContainerCommandSpec(BaseModel):
 
     @field_validator("environment")
     @classmethod
-    def valid_environment(cls, values: dict[str, str]) -> dict[str, str]:
+    def valid_environment(cls, values: Mapping[str, str]) -> Mapping[str, str]:
         _validate_environment(values, cls.command_kind)
         return values
 

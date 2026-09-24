@@ -5,8 +5,9 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import ConfigDict, model_validator
 
+from ..immutable import FrozenModel
 from .sources import PromptSource
 
 
@@ -21,7 +22,7 @@ class PromptMerge(str, Enum):
     APPEND = "append"
 
 
-class PromptSpec(BaseModel):
+class PromptSpec(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     mode: PromptMode
@@ -60,7 +61,7 @@ class PromptSpec(BaseModel):
         return self
 
 
-class PromptValue(BaseModel):
+class PromptValue(FrozenModel):
     """A value acquired when its containing feature is selected."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)

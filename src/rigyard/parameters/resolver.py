@@ -11,6 +11,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from ..errors import MissingValueError, ResolutionError, RigyardError
+from ..immutable import thaw
 from .context import ResolvedContext, ResolvedValue, ValueSource
 from .models import PromptMerge, PromptMode, PromptValue
 from .prompt import Formatter, InputFunction, prompt_for_value
@@ -104,11 +105,11 @@ class RuntimeValueResolver:
         if not value.has_default:
             return None
         if self.render_default is None:
-            return str(value.default)
+            return str(thaw(value.default))
         try:
             return self.render_default(path, value.default)
         except RigyardError:
-            return str(value.default)
+            return str(thaw(value.default))
 
     def _check_environment_collisions(self) -> None:
         names: dict[str, str] = {}
@@ -129,7 +130,7 @@ class RuntimeValueResolver:
                 "merge": value.prompt.merge.value,
                 "input_template": value.prompt.input_template,
                 "has_base": "base" in value.model_fields_set,
-                "options": list(value.prompt.options) if value.prompt.options else None,
+                "options": thaw(value.prompt.options) if value.prompt.options else None,
                 "source": value.prompt.source.model_dump() if value.prompt.source else None,
                 "has_default": value.has_default,
                 "environment": environment_name(path),
@@ -185,7 +186,7 @@ class RuntimeValueResolver:
             if path in resolved:
                 selected = resolved[path]
                 resolved[path] = ResolvedValue(
-                    self._compose_input(path, prompt, selected.value), selected.source
+                    thaw(self._compose_input(path, prompt, selected.value)), selected.source
                 )
 
         if missing and not allow_missing:
@@ -225,7 +226,7 @@ class RuntimeValueResolver:
             if prompt.source is not None:
                 # A dynamic source is an open set: explicit values are taken as they are.
                 return raw
-            options = prompt.options or ()
+            options = tuple(thaw(option) for option in (prompt.options or ()))
             if raw in options:
                 return raw
             matches = [option for option in options if str(option) == str(raw)]

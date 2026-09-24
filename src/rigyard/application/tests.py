@@ -10,7 +10,6 @@ from ..parameters.sources import DynamicSources
 from ..tests.backend import TestBackend
 from ..tests.models import TestAction, TestPlan, TestResult, TestSpec
 from ..tests.planner import TestPlanner
-from ..tests.service import TestService
 from .project import project_context
 from .requests import ResolutionRequest
 from .resolution import resolve_definition
@@ -24,7 +23,7 @@ class ExecuteTestUseCase:
         sources: DynamicSources | None = None,
         formatter: Formatter | None = None,
     ) -> None:
-        self.service = TestService(backend)
+        self.backend = backend
         self.sources = dict(sources or {})
         self.formatter = formatter
 
@@ -55,4 +54,4 @@ class ExecuteTestUseCase:
         return TestPlanner().create_plan(test_name, action, spec)
 
     def execute(self, plan: TestPlan) -> TestResult:
-        return self.service.execute(plan)
+        return self.backend.execute(plan)

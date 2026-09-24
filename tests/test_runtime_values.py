@@ -58,7 +58,7 @@ def test_input_composition_schema_is_explicit_and_rejects_ambiguous_forms():
             },
         }
     )
-    assert appended.base == ["fixed"]
+    assert appended.base == ("fixed",)
     assert appended.prompt.merge.value == "append"
 
     invalid = (

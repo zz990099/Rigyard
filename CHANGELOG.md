@@ -6,6 +6,10 @@ This file records notable user-facing changes. Once releases begin, the project 
 
 ### Added
 
+- Source-qualified definition catalog and `inspect/resolve --source` for ambiguous resources.
+- Private, atomic scenario run records for controlling the original runtime after configuration changes.
+- Injectable scenario runtime ports and separate startup/control plan models.
+
 - Structured user documentation for configuration, templates, runtime values, and core features.
 - Python-environment command aliases through `rigyard init --alias NAME`.
 - User-defined test run and result-reporting commands through `rigyard test run` and
@@ -22,6 +26,9 @@ This file records notable user-facing changes. Once releases begin, the project 
 
 ### Changed
 
+- Configuration models and request overrides now freeze nested collections; serialization returns ordinary values.
+- Build, test, and task use cases invoke their backends directly instead of forwarding through empty services.
+
 - Generated tmux sessions, Compose projects, and pane metadata now use the `rigyard` prefix.
 - CI now covers Python 3.10 through 3.13, enforces test coverage, and validates built wheel and
   source-distribution artifacts.
@@ -36,7 +43,19 @@ This file records notable user-facing changes. Once releases begin, the project 
 - Renamed the project, distribution, Python package, CLI, configuration contract, workspace state,
   generated identifiers, examples, and documentation from Toolchain to Rigyard.
 
+### Fixed
+
+- Explicit overrides for prompts in a selected secondary source with a duplicate resource name.
+- Scenario instance selection no longer resolves prompts belonging to unselected or disabled instances.
+- `scene status --instance` now restricts the queried windows.
+- String boolean enable values are validated instead of interpreted by Python truthiness.
+
+
 ### Breaking changes
+
+- Generated scenario runtime names now include both the source file and profile, using the same identity for tmux and Compose. Stop/remove legacy runtime resources with the previous version before upgrading.
+- Project-wide parameter inspection/resolution now rejects duplicate names unless `--source` selects a source.
+- Internal build/test/task forwarding service modules have been removed; use application use cases or backend protocols.
 
 - The command is now `rigyard`, the default manifest is `rigyard.yaml`, and workspace state lives
   in `.rigyard/context.yaml`.

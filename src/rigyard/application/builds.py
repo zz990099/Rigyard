@@ -8,7 +8,6 @@ from datetime import datetime
 from ..builds.backend import BuildBackend
 from ..builds.models import BuildPlan, BuildResult, BuildSpec
 from ..builds.planner import BuildPlanner
-from ..builds.service import BuildService
 from ..parameters.prompt import Formatter
 from ..parameters.sources import DynamicSources
 from .project import project_context
@@ -24,7 +23,7 @@ class BuildProjectUseCase:
         sources: DynamicSources | None = None,
         formatter: Formatter | None = None,
     ) -> None:
-        self.service = BuildService(backend)
+        self.backend = backend
         self.sources = dict(sources or {})
         self.formatter = formatter
 
@@ -57,4 +56,4 @@ class BuildProjectUseCase:
         )
 
     def execute(self, plan: BuildPlan) -> BuildResult:
-        return self.service.execute(plan)
+        return self.backend.execute(plan)

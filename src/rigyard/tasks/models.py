@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from ..container_commands.models import (
     ContainerCommandPlan,
@@ -16,9 +16,10 @@ from ..container_commands.models import (
     RuntimeList,
     RuntimePath,
 )
+from ..immutable import FrozenModel
 
 
-class TaskMenu(BaseModel):
+class TaskMenu(FrozenModel):
     """Optional presentation settings for the fixed Tasks menu."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)

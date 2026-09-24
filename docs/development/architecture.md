@@ -2,7 +2,7 @@
 
 ## Configuration assembly
 
-Schema version 3 separates the root manifest from domain sources. The loader resolves source paths relative to the manifest, retains each definition's source file and YAML location, and assembles a `RigyardConfig` snapshot intended for read-only use. Its top-level resource mappings are immutable views; nested values are not recursively frozen.
+Schema version 3 separates the root manifest from domain sources. The loader resolves source paths relative to the manifest, retains each definition's source file and YAML location, and assembles a `RigyardConfig` snapshot intended for read-only use. Its resource mappings and nested model collections are recursively frozen. Serialization produces ordinary detached collections.
 
 ```mermaid
 flowchart TD
@@ -24,7 +24,7 @@ flowchart TD
 
 - `config`: manifest and source YAML, error locations, and configuration assembly.
 - `parameters`: PromptValues, explicit value sources, dynamic candidates, and string templates.
-- `images`, `containers`, `builds`, `tests`, and `tasks`: strict specs, planners, services, and backend protocols.
+- `images`, `containers`, `builds`, `tests`, and `tasks`: strict specs, planners, and backend protocols. Image/container services coordinate multi-step execution; build/test/task use cases call their backends directly.
 - `container_commands`: shared fields and execution planning for build, test, and task commands; each domain retains its own script and result semantics.
 - `scenarios`: strict specs, planner, scenario orchestration, dedicated tmux and Docker/Compose lifecycle backends, and a command gateway that normalizes process failures.
 - `application`: resource selection, value resolution, and plan coordination.
@@ -79,3 +79,13 @@ failure behavior; records preserve the target needed to stop or remove failed ru
 injectable protocols. `scenarios.assembly` wires their Docker/tmux implementations.
 This separates lifecycle policy from process transport without requiring a plugin
 framework. Backend tests can exercise actual orchestration with in-memory adapters.
+
+## Immutability and serialization
+
+Configuration and specification models inherit `FrozenModel`: dictionaries become
+read-only mappings and lists become tuples, including prompt defaults and nested
+scenario groups. Inputs are copied during freezing so later caller mutations cannot
+change a snapshot. Request overrides are also recursively frozen. Model serialization
+returns detached ordinary collections, and parameter resolution returns ordinary
+values for CLI JSON/YAML output. Treat `model_copy(update=...)` and `model_construct`
+as Pydantic's explicit validation bypasses, not configuration-loading APIs.
