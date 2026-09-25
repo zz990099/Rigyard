@@ -15,29 +15,27 @@ Rigyard is a configuration-driven CLI for containerized robotics development. A 
 
 ## Requirements
 
-- Python 3.10 or newer
-- Docker; Compose scenarios require Docker Compose v2
+- Linux and Bash for the setup script; it installs Python 3.12 and Rigyard using uv
+- Docker for container operations; Compose scenarios require Docker Compose v2
 - Scenario support requires tmux on the host and an interactive shell in each target container
 
 ## Installation
 
-After the project is published to PyPI, install it as an isolated command-line tool:
+Clone the repository, run the host setup, and activate the shared Rigyard environment:
 
 ```bash
-pipx install rigyard
-# or
-uv tool install rigyard
+git clone https://github.com/zz990099/Rigyard.git
+cd Rigyard
+bash scripts/bootstrap.sh
+source scripts/activate.sh
+rigyard --version
 ```
 
-To install the current source tree:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install .
-```
-
-See the [contribution guide](https://github.com/zz990099/Rigyard/blob/main/CONTRIBUTING.md) for development installation and checks.
+The script installs uv if needed and creates a Python environment without requiring Conda or a
+preinstalled Python. Source `scripts/activate.sh` in each new terminal. Docker, Compose, and tmux
+are checked but installed separately when needed. See [installation and requirements](https://github.com/zz990099/Rigyard/blob/main/docs/installation.md)
+for setup details, manual Conda installation, and troubleshooting. See the
+[contribution guide](https://github.com/zz990099/Rigyard/blob/main/CONTRIBUTING.md) for development checks.
 
 ## Quick start
 
