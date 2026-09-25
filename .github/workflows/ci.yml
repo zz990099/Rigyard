@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -41,9 +44,44 @@ jobs:
           python-version: "3.13"
       - run: python -m pip install build twine
       - run: python -m build
-      - run: python -m twine check dist/*
+      - run: python -m twine check --strict dist/*
+      - run: python scripts/verify_distributions.py dist
       - run: |
-          python -m venv /tmp/rigyard-smoke
-          /tmp/rigyard-smoke/bin/python -m pip install dist/*.whl
-          /tmp/rigyard-smoke/bin/rigyard --version
-          /tmp/rigyard-smoke/bin/rigyard --help
+          for format in wheel sdist; do
+            python -m venv "$RUNNER_TEMP/rigyard-$format"
+            artifact=(dist/*.whl)
+            if [[ "$format" == sdist ]]; then
+              artifact=(dist/*.tar.gz)
+            fi
+            "$RUNNER_TEMP/rigyard-$format/bin/python" -m pip install "${artifact[0]}"
+            (
+              cd "$RUNNER_TEMP"
+              "$RUNNER_TEMP/rigyard-$format/bin/rigyard" --version
+              "$RUNNER_TEMP/rigyard-$format/bin/rigyard" --help >/dev/null
+              "$RUNNER_TEMP/rigyard-$format/bin/rigyard" \
+                --config "$GITHUB_WORKSPACE/examples/minimal/rigyard.yaml" validate
+            )
+          done
+        shell: bash
+      - uses: actions/upload-artifact@v5
+        with:
+          name: python-distributions
+          path: dist/
+          if-no-files-found: error
+
+  docker-smoke:
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v6
+        with:
+          name: python-distributions
+          path: dist/
+      - run: python -m pip install dist/*.whl
+      - run: sudo apt-get update && sudo apt-get install -y tmux
+      - run: docker info && docker compose version && tmux -V
+      - run: bash tests/integration/smoke.sh

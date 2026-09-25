@@ -48,6 +48,16 @@ Alternatively, install into any existing compatible venv. The Bash setup script 
 dedicated uv environment and does not modify an active Conda environment. Editable installs, tests,
 and code checks are covered by the [contribution guide](../CONTRIBUTING.md).
 
+After the first PyPI release, the CLI can also be installed without cloning the repository:
+
+```bash
+uv tool install --python 3.12 rigyard
+rigyard --version
+```
+
+The checkout-only `scripts/bootstrap.sh` and `scripts/activate.sh` files are not CLI commands
+installed by the PyPI wheel. Install Docker and tmux separately for features that require them.
+
 ## External tools
 
 The Python package does not install these system tools:

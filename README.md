@@ -37,6 +37,9 @@ are checked but installed separately when needed. See [installation and requirem
 for setup details, manual Conda installation, and troubleshooting. See the
 [contribution guide](https://github.com/zz990099/Rigyard/blob/main/CONTRIBUTING.md) for development checks.
 
+After Rigyard's first PyPI release, `uv tool install --python 3.12 rigyard` installs the CLI
+without a repository checkout. The Bash setup and activation scripts above belong to the checkout.
+
 ## Quick start
 
 By default, Rigyard reads `rigyard.yaml` from the current directory:

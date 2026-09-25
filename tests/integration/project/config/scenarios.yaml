@@ -1,0 +1,27 @@
+existing:
+  instances:
+    app:
+      container: rigyard-ci-smoke
+      groups:
+        main:
+          command: [/bin/sh, -c, "echo scenario-ready; sleep 30"]
+  profiles:
+    ci:
+      attach: false
+      restart_container: never
+      stop_grace_seconds: 0
+
+compose:
+  compose:
+    file: compose.yaml
+    project_name: rigyard-ci-smoke-compose
+  instances:
+    app:
+      service: app
+      groups:
+        main:
+          command: [/bin/sh, -c, "echo compose-ready; sleep 30"]
+  profiles:
+    ci:
+      attach: false
+      stop_grace_seconds: 0

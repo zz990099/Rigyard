@@ -1,0 +1,6 @@
+smoke:
+  name: rigyard-ci-smoke
+  image: rigyard/ci-smoke:local
+  mounts: ["${RIGYARD_ROOT}:/workspace"]
+  workdir: /workspace
+  command: [sleep, "600"]
