@@ -1,0 +1,76 @@
+description: Example scenarios
+
+robot-system:
+  description: Example multi-process robot system
+  startup:
+    mode: sequential
+    interval_seconds: 3
+  instances:
+    robot:
+      description: Robot software stack running in the development container
+      container: robot-development
+      startup:
+        mode: sequential
+        interval_seconds: 1
+      groups:
+        drivers:
+          script: /workspace/scripts/scenarios/drivers.sh
+          setup: [/opt/ros/humble/setup.bash, install/setup.bash]
+          interpreter: [/bin/bash, -euo, pipefail]
+          workdir: ${CONTAINER_WORKSPACE_ROOT}
+          environment:
+            ROS_DOMAIN_ID:
+              default: "7"
+              prompt:
+                mode: input
+                message: Enter the ROS domain ID
+
+        navigation:
+          script: /workspace/scripts/scenarios/navigation.sh
+          interpreter: [/bin/bash, -euo, pipefail]
+          workdir: /workspace
+
+        application:
+          script: /workspace/scripts/scenarios/application.sh
+          interpreter: [/bin/bash, -euo, pipefail]
+          workdir: /workspace
+
+    # A second instance runs a second software stack in another container:
+    # one more tmux window in another existing container.
+    # simulator:
+    #   container: robot-simulator
+    #   groups:
+    #     sim:
+    #       setup: [install/setup.bash]
+    #       command: [ros2, launch, nhybot_bringup, sim.launch.py]
+    #       workdir: /workspace
+
+  profiles:
+    development:
+      restart_container: always
+      attach: true
+      stop_grace_seconds: 5
+
+# The same tmux workflow can let Docker Compose prepare the containers first.
+# Compose-managed instances use `service`; non-Compose instances use `container`.
+robot-system-compose:
+  description: Example robot system whose development container is managed by Compose
+  compose:
+    file: ${SOURCE_DIR}/../deploy/compose.development.yaml
+    project_name: robot-system-debug
+    wait_timeout_seconds: 60
+    environment:
+      WORKSPACE: ${WORKSPACE_ROOT}
+  instances:
+    robot:
+      service: robot
+      groups:
+        drivers:
+          script: /workspace/scripts/scenarios/drivers.sh
+          setup: [/opt/ros/humble/setup.bash, install/setup.bash]
+          interpreter: [/bin/bash, -euo, pipefail]
+          workdir: /workspace
+  profiles:
+    development:
+      attach: true
+      stop_grace_seconds: 5

@@ -1,0 +1,30 @@
+description: Example project tasks
+
+clean:
+  description: Clean project build artifacts
+  container: robot-development
+  start_container: true
+  script: ${CONTAINER_WORKSPACE_ROOT}/scripts/tasks/clean.sh
+  interpreter: [/bin/bash, -euo, pipefail]
+  workdir: ${CONTAINER_WORKSPACE_ROOT}
+  environment:
+    CLEAN_INSTALL:
+      default: "false"
+      prompt:
+        mode: select
+        message: Remove the install directory
+        options: ["false", "true"]
+  timeout_seconds: 300
+  menu:
+    enabled: true
+    label: Clean workspace
+    confirm: true
+
+diagnose:
+  description: Run project diagnostics from the CLI
+  container: robot-development
+  start_container: true
+  script: ${CONTAINER_WORKSPACE_ROOT}/scripts/tasks/diagnose.sh
+  interpreter: [/bin/bash, -euo, pipefail]
+  workdir: ${CONTAINER_WORKSPACE_ROOT}
+  timeout_seconds: 60

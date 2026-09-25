@@ -1,0 +1,10 @@
+description: Minimal development container
+
+development:
+  description: Ubuntu container mounting this example at /workspace
+  name: rigyard-minimal
+  image: ubuntu:22.04
+  mounts:
+    - ${RIGYARD_ROOT}:/workspace
+  workdir: /workspace
+  command: [sleep, infinity]

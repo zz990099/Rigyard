@@ -1,0 +1,34 @@
+description: Example images
+
+development:
+  description: Layered robot development image
+  base:
+    default: ubuntu:22.04
+    prompt:
+      mode: select
+      message: Select the base image
+      options: [ubuntu:22.04, ubuntu:24.04]
+  context: .
+  tag: example/robot-development:latest
+  build_proxy:
+    enabled:
+      default: false
+      prompt:
+        mode: confirm
+        message: Use the host proxy for this build?
+    network: host
+    build_args:
+      http_proxy: http://127.0.0.1:7897
+      https_proxy: http://127.0.0.1:7897
+      no_proxy: localhost,127.0.0.1
+  build_args:
+    VEHICLE_COUNT:
+      default: 1
+      prompt:
+        mode: input
+        message: Enter the simulated vehicle count
+  layers:
+    - name: system
+      dockerfile: docker/layers/10-system.Dockerfile
+    - name: application
+      dockerfile: docker/layers/20-application.Dockerfile

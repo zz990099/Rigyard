@@ -1,0 +1,6 @@
+smoke:
+  base: alpine:3.20
+  tag: rigyard/ci-smoke:local
+  layers:
+    - name: tools
+      dockerfile: Dockerfile.fragment

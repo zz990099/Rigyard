@@ -1,0 +1,9 @@
+version: 3
+
+metadata:
+  name: minimal
+  description: Minimal Rigyard project with one container and one custom task
+
+sources:
+  containers: config/containers.yaml
+  tasks: config/tasks.yaml

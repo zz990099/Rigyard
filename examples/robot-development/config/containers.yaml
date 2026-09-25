@@ -1,0 +1,82 @@
+description: Example containers
+
+development:
+  description: Interactive robot development container
+  name:
+    default: robot-development
+    prompt:
+      mode: input
+      message: Enter the container name
+  image:
+    default: example/robot-development:latest
+    prompt:
+      mode: select
+      message: Select the development image
+      source:
+        provider: docker-images
+        filter: "^example/robot-development:"
+  privileged:
+    default: false
+    prompt:
+      mode: confirm
+      message: Enable privileged mode?
+  devices: [/dev/dri]
+  group_add: [video]
+  network: host
+  ipc: host
+  mounts:
+    default:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ../:/workspace
+      - /dev/bus/usb:/dev/bus/usb
+    prompt:
+      mode: input
+      repeat: true
+      message: Enter a mount
+      item_hint: SOURCE:TARGET[:ro]
+  workdir: /workspace
+  environment:
+    DISPLAY: {env: DISPLAY}
+    DOCKER_USER: {env: USER}
+    USER: {env: USER}
+  command: [/bin/bash]
+
+cross-aarch64:
+  description: AArch64 cross-compilation environment
+  name:
+    default: robot-cross-aarch64
+    prompt:
+      mode: input
+      message: Enter the cross-compilation container prefix
+      input_template: "${INPUT}_dev"
+  image: example/cross-aarch64-base:latest
+  mounts:
+    base:
+      - ${PROJECT_ROOT}:/workspace
+    default: ~/sysroots/aarch64
+    prompt:
+      mode: input
+      merge: append
+      message: Enter the AArch64 sysroot directory
+      item_hint: HOST_SYSROOT
+      input_template: "${INPUT}:/opt/sysroots/aarch64"
+  workdir: /workspace
+  lifecycle:
+    post_create:
+      - name: prepare-sysroot
+        script: scripts/cross/prepare-sysroot.sh
+        interpreter: [/bin/bash, -eu]
+        user: root
+        workdir: /workspace
+        environment:
+          SYSROOT: /opt/sysroots/aarch64
+        timeout_seconds: 300
+    post_start:
+      - name: verify-rigyard
+        script: scripts/cross/verify-rigyard.sh
+        interpreter: [/bin/bash, -eu]
+        workdir: /workspace
+        environment:
+          SYSROOT: /opt/sysroots/aarch64
+        timeout_seconds: 30
+  command: [/bin/bash]

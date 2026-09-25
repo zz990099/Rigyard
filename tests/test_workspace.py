@@ -1,0 +1,505 @@
+import os
+import subprocess
+from pathlib import Path
+
+import pytest
+import yaml
+
+from rigyard import workspace as workspace_module
+from rigyard.cli.main import run
+from rigyard.errors import WorkspaceError
+from rigyard.workspace import initialize_workspace, resolve_config, resolve_config_path
+
+
+def write(path: Path, text: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    return path
+
+
+def project(root: Path, name: str = "workspace-test") -> Path:
+    manifest = write(
+        root / "rigyard.yaml",
+        f"""version: 3
+metadata: {{name: {name}}}
+sources: {{images: images.yaml}}
+""",
+    )
+    write(root / "images.yaml", "{}\n")
+    return manifest
+
+
+def project_with_alias(root: Path, alias: str) -> Path:
+    manifest = project(root)
+    text = manifest.read_text(encoding="utf-8")
+    manifest.write_text(
+        text.replace("sources:", f"workspace: {{command_alias: {alias}}}\nsources:"),
+        encoding="utf-8",
+    )
+    return manifest
+
+
+@pytest.fixture
+def environment_scripts(tmp_path: Path, monkeypatch) -> Path:
+    scripts = tmp_path / "python-environment/bin"
+    scripts.mkdir(parents=True)
+    monkeypatch.setattr(workspace_module, "_active_environment_scripts_dir", lambda: scripts)
+    return scripts
+
+
+def test_init_records_relative_manifest_and_bare_command_uses_it(
+    tmp_path: Path, monkeypatch, capsys
+):
+    workspace = tmp_path / "ros2_ws"
+    manifest = project(workspace / "src/xbot/.rigyard")
+    workspace.mkdir(exist_ok=True)
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", "src/xbot/.rigyard/rigyard.yaml"]) == 0
+    marker = workspace / ".rigyard/context.yaml"
+    assert yaml.safe_load(marker.read_text()) == {
+        "version": 1,
+        "config": "src/xbot/.rigyard/rigyard.yaml",
+    }
+    assert resolve_config_path(None) == manifest.resolve()
+    assert run(["validate"]) == 0
+    assert f"OK: {manifest.resolve()}" in capsys.readouterr().out
+
+
+def test_config_resolution_uses_nearest_parent_workspace(tmp_path: Path, monkeypatch, capsys):
+    workspace = tmp_path / "workspace"
+    manifest = project(workspace / "config")
+    child = workspace / "src"
+    child.mkdir(parents=True)
+    initialize_workspace(manifest, root=workspace)
+
+    monkeypatch.chdir(child)
+    resolution = resolve_config(None)
+    assert resolution.config_path == manifest.resolve()
+    assert resolution.current_directory == child
+    assert resolution.workspace_root == workspace
+    assert resolution.workspace_marker == workspace / ".rigyard/context.yaml"
+    assert run(["validate"]) == 0
+    assert f"OK: {manifest.resolve()}" in capsys.readouterr().out
+
+
+def test_nearest_nested_workspace_wins(tmp_path: Path, monkeypatch):
+    outer = tmp_path / "outer"
+    inner = outer / "src/project"
+    child = inner / "nested"
+    outer_manifest = project(outer / "config", "outer")
+    inner_manifest = project(inner / "config", "inner")
+    child.mkdir(parents=True)
+    initialize_workspace(outer_manifest, root=outer)
+    initialize_workspace(inner_manifest, root=inner)
+
+    monkeypatch.chdir(child)
+    resolution = resolve_config(None)
+
+    assert resolution.config_path == inner_manifest.resolve()
+    assert resolution.workspace_root == inner
+
+
+def test_parent_workspace_root_is_used_for_templates(tmp_path: Path, monkeypatch, capsys):
+    workspace = tmp_path / "workspace"
+    manifest = write(
+        workspace / "config/rigyard.yaml",
+        """version: 3
+metadata: {name: roots}
+branding: {logo_file: "${WORKSPACE_ROOT}/logo.txt"}
+sources: {builds: builds.yaml}
+""",
+    )
+    write(workspace / "logo.txt", "ROOT LOGO\n")
+    write(
+        workspace / "config/builds.yaml",
+        'native: {container: dev, script: "${WORKSPACE_ROOT}/build.sh"}\n',
+    )
+    child = workspace / "src/package"
+    child.mkdir(parents=True)
+    initialize_workspace(manifest, root=workspace, use_config_alias=False)
+    monkeypatch.chdir(child)
+
+    assert run(["validate"]) == 0
+    assert run(["build", "native", "--dry-run", "--non-interactive"]) == 0
+
+    output = capsys.readouterr().out
+    assert f"{workspace}/build.sh" in output
+
+
+def test_explicit_config_overrides_workspace_binding(tmp_path: Path, monkeypatch, capsys):
+    workspace = tmp_path / "workspace"
+    configured = project(workspace / "configured", "configured")
+    explicit = project(workspace / "explicit", "explicit")
+    workspace.mkdir(exist_ok=True)
+    initialize_workspace(configured, root=workspace)
+    monkeypatch.chdir(workspace)
+
+    assert run(["--config", str(explicit), "validate"]) == 0
+    assert f"OK: {explicit.resolve()}" in capsys.readouterr().out
+
+
+def test_context_explains_workspace_configuration_and_sources(tmp_path: Path, monkeypatch, capsys):
+    workspace = tmp_path / "workspace"
+    manifest = project(workspace / "config")
+    workspace.mkdir(exist_ok=True)
+    initialize_workspace(manifest, root=workspace)
+    monkeypatch.chdir(workspace)
+
+    resolution = resolve_config(None)
+    assert resolution.source == "workspace"
+    assert resolution.workspace_root == workspace
+    assert resolution.workspace_marker == workspace / ".rigyard/context.yaml"
+    assert run(["context"]) == 0
+
+    output = capsys.readouterr().out
+    assert f"Current directory: {workspace}" in output
+    assert "Resolution source: workspace" in output
+    assert f"Workspace root: {workspace}" in output
+    assert f"Workspace marker: {workspace / '.rigyard/context.yaml'}" in output
+    assert f"Configuration: {manifest.resolve()}" in output
+    assert f"Source [images]: {(workspace / 'config/images.yaml').resolve()}" in output
+
+
+def test_context_reports_explicit_and_default_resolution(tmp_path: Path):
+    explicit = project(tmp_path / "project")
+
+    selected = resolve_config(explicit, root=tmp_path)
+    default = resolve_config(None, root=tmp_path)
+
+    assert (selected.source, selected.config_path) == ("explicit", explicit.resolve())
+    assert selected.workspace_root == tmp_path
+    assert selected.workspace_marker is None
+    assert (default.source, default.config_path) == ("default", tmp_path / "rigyard.yaml")
+
+
+def test_reinitialization_is_idempotent_and_requires_force_for_change(
+    tmp_path: Path, monkeypatch, capsys
+):
+    workspace = tmp_path / "workspace"
+    first = project(workspace / "first", "first")
+    second = project(workspace / "second", "second")
+    workspace.mkdir(exist_ok=True)
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(first)]) == 0
+    assert run(["init", "-f", str(first)]) == 0
+    assert "Already initialized" in capsys.readouterr().out
+
+    assert run(["init", "-f", str(second)]) == 2
+    assert "use --force" in capsys.readouterr().err
+    assert resolve_config_path(None) == first.resolve()
+
+    assert run(["init", "-f", str(second), "--force"]) == 0
+    assert resolve_config_path(None) == second.resolve()
+
+
+def test_external_manifest_is_stored_as_absolute_path(tmp_path: Path):
+    workspace = tmp_path / "workspace"
+    manifest = project(tmp_path / "shared-config")
+    workspace.mkdir()
+
+    result = initialize_workspace(manifest, root=workspace)
+
+    assert result.stored_path == manifest.resolve()
+    assert yaml.safe_load((workspace / ".rigyard/context.yaml").read_text())["config"] == str(
+        manifest.resolve()
+    )
+
+
+def test_init_alias_creates_an_environment_command(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    manifest = project(workspace / "src/xbot/.rigyard")
+    workspace.mkdir(exist_ok=True)
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(manifest), "--alias", "xxxbot"]) == 0
+
+    alias = environment_scripts / "xxxbot"
+    assert alias.is_file()
+    assert os.access(alias, os.X_OK)
+    assert "Generated by rigyard" in alias.read_text()
+    assert "Rigyard alias version: 2" in alias.read_text()
+    assert str(manifest.resolve()) not in alias.read_text()
+    assert "--config" not in alias.read_text()
+    output = capsys.readouterr().out
+    assert f"Created environment command alias: {alias}" in output
+    assert "Available while this Python environment is active: xxxbot" in output
+
+    elsewhere = workspace / "src/xbot/src/package"
+    elsewhere.mkdir(parents=True)
+    completed = subprocess.run(
+        (str(alias), "validate"),
+        cwd=elsewhere,
+        env=os.environ,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0
+    assert f"OK: {manifest.resolve()}" in completed.stdout
+
+
+def test_same_alias_is_shared_by_multiple_workspaces(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first_manifest = project_with_alias(first, "robot")
+    second_manifest = project_with_alias(second, "robot")
+
+    monkeypatch.chdir(first)
+    assert run(["init", "-f", str(first_manifest)]) == 0
+    capsys.readouterr()
+    monkeypatch.chdir(second)
+    assert run(["init", "-f", str(second_manifest)]) == 0
+    assert "Already available environment command alias" in capsys.readouterr().out
+
+    alias = environment_scripts / "robot"
+    assert str(first_manifest) not in alias.read_text()
+    assert str(second_manifest) not in alias.read_text()
+    for workspace, manifest in ((first, first_manifest), (second, second_manifest)):
+        child = workspace / "src/package"
+        child.mkdir(parents=True)
+        completed = subprocess.run(
+            (str(alias), "validate"),
+            cwd=child,
+            env=os.environ,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert completed.returncode == 0
+        assert f"OK: {manifest.resolve()}" in completed.stdout
+
+
+def test_init_upgrades_legacy_project_bound_alias_without_force(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    manifest = project(workspace)
+    alias = environment_scripts / "robot"
+    alias.write_text(
+        "\n".join(
+            (
+                "#!/bin/sh",
+                workspace_module.ALIAS_HEADER,
+                workspace_module.LEGACY_ALIAS_VERSION_HEADER,
+                f"{workspace_module.ALIAS_CONFIG_PREFIX}{tmp_path / 'old/rigyard.yaml'}",
+                "set -eu",
+                'exec /old/python -m rigyard --config /old/rigyard.yaml "$@"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(manifest), "--alias", "robot"]) == 0
+
+    assert "Created environment command alias" in capsys.readouterr().out
+    assert "Rigyard alias version: 2" in alias.read_text()
+    assert "--config" not in alias.read_text()
+
+
+def test_init_uses_manifest_command_alias_by_default(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    manifest = project_with_alias(workspace, "robot")
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(manifest)]) == 0
+
+    assert (environment_scripts / "robot").is_file()
+    assert "Created environment command alias:" in capsys.readouterr().out
+
+
+def test_cli_alias_overrides_manifest_command_alias(
+    tmp_path: Path, monkeypatch, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    manifest = project_with_alias(workspace, "configured")
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(manifest), "--alias", "explicit"]) == 0
+
+    assert (environment_scripts / "explicit").is_file()
+    assert not (environment_scripts / "configured").exists()
+
+
+def test_no_alias_disables_manifest_command_alias(
+    tmp_path: Path, monkeypatch, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    manifest = project_with_alias(workspace, "robot")
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(manifest), "--no-alias"]) == 0
+
+    assert not (environment_scripts / "robot").exists()
+    assert (workspace / ".rigyard/context.yaml").is_file()
+
+
+def test_manifest_command_alias_is_validated_before_workspace_write(
+    tmp_path: Path, monkeypatch, capsys
+):
+    workspace = tmp_path / "workspace"
+    manifest = project_with_alias(workspace, "rigyard")
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(manifest)]) == 2
+
+    assert "workspace.command_alias" in capsys.readouterr().err
+    assert not (workspace / ".rigyard/context.yaml").exists()
+
+
+def test_init_alias_is_idempotent_and_protects_existing_files(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    manifest = project(workspace)
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(manifest), "--alias", "xxxbot"]) == 0
+    alias = environment_scripts / "xxxbot"
+    original = alias.read_text()
+    assert run(["init", "-f", str(manifest), "--alias", "xxxbot"]) == 0
+    assert "Already available environment command alias:" in capsys.readouterr().out
+
+    alias.write_text("user content\n")
+    assert run(["init", "-f", str(manifest), "--alias", "xxxbot"]) == 2
+    assert alias.read_text() == "user content\n"
+    assert "use --force" in capsys.readouterr().err
+
+    assert run(["init", "-f", str(manifest), "--alias", "xxxbot", "--force"]) == 0
+    assert alias.read_text() == original
+
+
+def test_init_alias_rejects_path_like_names_before_writing_workspace(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    manifest = project(workspace)
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(manifest), "--alias", "../xxxbot"]) == 2
+    assert "invalid command alias" in capsys.readouterr().err
+    assert not (workspace / ".rigyard/context.yaml").exists()
+
+
+def test_init_alias_rejects_the_core_command_name(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    manifest = project(workspace)
+    monkeypatch.chdir(workspace)
+
+    assert run(["init", "-f", str(manifest), "--alias", "rigyard"]) == 2
+    assert "non-reserved name" in capsys.readouterr().err
+    assert not (workspace / ".rigyard/context.yaml").exists()
+
+
+def test_environment_alias_requires_an_active_python_environment(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    monkeypatch.delenv("CONDA_PREFIX", raising=False)
+
+    with pytest.raises(WorkspaceError, match="active Conda or virtual environment"):
+        workspace_module._active_environment_scripts_dir()
+
+
+def test_environment_alias_uses_the_matching_python_scripts_directory(tmp_path: Path, monkeypatch):
+    active = tmp_path / "rigyard-environment"
+    scripts = active / "bin"
+    scripts.mkdir(parents=True)
+    monkeypatch.setenv("VIRTUAL_ENV", str(active))
+    monkeypatch.setattr(workspace_module.sys, "prefix", str(active))
+    monkeypatch.setattr(
+        workspace_module.sysconfig,
+        "get_path",
+        lambda name: str(scripts) if name == "scripts" else None,
+    )
+
+    assert workspace_module._active_environment_scripts_dir() == scripts
+
+
+def test_environment_alias_rejects_a_different_active_interpreter(tmp_path: Path, monkeypatch):
+    active = tmp_path / "other-environment"
+    monkeypatch.setenv("VIRTUAL_ENV", str(active))
+
+    with pytest.raises(WorkspaceError, match="does not provide the running rigyard"):
+        workspace_module._active_environment_scripts_dir()
+
+
+def test_alias_remove_deletes_the_configured_environment_command(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    manifest = project_with_alias(workspace, "robot")
+    monkeypatch.chdir(workspace)
+    assert run(["init", "-f", str(manifest)]) == 0
+    capsys.readouterr()
+
+    assert run(["alias", "remove"]) == 0
+
+    assert not (environment_scripts / "robot").exists()
+    assert "Removed environment command alias:" in capsys.readouterr().out
+
+
+def test_alias_remove_accepts_an_explicit_name_and_is_idempotent(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    manifest = project(workspace)
+    monkeypatch.chdir(workspace)
+    assert run(["init", "-f", str(manifest), "--alias", "robot"]) == 0
+    capsys.readouterr()
+
+    assert run(["alias", "remove", "robot"]) == 0
+    assert run(["alias", "remove", "robot"]) == 0
+
+    assert not (environment_scripts / "robot").exists()
+    assert "already absent:" in capsys.readouterr().out
+
+
+def test_alias_remove_refuses_unmanaged_files(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    project_with_alias(workspace, "robot")
+    monkeypatch.chdir(workspace)
+    alias = environment_scripts / "robot"
+    alias.write_text("user command\n", encoding="utf-8")
+
+    assert run(["alias", "remove"]) == 2
+    assert alias.read_text(encoding="utf-8") == "user command\n"
+    assert "not generated by Rigyard" in capsys.readouterr().err
+
+
+def test_alias_remove_refuses_symlinks(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    project_with_alias(workspace, "robot")
+    monkeypatch.chdir(workspace)
+    target = tmp_path / "target"
+    target.write_text("keep\n", encoding="utf-8")
+    (environment_scripts / "robot").symlink_to(target)
+
+    assert run(["alias", "remove"]) == 2
+    assert target.read_text(encoding="utf-8") == "keep\n"
+    assert "refusing to remove symbolic link" in capsys.readouterr().err
+
+
+def test_alias_remove_requires_a_name_when_none_is_configured(
+    tmp_path: Path, monkeypatch, capsys, environment_scripts: Path
+):
+    workspace = tmp_path / "workspace"
+    project(workspace)
+    monkeypatch.chdir(workspace)
+
+    assert run(["alias", "remove"]) == 2
+    assert "pass an alias name" in capsys.readouterr().err

@@ -1,0 +1,30 @@
+version: 3
+
+metadata:
+  name: robot-development
+  description: Example Rigyard project for robot development
+
+workspace:
+  command_alias: robot
+
+variables:
+  PROJECT_ROOT: ${RIGYARD_ROOT}
+  BRANDING_ROOT: ${PROJECT_ROOT}/branding
+  CONTAINER_WORKSPACE_ROOT: /workspace
+
+branding:
+  logo_file: ${BRANDING_ROOT}/logo.txt
+
+sources:
+  images:
+    - config/images.yaml
+  containers:
+    - config/containers.yaml
+  builds:
+    - config/builds.yaml
+  tests:
+    - config/tests.yaml
+  tasks:
+    - config/tasks.yaml
+  scenarios:
+    - config/scenarios.yaml

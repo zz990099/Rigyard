@@ -1,0 +1,4 @@
+smoke:
+  container: rigyard-ci-smoke
+  script: /workspace/scripts/ok.sh
+  interpreter: [/bin/sh, -eu]

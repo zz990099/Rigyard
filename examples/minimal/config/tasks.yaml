@@ -1,0 +1,12 @@
+description: Minimal menu tasks
+
+hello:
+  description: Print a greeting inside the development container
+  container: rigyard-minimal
+  script: /workspace/scripts/hello.sh
+  interpreter: [/bin/sh, -eu]
+  workdir: /workspace
+  menu:
+    enabled: true
+    label: Say hello
+    confirm: false

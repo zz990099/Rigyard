@@ -1,0 +1,22 @@
+description: Example tests
+
+unit:
+  description: Example unit tests
+  container: robot-development
+  start_container: true
+  workdir: ${CONTAINER_WORKSPACE_ROOT}
+  setup: [/opt/ros/humble/setup.bash]
+  environment:
+    TEST_JOBS:
+      default: "4"
+      prompt:
+        mode: input
+        message: Enter the parallel test job count
+  run:
+    script: ${CONTAINER_WORKSPACE_ROOT}/scripts/tests/run-unit.sh
+    interpreter: [/bin/bash, -euo, pipefail]
+    timeout_seconds: 1800
+  report:
+    script: ${CONTAINER_WORKSPACE_ROOT}/scripts/tests/show-unit-results.sh
+    interpreter: [/bin/bash, -euo, pipefail]
+    timeout_seconds: 60

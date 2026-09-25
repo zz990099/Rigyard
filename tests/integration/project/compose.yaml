@@ -1,0 +1,5 @@
+services:
+  app:
+    image: rigyard/ci-smoke:local
+    command: [sleep, "600"]
+    tty: true
