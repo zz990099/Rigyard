@@ -48,7 +48,7 @@ Alternatively, install into any existing compatible venv. The Bash setup script 
 dedicated uv environment and does not modify an active Conda environment. Editable installs, tests,
 and code checks are covered by the [contribution guide](../CONTRIBUTING.md).
 
-After the first PyPI release, the CLI can also be installed without cloning the repository:
+The CLI can also be installed without cloning the repository:
 
 ```bash
 uv tool install --python 3.12 rigyard

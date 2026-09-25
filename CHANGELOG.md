@@ -1,11 +1,15 @@
 # Changelog
 
-This file records notable user-facing changes. Once releases begin, the project will use semantic versioning and group entries under Added, Changed, Fixed, and Breaking Changes.
+This file records notable user-facing changes. Releases use semantic versioning and group entries under Added, Changed, Fixed, and Breaking Changes.
 
 ## Unreleased
 
+## 1.0.0 - 2026-09-25
+
 ### Added
 
+- A Bash bootstrap script that installs uv and a managed Python environment, plus a script to activate it in new shells.
+- A GitHub Release workflow that verifies distributions and publishes to PyPI through trusted publishing.
 - Source-qualified definition catalog and `inspect/resolve --source` for ambiguous resources.
 - Private, atomic scenario run records for controlling the original runtime after configuration changes.
 - Injectable scenario runtime ports and separate startup/control plan models.
@@ -26,6 +30,7 @@ This file records notable user-facing changes. Once releases begin, the project 
 
 ### Changed
 
+- Workspace command aliases discover the closest workspace in the current or parent directories at execution time.
 - Configuration models and request overrides now freeze nested collections; serialization returns ordinary values.
 - Build, test, and task use cases invoke their backends directly instead of forwarding through empty services.
 
@@ -45,6 +50,8 @@ This file records notable user-facing changes. Once releases begin, the project 
 
 ### Fixed
 
+- Interrupting build, test, and task commands stops their processes inside the container.
+- Workspace configuration resolution follows the nearest manifest instead of retaining stale initialization state.
 - Explicit overrides for prompts in a selected secondary source with a duplicate resource name.
 - Scenario instance selection no longer resolves prompts belonging to unselected or disabled instances.
 - `scene status --instance` now restricts the queried windows.
