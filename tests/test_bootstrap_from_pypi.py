@@ -29,9 +29,10 @@ case "$1 $2" in
         ;;
     'pip install')
         [[ "$3" == --python && "$4" == "$XDG_DATA_HOME/rigyard/venv/bin/python" ]]
-        [[ "$5" == --upgrade-package && "$6" == rigyard ]]
+        [[ "$5" == --reinstall-package && "$6" == rigyard ]]
         cat > "$XDG_DATA_HOME/rigyard/venv/bin/rigyard" <<'TOOL'
 #!/usr/bin/env bash
+if [[ "${RIGYARD_TEST_FAIL_CLI:-}" == 1 ]]; then exit 1; fi
 echo 'rigyard 0.test'
 TOOL
         chmod +x "$XDG_DATA_HOME/rigyard/venv/bin/rigyard"
@@ -72,14 +73,14 @@ def test_installs_pypi_package_without_checkout_or_activation(tmp_path: Path) ->
     assert "Setup complete." in first.stdout
     assert str(data_home / "rigyard/venv/bin/rigyard").replace(" ", "\\ ") in first.stdout
     assert "source " not in first.stdout
-    assert "--upgrade-package rigyard rigyard\n" in log.read_text()
+    assert "--reinstall-package rigyard rigyard\n" in log.read_text()
 
     second = subprocess.run(
         [*command, "--version", "1.0.0"], cwd=tmp_path, env=env, capture_output=True, text=True
     )
     assert second.returncode == 0, second.stderr
     assert log.read_text().count("venv --managed-python") == 1
-    assert "--upgrade-package rigyard rigyard==1.0.0\n" in log.read_text()
+    assert "--reinstall-package rigyard rigyard==1.0.0\n" in log.read_text()
 
 
 def test_rejects_invalid_arguments_and_unrelated_environment(tmp_path: Path) -> None:
@@ -128,4 +129,13 @@ def test_downloads_uv_without_python_or_checkout(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert "Downloading the official uv installer" in result.stdout
     assert (data_home / "rigyard/bin/uv").is_file()
-    assert "--upgrade-package rigyard rigyard\n" in (tmp_path / "uv.log").read_text()
+    assert "--reinstall-package rigyard rigyard\n" in (tmp_path / "uv.log").read_text()
+
+
+def test_fails_if_installed_cli_cannot_start(tmp_path: Path) -> None:
+    env, _, _ = _env(tmp_path)
+    env["RIGYARD_TEST_FAIL_CLI"] = "1"
+    result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True)
+    assert result.returncode != 0
+    assert "Rigyard executable failed to start" in result.stderr
+    assert "Setup complete." not in result.stdout
