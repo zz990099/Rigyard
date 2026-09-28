@@ -4,6 +4,23 @@ This file records notable user-facing changes. Releases use semantic versioning 
 
 ## Unreleased
 
+## 1.0.1 - 2026-09-28
+
+### Added
+
+- A standalone Linux `bootstrap_from_pypi.sh` that installs Rigyard from PyPI with uv-managed
+  Python, without a repository checkout, preinstalled Python, or shell activation.
+- Optional `--version` selection for the PyPI bootstrap.
+
+### Changed
+
+- Installation guidance now starts with the no-checkout PyPI setup and direct executable use.
+
+### Fixed
+
+- PyPI bootstrap replaces a same-version installation made from a local checkout.
+- Bootstrap fails if the installed Rigyard executable cannot start.
+
 ## 1.0.0 - 2026-09-25
 
 ### Added
