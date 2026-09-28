@@ -21,25 +21,21 @@ Rigyard is a configuration-driven CLI for containerized robotics development. A 
 
 ## Installation
 
-Clone the repository, run the host setup, and activate the shared Rigyard environment:
+For Linux, download the standalone installer and install Rigyard from PyPI without cloning the
+repository or preinstalling Python:
 
 ```bash
-git clone https://github.com/zz990099/Rigyard.git
-cd Rigyard
-bash scripts/bootstrap.sh
-source scripts/activate.sh
-rigyard --version
+curl -fsSL https://raw.githubusercontent.com/zz990099/Rigyard/main/scripts/bootstrap_from_pypi.sh \
+  -o bootstrap_from_pypi.sh
+bash bootstrap_from_pypi.sh
+"${XDG_DATA_HOME:-$HOME/.local/share}/rigyard/venv/bin/rigyard" --version
 ```
 
-The script installs uv if needed and creates a Python environment without requiring Conda or a
-preinstalled Python. Source `scripts/activate.sh` in each new terminal. Docker, Compose, and tmux
-are checked but installed separately when needed. See [installation and requirements](https://github.com/zz990099/Rigyard/blob/main/docs/installation.md)
-for setup details, manual Conda installation, and troubleshooting. See the
-[contribution guide](https://github.com/zz990099/Rigyard/blob/main/CONTRIBUTING.md) for development checks.
-
-For a CLI-only installation without a repository checkout, use
-`uv tool install --python 3.12 rigyard`. The Bash setup and activation scripts above belong to
-the checkout.
+The installer downloads uv if needed, creates a dedicated Python environment, and prints the
+executable path. No activation is required. Docker, Compose, and tmux are checked but installed
+separately when needed. See [installation and requirements](https://github.com/zz990099/Rigyard/blob/main/docs/installation.md)
+for wget, version pinning, source-checkout setup, and troubleshooting. For development, see the
+[contribution guide](https://github.com/zz990099/Rigyard/blob/main/CONTRIBUTING.md).
 
 ## Quick start
 
