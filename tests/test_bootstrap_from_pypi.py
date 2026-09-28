@@ -72,7 +72,7 @@ def test_installs_pypi_package_without_checkout_or_activation(tmp_path: Path) ->
     assert "Setup complete." in first.stdout
     assert str(data_home / "rigyard/venv/bin/rigyard").replace(" ", "\\ ") in first.stdout
     assert "source " not in first.stdout
-    assert f"--upgrade-package rigyard rigyard\n" in log.read_text()
+    assert "--upgrade-package rigyard rigyard\n" in log.read_text()
 
     second = subprocess.run(
         [*command, "--version", "1.0.0"], cwd=tmp_path, env=env, capture_output=True, text=True
