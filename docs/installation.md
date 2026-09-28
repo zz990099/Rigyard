@@ -1,6 +1,33 @@
 # Installation and requirements
 
-## Quick setup (Linux)
+## PyPI setup without a checkout (Linux)
+
+Download the self-contained script, inspect it, then run it with Bash. It needs a network
+connection and either curl or wget, but no preinstalled Python, Conda, or repository checkout.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zz990099/Rigyard/main/scripts/bootstrap_from_pypi.sh \
+  -o bootstrap_from_pypi.sh
+bash bootstrap_from_pypi.sh
+"${XDG_DATA_HOME:-$HOME/.local/share}/rigyard/venv/bin/rigyard" --version
+```
+
+With wget, replace the download command with:
+
+```bash
+wget -qO bootstrap_from_pypi.sh \
+  https://raw.githubusercontent.com/zz990099/Rigyard/main/scripts/bootstrap_from_pypi.sh
+```
+
+Use `bash bootstrap_from_pypi.sh --version 1.0.0` to select a specific PyPI version.
+The default installs the latest version available through the configured package index.
+For a reproducible installer, replace `main` in the download URL with a release tag that
+contains this script. The script creates the same dedicated venv as the checkout bootstrap at
+`${XDG_DATA_HOME:-$HOME/.local/share}/rigyard/venv`. Re-running it reuses the environment and
+updates Rigyard. The executable can be called by its full path in any shell; no activation or
+shell startup change is needed. A project script can call that path directly.
+
+## Setup from a checkout (Linux)
 
 The setup script requires Bash, a network connection, and either `curl` or `wget`. It does not
 require an existing Python installation or Conda. From a checkout of this repository:
@@ -55,8 +82,7 @@ uv tool install --python 3.12 rigyard
 rigyard --version
 ```
 
-The checkout-only `scripts/bootstrap.sh` and `scripts/activate.sh` files are not CLI commands
-installed by the PyPI wheel. Install Docker and tmux separately for features that require them.
+The bootstrap and activation scripts are not CLI commands installed by the PyPI wheel. Install Docker and tmux separately for features that require them.
 
 ## External tools
 
