@@ -96,3 +96,36 @@ def test_rejects_invalid_arguments_and_unrelated_environment(tmp_path: Path) -> 
     assert unrelated.returncode != 0
     assert "incomplete or unrelated" in unrelated.stderr
     assert not log.exists() or "pip install" not in log.read_text()
+
+
+def test_downloads_uv_without_python_or_checkout(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_uv = tmp_path / "uv-to-install"
+    _fake_uv(fake_uv)
+    installer = tmp_path / "uv-installer.sh"
+    installer.write_text(
+        '#!/bin/sh\nmkdir -p "$UV_INSTALL_DIR"\ncp "$UV_TEST_FAKE_UV" "$UV_INSTALL_DIR/uv"\n',
+        encoding="utf-8",
+    )
+    curl = bin_dir / "curl"
+    curl.write_text('#!/usr/bin/env bash\ncp "$UV_TEST_INSTALLER" "${@: -1}"\n', encoding="utf-8")
+    curl.chmod(0o755)
+    data_home = tmp_path / "data"
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}:/usr/bin:/bin",
+        "XDG_DATA_HOME": str(data_home),
+        "UV_TEST_INSTALLER": str(installer),
+        "UV_TEST_FAKE_UV": str(fake_uv),
+        "UV_TEST_LOG": str(tmp_path / "uv.log"),
+    }
+    detached_script = tmp_path / "downloaded.sh"
+    detached_script.write_bytes(SCRIPT.read_bytes())
+    result = subprocess.run(
+        ["bash", str(detached_script)], cwd=tmp_path, env=env, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Downloading the official uv installer" in result.stdout
+    assert (data_home / "rigyard/bin/uv").is_file()
+    assert "--upgrade-package rigyard rigyard\n" in (tmp_path / "uv.log").read_text()
