@@ -171,9 +171,11 @@ if [[ -n "$version" ]]; then
 fi
 # An explicit interpreter prevents an active Conda or other venv from changing the target.
 "$uv_bin" pip install --python "$VENV_DIR/bin/python" \
-    --upgrade-package rigyard "$package" || die 'Rigyard installation failed.'
+    --reinstall-package rigyard "$package" || die 'Rigyard installation failed.'
 [[ -x "$VENV_DIR/bin/rigyard" ]] || die 'Rigyard executable was not installed.'
-ok "$("$VENV_DIR/bin/rigyard" --version)"
+installed_version="$("$VENV_DIR/bin/rigyard" --version)" ||
+    die 'Rigyard executable failed to start.'
+ok "$installed_version"
 printf '\n%s\n' "${green}Setup complete.${reset} Run Rigyard without activation:"
 printf '  %q\n' "$VENV_DIR/bin/rigyard"
 printf '\n%s\n' 'Docker and tmux warnings above do not prevent CLI installation.'
