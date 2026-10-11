@@ -42,6 +42,7 @@ def test_backend_checks_daemon_and_builds_without_shell() -> None:
     assert build_call[0] == (
         "docker",
         "build",
+        "--provenance=false",
         "--file",
         "-",
         "--tag",
@@ -59,7 +60,9 @@ def test_backend_checks_daemon_and_builds_without_shell() -> None:
 def test_backend_adds_configured_build_network() -> None:
     runner = FakeRunner([CommandResult(0)])
     DockerImageBackend(runner).build_step(step("host"))
-    assert runner.calls[0][0][6:8] == ("--network", "host")
+    command = runner.calls[0][0]
+    network_index = command.index("--network")
+    assert command[network_index + 1] == "host"
 
 
 def test_unavailable_daemon_has_backend_error() -> None:
