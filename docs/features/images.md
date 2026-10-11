@@ -57,6 +57,11 @@ Dockerfile fragments cannot contain:
 
 Rigyard creates a complete Dockerfile for every layer, using the previous result as `FROM`. Root and layer build arguments are merged, with layer values winning on duplicate keys. Boolean arguments become lowercase `true` or `false`.
 
+Every layer build, including the final image, explicitly passes `--provenance=false`.
+This prevents build-specific provenance metadata from changing intermediate image index digests
+when image contents are unchanged. Docker must support this build option. Rigyard still invokes
+each layer build and relies on Docker's build cache to reuse unchanged steps.
+
 `network` is passed to Docker as `--network` for each affected layer. It controls networking for
 Dockerfile `RUN` instructions; it does not configure the runtime network of containers created from
 the image. A layer-level value overrides the image-level value. When neither is configured, Rigyard
