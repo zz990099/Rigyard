@@ -59,6 +59,18 @@ python -m twine check --strict dist/*
 python scripts/verify_distributions.py dist
 ```
 
+Before creating the Release, also check the built artifacts against the intended tag. For
+version 1.0.3, run:
+
+```bash
+python scripts/verify_distributions.py dist --tag 1.0.3
+```
+
+Use the version you intend to publish (`v1.0.3` is also accepted). Creating a tag does not
+change the package version: update `src/rigyard/version.py`, rebuild into a clean distribution
+directory, and merge the version change before tagging the tested commit. A tag/version
+mismatch stops the publishing workflow before upload to PyPI.
+
 The Docker smoke test requires an accessible daemon, Docker Compose v2, tmux, and an installed
 `rigyard` command:
 

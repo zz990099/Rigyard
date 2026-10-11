@@ -4,6 +4,21 @@ This file records notable user-facing changes. Releases use semantic versioning 
 
 ## Unreleased
 
+## 1.0.3 - 2026-10-11
+
+### Fixed
+
+- Explicitly disable provenance attestations for every image layer, including the final image,
+  to prevent build-specific metadata from changing image index digests for unchanged contents.
+  Docker must support `--provenance=false`; no Rigyard configuration changes are required.
+- Update the package version to match the new release. The `1.0.2` GitHub Release did not
+  publish to PyPI because its artifacts still declared version `1.0.1`. This release includes
+  the image-build fix from that attempt.
+
+### Changed
+
+- Document checking distribution versions against the intended release tag before publishing.
+
 ## 1.0.1 - 2026-09-28
 
 ### Added
