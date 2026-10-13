@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from ...errors import BackendUnavailableError, ImageBuildError
 from ...execution import CommandRunner, SubprocessRunner
 from ...images.models import BuildStepResult, ImageBuildStep
@@ -39,7 +41,6 @@ class DockerImageBackend:
         command: list[str] = [
             "docker",
             "build",
-            "--provenance=false",
             "--file",
             "-",
             "--tag",
@@ -51,10 +52,13 @@ class DockerImageBackend:
             command.extend(("--build-arg", f"{name}={value}"))
         command.append(str(step.context))
         argv = tuple(command)
+        environment = os.environ.copy()
+        environment["BUILDX_NO_DEFAULT_ATTESTATIONS"] = "1"
         try:
             result = self.runner.run(
                 argv,
                 stdin=compose_dockerfile(step.base_image, step.dockerfile_fragment),
+                environment=environment,
             )
         except OSError as exc:
             raise BackendUnavailableError(f"cannot execute Docker build: {exc}") from exc

@@ -4,6 +4,16 @@ This file records notable user-facing changes. Releases use semantic versioning 
 
 ## Unreleased
 
+## 1.0.4 - 2026-10-13
+
+### Fixed
+
+- Replace `--provenance=false` with `BUILDX_NO_DEFAULT_ATTESTATIONS=1` in the Docker build
+  subprocess environment, avoiding unknown-option errors with older Docker build frontends
+  while disabling default provenance attestations on supported Buildx versions.
+- Preserve inherited Docker connection settings, proxy settings, and other environment
+  variables without changing the host environment. No Rigyard configuration changes are required.
+
 ## 1.0.3 - 2026-10-11
 
 ### Fixed

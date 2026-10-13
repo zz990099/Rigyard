@@ -57,9 +57,14 @@ Dockerfile fragments cannot contain:
 
 Rigyard creates a complete Dockerfile for every layer, using the previous result as `FROM`. Root and layer build arguments are merged, with layer values winning on duplicate keys. Boolean arguments become lowercase `true` or `false`.
 
-Every layer build, including the final image, explicitly passes `--provenance=false`.
-This prevents build-specific provenance metadata from changing intermediate image index digests
-when image contents are unchanged. Docker must support this build option. Rigyard still invokes
+Every layer build, including the final image, sets `BUILDX_NO_DEFAULT_ATTESTATIONS=1`
+in the Docker subprocess environment to disable default provenance attestations. Rigyard
+preserves the inherited environment and overrides this variable only for the build subprocess;
+it does not modify the host environment or add the variable to the image.
+
+Rigyard does not pass `--provenance`, avoiding unknown-option errors with older Docker
+build frontends. Buildx versions supporting the environment variable disable default
+attestations; older builders that do not recognize it ignore it. Rigyard still invokes
 each layer build and relies on Docker's build cache to reuse unchanged steps.
 
 `network` is passed to Docker as `--network` for each affected layer. It controls networking for
