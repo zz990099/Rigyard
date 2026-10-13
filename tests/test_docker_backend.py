@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -13,8 +14,8 @@ class FakeRunner:
         self.results = iter(results)
         self.calls = []
 
-    def run(self, command, *, stdin=None, capture=False):
-        self.calls.append((command, stdin, capture))
+    def run(self, command, *, stdin=None, capture=False, environment=None):
+        self.calls.append((command, stdin, capture, environment))
         return next(self.results)
 
 
@@ -42,7 +43,6 @@ def test_backend_checks_daemon_and_builds_without_shell() -> None:
     assert build_call[0] == (
         "docker",
         "build",
-        "--provenance=false",
         "--file",
         "-",
         "--tag",
@@ -104,3 +104,26 @@ def test_tag_alias_uses_argv_and_reports_failure(code):
     else:
         backend.tag_image("example:test-date", "example:stable")
     assert runner.calls[0][0] == ("docker", "tag", "example:test-date", "example:stable")
+
+
+@pytest.mark.parametrize("existing", [None, "0", "1"])
+def test_build_disables_default_attestations_without_changing_host_environment(monkeypatch, existing):
+    variable = "BUILDX_NO_DEFAULT_ATTESTATIONS"
+    if existing is None:
+        monkeypatch.delenv(variable, raising=False)
+    else:
+        monkeypatch.setenv(variable, existing)
+    monkeypatch.setenv("DOCKER_HOST", "unix:///tmp/rigyard-test-docker.sock")
+    monkeypatch.setenv("HTTP_PROXY", "http://localhost:3128")
+    original = dict(os.environ)
+    runner = FakeRunner([CommandResult(0), CommandResult(0), CommandResult(0)])
+    backend = DockerImageBackend(runner)
+    backend.check_available()
+    backend.build_step(step())
+    backend.tag_image("example/test:latest", "example/test:alias")
+    check_call, build_call, tag_call = runner.calls
+    assert check_call[3] is None
+    assert tag_call[3] is None
+    assert build_call[3] == {**original, variable: "1"}
+    assert dict(os.environ) == original
+    assert not any(argument.startswith("--provenance") for argument in build_call[0])
