@@ -107,7 +107,9 @@ def test_tag_alias_uses_argv_and_reports_failure(code):
 
 
 @pytest.mark.parametrize("existing", [None, "0", "1"])
-def test_build_disables_default_attestations_without_changing_host_environment(monkeypatch, existing):
+def test_build_disables_default_attestations_without_changing_host_environment(
+    monkeypatch, existing
+):
     variable = "BUILDX_NO_DEFAULT_ATTESTATIONS"
     if existing is None:
         monkeypatch.delenv(variable, raising=False)
