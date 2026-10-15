@@ -11,6 +11,7 @@ from rigyard.cli.menu.prompt import MenuIO
 from rigyard.cli.menu.session import MenuSession
 from rigyard.config.catalog import DefinitionCatalog
 from rigyard.config.loader import load_config
+from rigyard.config.models import ScenarioSourceNode
 from rigyard.errors import ConfigIOError, SchemaValidationError
 
 LEAF = """robot:
@@ -221,3 +222,35 @@ def test_cached_subtree_obeys_depth_limit_on_every_reference(tmp_path, prefix_le
     else:
         with pytest.raises(SchemaValidationError, match="nesting exceeds"):
             load_config(root)
+
+
+@pytest.mark.parametrize("compose_only", [False, True])
+def test_shared_subtree_filtering_has_bounded_work(tmp_path, monkeypatch, compose_only):
+    root = write(
+        tmp_path / "rigyard.yaml",
+        "version: 3\nmetadata: {name: shared-filter}\nsources: {scenarios: [0.yaml]}\n",
+    )
+    # A small acyclic graph has exponentially many routes to its leaves.
+    directory_count = 20
+    for index in range(directory_count):
+        write(
+            tmp_path / f"{index}.yaml",
+            f"sources: {{scenarios: [{index + 1}.yaml, {index + 2}.yaml]}}\n",
+        )
+    for index in (directory_count, directory_count + 1):
+        write(tmp_path / f"{index}.yaml", LEAF if compose_only else "{}\n")
+    config = load_config(root)
+    session = MenuSession(ProjectContext.capture(root, config=config))
+    original = ScenarioSourceNode.__getattribute__
+    child_reads = 0
+
+    def count_child_reads(self, name):
+        nonlocal child_reads
+        if name == "children":
+            child_reads += 1
+            # Check work rather than wall-clock time, and fail before a hang.
+            assert child_reads <= 4 * (directory_count + 2)
+        return original(self, name)
+
+    monkeypatch.setattr(ScenarioSourceNode, "__getattribute__", count_child_reads)
+    assert MenuApp()._select_scenario(session, "Select scene", compose_only=compose_only) is None
