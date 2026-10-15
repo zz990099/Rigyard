@@ -16,7 +16,7 @@ from ...application.scenarios import PlanScenarioUseCase
 from ...application.tasks import ExecuteTaskUseCase
 from ...application.tests import ExecuteTestUseCase
 from ...config.catalog import DefinitionCatalog
-from ...config.models import SourceFileInfo
+from ...config.models import ScenarioSourceNode, SourceFileInfo
 from ...parameters.sources import DynamicSources
 from ...providers.docker import (
     DockerExecBuildBackend,
@@ -370,6 +370,63 @@ class MenuApp:
             return None
         return actions[selected][1](session)
 
+    def _select_nested_scenario(
+        self,
+        session: MenuSession,
+        title: str,
+        *,
+        compose_only: bool,
+    ) -> tuple[SourceFileInfo, str, str] | None:
+        """Navigate explicit directories with a stack so Back restores the parent."""
+
+        def visible(node: ScenarioSourceNode) -> bool:
+            return any(visible(child) for child in node.children) or any(
+                not compose_only or node.definitions[name].compose is not None
+                for name in node.names
+            )
+
+        stack: list[ScenarioSourceNode] = []
+        while True:
+            nodes = stack[-1].children if stack else session.config.scenario_tree
+            choices = tuple(node for node in nodes if visible(node))
+            if not choices:
+                return None
+            breadcrumb = " / ".join(
+                [title, *(node.description or node.path.stem for node in stack)]
+            )
+            selected = self.io.select(
+                breadcrumb, self._source_labels(session, choices), back_label="Back"
+            )
+            if selected is None:
+                if not stack:
+                    return None
+                stack.pop()
+                continue
+            group = choices[selected]
+            if group.children:
+                stack.append(group)
+                continue
+            names = [
+                name
+                for name in group.names
+                if not compose_only or group.definitions[name].compose is not None
+            ]
+            while True:
+                selected = self.io.select(
+                    f"{breadcrumb} / {group.description or group.path.stem} / Select scene",
+                    [self._definition_label(group, name) for name in names],
+                    back_label="Back",
+                )
+                if selected is None:
+                    break
+                name = names[selected]
+                profiles = list(group.definitions[name].profiles)
+                if len(profiles) == 1:
+                    return group, name, profiles[0]
+                selected = self.io.select("Select profile", profiles, back_label="Back")
+                if selected is not None:
+                    return group, name, profiles[selected]
+
     def _select_scenario(
         self,
         session: MenuSession,
@@ -378,6 +435,9 @@ class MenuApp:
         compose_only: bool = False,
     ) -> tuple[SourceFileInfo, str, str] | None:
         """Pick source file, scene and profile; a single profile is used as is."""
+
+        if any(node.children for node in session.config.scenario_tree):
+            return self._select_nested_scenario(session, title, compose_only=compose_only)
 
         requirement = (
             (lambda group, name: group.definitions[name].compose is not None)

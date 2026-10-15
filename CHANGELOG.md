@@ -4,6 +4,11 @@ This file records notable user-facing changes. Releases use semantic versioning 
 
 ## Unreleased
 
+### Added
+
+- Recursive scenario directory sources with parent-relative child references, cycle detection, and source-qualified leaf lookup.
+- Hierarchical scenario menus with breadcrumbs, parent navigation, and Compose-aware filtering.
+
 ## 1.0.4 - 2026-10-13
 
 ### Fixed

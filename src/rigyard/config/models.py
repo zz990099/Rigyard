@@ -182,6 +182,35 @@ class SourceFileInfo(FrozenModel):
         return _freeze_mapping(values)
 
 
+class ScenarioSourceNode(SourceFileInfo):
+    """A navigation node; only leaves contribute executable definitions."""
+
+    children: tuple[ScenarioSourceNode, ...] = ()
+
+
+class ScenarioDirectorySources(FrozenModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    scenarios: Path | tuple[Path, ...]
+
+    @field_validator("scenarios")
+    @classmethod
+    def non_empty_paths(cls, value: Path | tuple[Path, ...]) -> Path | tuple[Path, ...]:
+        if value == ():
+            raise ValueError("source list must not be empty")
+        paths = value if isinstance(value, tuple) else (value,)
+        if any(path == Path(".") for path in paths):
+            raise ValueError("scenario source must name a file")
+        return value
+
+
+class ScenarioDirectory(FrozenModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    description: str | None = None
+    sources: ScenarioDirectorySources
+
+
 class RigyardManifest(FrozenModel):
     model_config = ConfigDict(extra="forbid", frozen=True, validate_default=True)
 
@@ -298,6 +327,7 @@ class RigyardConfig(FrozenModel):
     tasks: Mapping[str, TaskTemplate] = Field(default_factory=dict)
     scenarios: Mapping[str, ScenarioTemplate] = Field(default_factory=dict)
     source_files: Mapping[str, tuple[SourceFileInfo, ...]]
+    scenario_tree: tuple[ScenarioSourceNode, ...] = ()
     duplicate_names: Mapping[str, Mapping[str, tuple[Path, ...]]] = Field(default_factory=dict)
 
     @field_validator("variables")

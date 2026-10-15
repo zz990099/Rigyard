@@ -22,6 +22,8 @@ from .models import (
     RigyardConfig,
     RigyardManifest,
     ScenarioDefinitions,
+    ScenarioDirectory,
+    ScenarioSourceNode,
     SourceFileInfo,
     TaskDefinitions,
     TestDefinitions,
@@ -242,6 +244,68 @@ def _load_optional_source_group(
     return _load_source_group(manifest_path, configured, model, label=label)
 
 
+def _load_scenario_tree(
+    manifest_path: Path,
+    configured: Path | tuple[Path, ...] | None,
+) -> tuple[tuple[ScenarioSourceNode, ...], tuple[SourceFileInfo, ...]]:
+    """Load the navigation tree and a unique, ordered catalog of its leaves."""
+    if configured is None:
+        return (), ()
+    cache: dict[Path, ScenarioSourceNode] = {}
+    leaves: dict[Path, SourceFileInfo] = {}
+
+    def visit(source: Path, ancestors: tuple[Path, ...]) -> ScenarioSourceNode:
+        if source in ancestors:
+            chain = " -> ".join(str(path) for path in (*ancestors, source))
+            raise SchemaValidationError(
+                f"cyclic scenario source reference: {chain}", SourceLocation(source)
+            )
+        if len(ancestors) >= 64:
+            raise SchemaValidationError(
+                "scenario source nesting exceeds 64 files", SourceLocation(source)
+            )
+        if source in cache:
+            return cache[source]
+        data, locations = _read_yaml(source)
+        if data is None:
+            raise SchemaValidationError("scenario source must not be empty", SourceLocation(source))
+        description = _source_description(source, data, locations)
+        # Preserve existing scenarios literally named 'sources'. Their required
+        # instances/profiles distinguish them from a directory declaration.
+        is_directory = isinstance(data, Mapping) and "sources" in data
+        if is_directory and isinstance(data["sources"], Mapping):
+            is_directory = not {"instances", "profiles"}.issubset(data["sources"])
+        if is_directory:
+            directory = _validate_data(
+                source, data, locations, ScenarioDirectory, label="scenario directory"
+            )
+            children = tuple(
+                visit(child, (*ancestors, source))
+                for child in dict.fromkeys(_source_paths(source, directory.sources.scenarios))
+            )
+            node = ScenarioSourceNode(path=source, description=description, children=children)
+        else:
+            if isinstance(data, Mapping):
+                data = {key: value for key, value in data.items() if key != "description"}
+            validated = _validate_data(
+                source, data, locations, ScenarioDefinitions, label="scenario source"
+            )
+            node = ScenarioSourceNode(
+                path=source,
+                description=description,
+                names=tuple(validated.root),
+                definitions=dict(validated.root),
+            )
+            leaves[source] = node
+        cache[source] = node
+        return node
+
+    roots = tuple(
+        visit(source, ()) for source in dict.fromkeys(_source_paths(manifest_path, configured))
+    )
+    return roots, tuple(leaves.values())
+
+
 def load_config(
     path: str | Path,
     *,
@@ -268,9 +332,7 @@ def load_config(
     task_files = _load_optional_source_group(
         manifest_path, manifest.sources.tasks, TaskDefinitions, label="task source"
     )
-    scenario_files = _load_optional_source_group(
-        manifest_path, manifest.sources.scenarios, ScenarioDefinitions, label="scenario source"
-    )
+    scenario_tree, scenario_files = _load_scenario_tree(manifest_path, manifest.sources.scenarios)
     return RigyardConfig(
         version=manifest.version,
         metadata=manifest.metadata,
@@ -278,6 +340,7 @@ def load_config(
         branding=branding,
         sources=manifest.sources,
         variables=manifest.variables,
+        scenario_tree=scenario_tree,
         source_files={
             "images": image_files,
             "containers": container_files,
