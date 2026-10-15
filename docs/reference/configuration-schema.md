@@ -202,7 +202,7 @@ Profile fields:
 ```text
 session
 attach = true
-stop_grace_seconds = 5
+stop_grace_seconds = 5  # 0–30 seconds after Ctrl+C, before environment cleanup
 restart_container = always
 mouse = true
 keep_alive = true

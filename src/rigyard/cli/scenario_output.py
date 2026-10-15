@@ -7,14 +7,36 @@ from .style import Line, field, line
 
 
 def describe_scenario_target(plan: ScenarioTarget) -> tuple[Line, ...]:
-    """Short rendering for scene management actions such as stop and down."""
+    """Show the complete environment cleanup performed by scene stop."""
 
-    return (
+    lines = [
         field("Scenario", plan.scene_name),
         field("Profile", plan.profile_name),
         field("tmux session", plan.session),
         field("Instances", ", ".join(instance.name for instance in plan.instances)),
-    )
+        field("Grace after Ctrl+C", f"{plan.stop_grace_seconds}s"),
+    ]
+    if plan.compose is not None:
+        lines.extend(
+            (
+                field("Cleanup", "remove Compose containers and networks; preserve volumes/images"),
+                field("Compose file", str(plan.compose.file)),
+                field("Compose project", plan.compose.project_name),
+            )
+        )
+    else:
+        lines.extend(
+            (
+                field("Cleanup", "stop existing containers; preserve containers and data"),
+                field(
+                    "Containers",
+                    ", ".join(
+                        dict.fromkeys(item.container or "unresolved" for item in plan.instances)
+                    ),
+                ),
+            )
+        )
+    return tuple(lines)
 
 
 def describe_scenario(plan: ScenarioPlan) -> tuple[Line, ...]:

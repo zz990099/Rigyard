@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Literal
 
 from ..errors import RigyardError, ScenarioPlanError
 from .models import ScenarioControlPlan, ScenarioPlan, ScenarioResult, ScenarioTarget
@@ -50,9 +49,7 @@ class ScenarioService:
                         or old.compose.project_name != target.compose.project_name
                     )
                 ):
-                    raise ScenarioPlanError(
-                        "runtime identity changed; stop/down the recorded run first"
-                    )
+                    raise ScenarioPlanError("runtime identity changed; stop the recorded run first")
                 if plan.partial:
                     if old.session != target.session or old.compose != target.compose:
                         raise ScenarioPlanError(
@@ -79,6 +76,8 @@ class ScenarioService:
 
     def stop(self, plan: ScenarioTarget) -> ScenarioResult:
         target = control_target(plan)
+        if target.partial:
+            raise ScenarioPlanError("scene stop does not support partial instance selection")
         if target.identity is None:
             return self.executor.stop(plan)
         store = FileRunStore(target.identity.config_path)
@@ -86,31 +85,8 @@ class ScenarioService:
             previous = store.find(
                 target.scene_name, target.profile_name, target.identity.source_path
             )
-            active = (
-                select_recorded_target(
-                    previous,
-                    [item.name for item in target.instances] if target.partial else None,
-                )
-                if previous is not None
-                else target
-            )
+            active = select_recorded_target(previous, None) if previous is not None else target
             result = self.executor.stop(active)
-            if previous is not None:
-                state: Literal["running", "stopped"] = "running" if target.partial else "stopped"
-                store.write(ScenarioRunRecord(state=state, target=previous.target))
-        return result
-
-    def down(self, plan: ScenarioTarget) -> ScenarioResult:
-        target = control_target(plan)
-        if target.identity is None:
-            return self.executor.down(plan)
-        store = FileRunStore(target.identity.config_path)
-        with store.locked():
-            previous = store.find(
-                target.scene_name, target.profile_name, target.identity.source_path
-            )
-            active = replace(previous.target, partial=target.partial) if previous else target
-            result = self.executor.down(active)
             store.remove(target)
         return result
 

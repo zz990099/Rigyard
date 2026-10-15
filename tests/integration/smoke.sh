@@ -17,7 +17,7 @@ cleanup() {
     (
         cd -- "$project"
         "$rigyard_bin" scene stop existing ci >/dev/null 2>&1 || true
-        "$rigyard_bin" scene down compose ci >/dev/null 2>&1 || true
+        "$rigyard_bin" scene stop compose ci >/dev/null 2>&1 || true
     )
     tmux kill-server >/dev/null 2>&1 || true
     docker compose -f "$project/compose.yaml" -p rigyard-ci-smoke-compose \
@@ -56,9 +56,13 @@ for attempt in {1..10}; do
     sleep 1
 done
 "$rigyard_bin" scene stop existing ci --non-interactive
+[[ "$(docker inspect --format '{{.State.Running}}' rigyard-ci-smoke)" == false ]]
 
 docker compose version
 "$rigyard_bin" scene start compose ci --no-attach --non-interactive
 "$rigyard_bin" scene status compose ci --non-interactive
-"$rigyard_bin" scene down compose ci --non-interactive
+"$rigyard_bin" scene stop compose ci --non-interactive
+[[ -z "$(docker ps -aq --filter label=com.docker.compose.project=rigyard-ci-smoke-compose)" ]]
+[[ -z "$(docker network ls -q --filter label=com.docker.compose.project=rigyard-ci-smoke-compose)" ]]
+[[ -z "$(find .rigyard/runs -name '*.json' -print -quit)" ]]
 printf 'Docker and tmux smoke test passed.\n'

@@ -113,6 +113,7 @@ class ScenarioPlanner:
         *,
         partial: bool = False,
         source_path: Path | None = None,
+        containers: Mapping[str, str] | None = None,
     ) -> ScenarioControlPlan:
         config_file = Path(config_path).resolve()
         identity = ScenarioIdentity(
@@ -124,6 +125,7 @@ class ScenarioPlanner:
                 groups=tuple(
                     ScenarioGroupTarget(name=group_name) for group_name in groups.get(name, ())
                 ),
+                container=containers.get(name) if containers is not None else None,
             )
             for name in instance_names
         )
@@ -131,6 +133,8 @@ class ScenarioPlanner:
             raise ScenarioPlanError(f"scenario {scene_name!r} has no configured instances")
         for instance in planned:
             _validate_window_name(instance.name)
+            if instance.container is not None:
+                _validate_container_name(instance.container)
         compose_plan = _compose_plan(
             compose,
             config_file,

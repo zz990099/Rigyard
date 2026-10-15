@@ -143,10 +143,9 @@ def test_profile_back_returns_to_scene_selection(tmp_path):
     assert app._select_scenario(session, "Start scene")[2] == "debug"
 
 
-def test_compose_filter_prunes_directories_without_matching_leaves(tmp_path):
+@pytest.mark.parametrize("answers", ["1\n1\n1\n1\n", "1\n2\n1\n"])
+def test_stop_navigation_includes_existing_and_compose_scenes(tmp_path, answers):
     root = project(tmp_path)
-    session = MenuSession(ProjectContext.capture(root, config=load_config(root)))
-    assert MenuApp()._select_scenario(session, "Down scene", compose_only=True) is None
     compose = LEAF.replace("  instances:", "  compose: {file: compose.yaml}\n  instances:")
     write(
         tmp_path / "scenes/manipulation.yaml",
@@ -154,10 +153,10 @@ def test_compose_filter_prunes_directories_without_matching_leaves(tmp_path):
     )
     session = MenuSession(ProjectContext.capture(root, config=load_config(root)))
     output = TTYBuffer()
-    app = MenuApp(MenuIO(TTYBuffer("1\n1\n1\n"), output))
-    result = app._select_scenario(session, "Down scene", compose_only=True)
-    assert result[0].path.name == "manipulation.yaml"
-    assert "Navigation" not in output.getvalue()
+    app = MenuApp(MenuIO(TTYBuffer(answers), output))
+    result = app._select_scenario(session, "Stop scene")
+    assert result is not None
+    assert "Navigation" in output.getvalue()
 
 
 def test_depth_limit_reports_config_error(tmp_path):
@@ -224,8 +223,7 @@ def test_cached_subtree_obeys_depth_limit_on_every_reference(tmp_path, prefix_le
             load_config(root)
 
 
-@pytest.mark.parametrize("compose_only", [False, True])
-def test_shared_subtree_filtering_has_bounded_work(tmp_path, monkeypatch, compose_only):
+def test_shared_subtree_filtering_has_bounded_work(tmp_path, monkeypatch):
     root = write(
         tmp_path / "rigyard.yaml",
         "version: 3\nmetadata: {name: shared-filter}\nsources: {scenarios: [0.yaml]}\n",
@@ -238,7 +236,7 @@ def test_shared_subtree_filtering_has_bounded_work(tmp_path, monkeypatch, compos
             f"sources: {{scenarios: [{index + 1}.yaml, {index + 2}.yaml]}}\n",
         )
     for index in (directory_count, directory_count + 1):
-        write(tmp_path / f"{index}.yaml", LEAF if compose_only else "{}\n")
+        write(tmp_path / f"{index}.yaml", "{}\n")
     config = load_config(root)
     session = MenuSession(ProjectContext.capture(root, config=config))
     original = ScenarioSourceNode.__getattribute__
@@ -253,4 +251,4 @@ def test_shared_subtree_filtering_has_bounded_work(tmp_path, monkeypatch, compos
         return original(self, name)
 
     monkeypatch.setattr(ScenarioSourceNode, "__getattribute__", count_child_reads)
-    assert MenuApp()._select_scenario(session, "Select scene", compose_only=compose_only) is None
+    assert MenuApp()._select_scenario(session, "Select scene") is None

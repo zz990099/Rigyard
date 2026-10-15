@@ -346,6 +346,7 @@ class ScenarioGroupTarget:
 class ScenarioInstanceTarget:
     name: str
     groups: tuple[ScenarioGroupTarget, ...] = ()
+    container: str | None = None
 
 
 @dataclass(frozen=True)
@@ -372,6 +373,7 @@ class ScenarioControlPlan:
                 ScenarioInstanceTarget(
                     instance.name,
                     tuple(ScenarioGroupTarget(group.name) for group in instance.groups),
+                    instance.container,
                 )
                 for instance in plan.instances
             ),
