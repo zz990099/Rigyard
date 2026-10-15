@@ -135,6 +135,30 @@ Hook fields are `name`, `script`, `interpreter`, `user`, `workdir`, `environment
 
 ## Scenario source
 
+Scenario sources can be leaf files with named scene definitions or directory files
+that reference other scenario sources.
+
+### Scenario directory
+
+| Path | Type | Default |
+| --- | --- | --- |
+| `description` | non-empty string | omitted |
+| `sources.scenarios` | path or non-empty path list | required |
+
+```yaml
+description: Navigation
+sources:
+  scenarios: [simulation.yaml, real_robot.yaml]
+```
+
+Child paths resolve relative to the directory file. Directories cannot also define
+scenes or other source kinds. Cycles are rejected, and every reference chain is
+limited to 64 files. Repeated references share a single leaf catalog entry. CLI
+`--source` selects the leaf file, relative to the root manifest. See
+[Nested scenario directories](../features/scenarios.md#nested-scenario-directories).
+
+### Scenario leaf
+
 ```text
 <scenario>.description
 <scenario>.compose
@@ -194,4 +218,7 @@ Every source may contain this top-level field:
 description: Human-readable source group
 ```
 
-It is not a business resource and does not participate in name conflicts. Every other top-level key is a named definition for that source kind.
+It is not a business resource and does not participate in name conflicts. Every other
+top-level key is a named definition for that source kind, except `sources` in a
+scenario directory. An existing scene named `sources` remains valid when its value
+contains the required `instances` and `profiles` fields.

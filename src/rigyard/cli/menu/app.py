@@ -379,11 +379,17 @@ class MenuApp:
     ) -> tuple[SourceFileInfo, str, str] | None:
         """Navigate explicit directories with a stack so Back restores the parent."""
 
+        visibility: dict[Path, bool] = {}
+
         def visible(node: ScenarioSourceNode) -> bool:
-            return any(visible(child) for child in node.children) or any(
-                not compose_only or node.definitions[name].compose is not None
-                for name in node.names
-            )
+            # Shared subtrees can have exponentially many reference paths.
+            # Cache both matches and non-matches for this menu operation.
+            if node.path not in visibility:
+                visibility[node.path] = any(visible(child) for child in node.children) or any(
+                    not compose_only or node.definitions[name].compose is not None
+                    for name in node.names
+                )
+            return visibility[node.path]
 
         stack: list[ScenarioSourceNode] = []
         while True:
