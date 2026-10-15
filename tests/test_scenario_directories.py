@@ -203,3 +203,21 @@ def test_nested_cli_and_runtime_identity_survive_directory_reorganization(tmp_pa
     )
     assert before.identity == after.identity
     assert before.session == after.session
+
+
+@pytest.mark.parametrize("prefix_length", [62, 63])
+def test_cached_subtree_obeys_depth_limit_on_every_reference(tmp_path, prefix_length):
+    root = write(
+        tmp_path / "rigyard.yaml",
+        "version: 3\nmetadata: {name: cached-depth}\nsources: {scenarios: [shared.yaml, 0.yaml]}\n",
+    )
+    write(tmp_path / "shared.yaml", "sources: {scenarios: [leaf.yaml]}\n")
+    write(tmp_path / "leaf.yaml", LEAF)
+    for index in range(prefix_length):
+        target = f"{index + 1}.yaml" if index + 1 < prefix_length else "shared.yaml"
+        write(tmp_path / f"{index}.yaml", f"sources: {{scenarios: [{target}]}}\n")
+    if prefix_length == 62:
+        assert len(load_config(root).source_files["scenarios"]) == 1
+    else:
+        with pytest.raises(SchemaValidationError, match="nesting exceeds"):
+            load_config(root)

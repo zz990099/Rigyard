@@ -253,6 +253,7 @@ def _load_scenario_tree(
         return (), ()
     cache: dict[Path, ScenarioSourceNode] = {}
     leaves: dict[Path, SourceFileInfo] = {}
+    heights: dict[Path, int] = {}
 
     def visit(source: Path, ancestors: tuple[Path, ...]) -> ScenarioSourceNode:
         if source in ancestors:
@@ -265,6 +266,10 @@ def _load_scenario_tree(
                 "scenario source nesting exceeds 64 files", SourceLocation(source)
             )
         if source in cache:
+            if len(ancestors) + heights[source] > 64:
+                raise SchemaValidationError(
+                    "scenario source nesting exceeds 64 files", SourceLocation(source)
+                )
             return cache[source]
         data, locations = _read_yaml(source)
         if data is None:
@@ -297,6 +302,7 @@ def _load_scenario_tree(
                 definitions=dict(validated.root),
             )
             leaves[source] = node
+        heights[source] = 1 + max((heights[child.path] for child in node.children), default=0)
         cache[source] = node
         return node
 
