@@ -45,7 +45,7 @@ sources:
 | `sources.tasks` | path or path list | no | Custom task sources |
 | `sources.scenarios` | path or path list | no | Scenario sources |
 
-Source lists cannot be empty. All source paths are relative to the root manifest. Configuration files must be UTF-8 YAML.
+Source lists cannot be empty. Source paths declared in the root manifest are relative to that manifest. Scenario directory files may recursively reference child files relative to themselves; see [Nested scenario directories](../features/scenarios.md#nested-scenario-directories). Configuration files must be UTF-8 YAML.
 
 ## Terminal logo
 

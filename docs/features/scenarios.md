@@ -277,3 +277,63 @@ Compose cleanup still requires the recorded Compose file and a working Docker co
 A start cannot reuse session/project names owned by another recorded run. If explicit
 runtime names change, stop the existing run first (or use `down` for an existing Compose
 project). Directly constructed Python plans without an identity remain unrecorded.
+
+## Nested scenario directories
+
+Use directory files to organize scenarios by robot, capability, and environment.
+The root manifest can reference either existing scenario files or directory files:
+
+```yaml
+# rigyard.yaml (other manifest fields omitted)
+sources:
+  scenarios: [scenarios/xxbot.yaml]
+```
+
+```yaml
+# scenarios/xxbot.yaml
+description: XXBot
+sources:
+  scenarios:
+    - navigation/index.yaml
+    - manipulation.yaml
+```
+
+```yaml
+# scenarios/navigation/index.yaml
+description: Navigation
+sources:
+  scenarios: [simulation.yaml, real_robot.yaml]
+```
+
+`simulation.yaml`, `real_robot.yaml`, and `manipulation.yaml` use the existing
+scenario format: scene names mapped to `instances`, `profiles`, and optional scene
+fields. A directory may instead reference more directories. Directory files allow
+only `description` and `sources.scenarios`; they cannot also define scenes, other
+resource kinds, or inherited defaults. Child lists must not be empty.
+
+Child references resolve relative to the file that declares them, independently of
+the current working directory. Existing paths *inside* scene definitions retain
+their existing rules, including root-manifest-relative `compose.file` paths.
+
+Rigyard loads and validates the entire tree before displaying the menu. Missing or
+invalid children fail immediately. Cycles report the reference chain; nesting is
+limited to 64 files. Repeated references to the same resolved file share one catalog
+entry, while retaining its location in each directory. Declaration order is preserved.
+
+The menu keeps explicit directory levels, even with one child, and displays a
+breadcrumb such as `Start scene / XXBot / Navigation`. Back returns to the parent
+level; Back at profile selection returns to scene selection. The final selection is
+one leaf scene and profile, followed by the usual startup confirmation. Selecting a
+directory never starts all its descendants. Stop and Down use the same navigation;
+Down hides branches without Compose scenes. Existing flat configurations keep their
+current menu behavior.
+
+CLI commands still select scenes directly. Use the **leaf** source path, relative to
+the root manifest, to disambiguate same-named scenes:
+
+```bash
+rigyard scene start robot-system development --source scenarios/navigation/simulation.yaml
+```
+
+Runtime identity remains based on the manifest, leaf source, scene, and profile.
+Changing directory references without moving the leaf does not change that identity.
