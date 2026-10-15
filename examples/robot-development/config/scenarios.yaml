@@ -1,3 +1,5 @@
+# scene stop stops existing containers or removes the Compose environment, then closes tmux.
+# stop_grace_seconds defaults to 5 seconds after Ctrl+C, before environment cleanup.
 description: Example scenarios
 
 robot-system:

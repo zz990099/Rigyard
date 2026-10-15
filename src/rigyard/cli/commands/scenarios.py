@@ -30,10 +30,8 @@ def register_scenario_commands(commands: Any) -> None:
     )
     start.set_defaults(handler=_start)
 
-    stop = _operation(actions, "stop", "stop a scenario profile", instance_mode="multiple")
+    stop = _operation(actions, "stop", "stop a complete scenario and clean up its environment")
     stop.set_defaults(handler=_stop)
-    down = _operation(actions, "down", "stop a scenario and remove its Compose environment")
-    down.set_defaults(handler=_down)
     status = _operation(actions, "status", "show scenario status", instance_mode="multiple")
     status.set_defaults(handler=_status)
 
@@ -142,17 +140,6 @@ def _stop(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         args.style,
         result.detail or f"Stopped scenario {result.scene_name!r}",
         "muted" if result.detail == "not running" else "success",
-        stream=args.output,
-    )
-    return 0
-
-
-def _down(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
-    plan = _plan(args, parser)
-    result = _service().down(plan)
-    say(
-        args.style,
-        result.detail or f"Removed scenario {result.scene_name!r} environment",
         stream=args.output,
     )
     return 0

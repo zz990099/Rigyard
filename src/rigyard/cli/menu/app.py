@@ -363,7 +363,6 @@ class MenuApp:
         actions: tuple[tuple[str, Callable[[MenuSession], int | None]], ...] = (
             ("Start scene", self._start_scene),
             ("Stop scene", self._stop_scene),
-            ("Down scene", self._down_scene),
         )
         selected = self.io.select("Scene", [label for label, _ in actions], back_label="Back")
         if selected is None:
@@ -374,8 +373,6 @@ class MenuApp:
         self,
         session: MenuSession,
         title: str,
-        *,
-        compose_only: bool,
     ) -> tuple[SourceFileInfo, str, str] | None:
         """Navigate explicit directories with a stack so Back restores the parent."""
 
@@ -385,9 +382,8 @@ class MenuApp:
             # Shared subtrees can have exponentially many reference paths.
             # Cache both matches and non-matches for this menu operation.
             if node.path not in visibility:
-                visibility[node.path] = any(visible(child) for child in node.children) or any(
-                    not compose_only or node.definitions[name].compose is not None
-                    for name in node.names
+                visibility[node.path] = bool(node.names) or any(
+                    visible(child) for child in node.children
                 )
             return visibility[node.path]
 
@@ -412,11 +408,7 @@ class MenuApp:
             if group.children:
                 stack.append(group)
                 continue
-            names = [
-                name
-                for name in group.names
-                if not compose_only or group.definitions[name].compose is not None
-            ]
+            names = list(group.names)
             while True:
                 selected = self.io.select(
                     f"{breadcrumb} / {group.description or group.path.stem} / Select scene",
@@ -437,27 +429,16 @@ class MenuApp:
         self,
         session: MenuSession,
         title: str,
-        *,
-        compose_only: bool = False,
     ) -> tuple[SourceFileInfo, str, str] | None:
         """Pick source file, scene and profile; a single profile is used as is."""
 
         if any(node.children for node in session.config.scenario_tree):
-            return self._select_nested_scenario(session, title, compose_only=compose_only)
+            return self._select_nested_scenario(session, title)
 
-        requirement = (
-            (lambda group, name: group.definitions[name].compose is not None)
-            if compose_only
-            else None
-        )
-        group = self._select_source_group(session, "scenarios", title, requirement=requirement)
+        group = self._select_source_group(session, "scenarios", title)
         if group is None:
             return None
-        scene_names = [
-            name
-            for name in group.names
-            if not compose_only or group.definitions[name].compose is not None
-        ]
+        scene_names = list(group.names)
         scene_labels = [self._definition_label(group, name) for name in scene_names]
         selected = self.io.select("Select scene", scene_labels, back_label="Back")
         if selected is None:
@@ -507,37 +488,11 @@ class MenuApp:
         )
         for line in describe_scenario_target(plan):
             self.io.write_field(line)
-        if not self.io.confirm("Stop this scenario now?", default=True):
+        if not self.io.confirm(
+            "Stop this complete scenario and clean up its environment now?", default=True
+        ):
             self.io.write_note("Scenario stop cancelled.", "muted")
             return
         result = ScenarioService(self.scenario_executor_factory()).stop(plan)
         role = "muted" if result.detail == "not running" else "success"
         self.io.write_note(f"Scenario {result.scene_name!r}: {result.detail or 'stopped'}", role)
-
-    def _down_scene(self, session: MenuSession) -> int | None:
-        selection = self._select_scenario(session, "Down scene", compose_only=True)
-        if selection is None:
-            self.io.write_note(
-                "Unavailable: no Compose-managed scenes configured; use Stop scene instead.",
-                "warning",
-            )
-            return 2
-        group, scene_name, profile_name = selection
-        plan = PlanScenarioUseCase(sources=self.sources, formatter=self.io.style.render).plan(
-            scene_name,
-            profile_name,
-            self._request(session, group.path, interactive=False),
-            operation="down",
-        )
-        for line in describe_scenario_target(plan):
-            self.io.write_field(line)
-        if not self.io.confirm(
-            "Down this scenario and remove its Compose environment now?", default=True
-        ):
-            self.io.write_note("Scenario down cancelled.", "muted")
-            return None
-        result = ScenarioService(self.scenario_executor_factory()).down(plan)
-        self.io.write_note(
-            f"Scenario {result.scene_name!r}: {result.detail or 'removed'}", "success"
-        )
-        return None

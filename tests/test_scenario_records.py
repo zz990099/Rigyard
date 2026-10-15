@@ -40,7 +40,8 @@ def test_recorded_control_survives_missing_configuration_and_has_no_scripts(tmp_
     assert service.logs(target).detail == "pane output"
     service.stop(target)
     assert not fake.session
-    assert FileRunStore(request.config_path).records()[0].state == "stopped"
+    assert FileRunStore(request.config_path).records() == ()
+    assert ("docker", "stop", "robot-dev") in fake.commands
 
 
 def test_partial_start_merges_recorded_instances(tmp_path: Path):
@@ -53,13 +54,17 @@ def test_partial_start_merges_recorded_instances(tmp_path: Path):
     record = FileRunStore(plan.identity.config_path).records()[0]
     assert [i.name for i in record.target.instances] == ["robot1", "second"]
     selected = select_recorded_target(record, ["second"])
-    service.stop(selected)
-    assert fake.windows == ["robot1"]
+    with pytest.raises(ScenarioPlanError, match="does not support partial"):
+        service.stop(selected)
+    assert fake.windows == ["robot1", "second"]
+    service.stop(record.target)
+    assert not fake.session
+    assert FileRunStore(plan.identity.config_path).records() == ()
     with pytest.raises(ScenarioPlanError, match="unknown recorded"):
         select_recorded_target(record, ["missing"])
 
 
-def test_failed_start_keeps_record_for_control_and_compose_down(tmp_path: Path):
+def test_failed_start_keeps_record_for_control_and_complete_stop(tmp_path: Path):
     fake = FakeTmux()
     fake.dead["robot-session:robot1.0"] = 127
     service = ScenarioService(executor(fake))
@@ -74,7 +79,7 @@ def test_failed_start_keeps_record_for_control_and_compose_down(tmp_path: Path):
     compose = ScenarioComposePlan(tmp_path / "compose.yaml", "robot-project", 30)
     target = replace(record.target, compose=compose)
     store.write(ScenarioRunRecord(state="stopped", target=target))
-    service.down(target)
+    service.stop(target)
     assert not store.records()
     assert any("down" in command for command in fake.commands)
 

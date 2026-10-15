@@ -6,7 +6,7 @@ import time
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 
-from ..errors import ScenarioExecutionError, ScenarioPlanError
+from ..errors import RigyardError, ScenarioExecutionError, ScenarioPlanError
 from .models import ScenarioInstancePlan, ScenarioPlan, ScenarioTarget
 from .runtime import ScenarioCommandGateway
 
@@ -49,6 +49,22 @@ class ContainerLifecycleBackend:
         for container in dict.fromkeys(containers):
             if not self.commands.container_running(container):
                 raise ScenarioExecutionError(f"container {container!r} is not running")
+
+    def stop(self, plan: ScenarioTarget) -> None:
+        containers = tuple(dict.fromkeys(instance.container for instance in plan.instances))
+        if not containers or None in containers:
+            raise ScenarioPlanError("scene stop requires resolved container targets")
+        errors: list[str] = []
+        for container in containers:
+            assert container is not None
+            try:
+                self.commands.checked(
+                    ("docker", "stop", container), f"cannot stop container {container!r}"
+                )
+            except RigyardError as error:
+                errors.append(str(error))
+        if errors:
+            raise ScenarioExecutionError("; ".join(errors))
 
     @staticmethod
     def target(instance: ScenarioInstancePlan) -> str:

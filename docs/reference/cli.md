@@ -62,13 +62,14 @@ Scenario actions:
 | Action | Additional options |
 | --- | --- |
 | `start` | `--instance NAME`, `--dry-run`, `--no-attach` |
-| `stop` | `--instance NAME` |
-| `down` | Compose scenarios only; rejects `--instance` |
+| `stop` | Complete scenario cleanup; rejects `--instance` |
 | `status` | `--instance NAME` |
 | `attach` | `--instance NAME`, `--group GROUP` |
 | `logs` | `--instance NAME`, `--group GROUP`, `--follow` |
 
-`--instance` is repeatable. Use `rigyard COMMAND --help` for the exact parser surface.
+`--instance` is repeatable for start and status; attach and logs select one instance.
+`scene stop` stops existing containers or removes the Compose project, then closes tmux.
+`scene down` has been removed. Use `rigyard COMMAND --help` for the exact parser surface.
 
 ## Workspace initialization
 

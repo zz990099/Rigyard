@@ -7,12 +7,26 @@ This file records notable user-facing changes. Releases use semantic versioning 
 ### Added
 
 - Recursive scenario directory sources with parent-relative child references, cycle detection, and source-qualified leaf lookup.
-- Hierarchical scenario menus with breadcrumbs, parent navigation, and Compose-aware filtering.
+- Hierarchical scenario menus with breadcrumbs, parent navigation, and empty-branch filtering.
 
 ### Fixed
 
 - Avoid exponential menu filtering work when scenario directories share subtrees,
-  including Down filtering for branches without Compose scenes.
+  including branches without executable scenes.
+
+### Changed
+
+- Complete scenario stop now interrupts panes, waits for the profile grace period,
+  stops existing containers or removes the Compose project, and finally closes tmux.
+- Run records capture existing-container targets; successful stop removes the record,
+  while cleanup failures retain it for retry.
+
+### Breaking Changes
+
+- Remove the `scene down` CLI command, Down scene menu entry, and Python `down` methods.
+  Use `scene stop` for both existing-container and Compose cleanup.
+- Remove partial scene stop (`--instance`); stop always ends the complete scenario.
+  Existing containers are now stopped rather than left running.
 
 ## 1.0.4 - 2026-10-13
 

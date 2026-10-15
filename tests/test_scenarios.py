@@ -576,7 +576,7 @@ def test_management_plan_skips_execution_runtime_values(tmp_path: Path, operatio
         """robot:
   instances:
     robot1:
-      container: {prompt: {mode: input, message: Container}}
+      container: {default: robot-dev, prompt: {mode: input, message: Container}}
       groups:
         drivers:
           enabled: {prompt: {mode: confirm, message: Drivers}}
@@ -593,7 +593,7 @@ def test_management_plan_skips_execution_runtime_values(tmp_path: Path, operatio
         operation=operation,
     )
     assert isinstance(plan, ScenarioControlPlan)
-    assert not hasattr(plan.instances[0], "container")
+    assert plan.instances[0].container == ("robot-dev" if operation == "stop" else None)
     assert plan.instances[0].groups == ()
 
 
@@ -621,11 +621,11 @@ def test_pane_management_uses_static_group_names_without_runtime_values(tmp_path
         operation=operation,
         instances=["robot1"],
     )
-    assert not hasattr(plan.instances[0], "container")
+    assert plan.instances[0].container is None
     assert [group.name for group in plan.instances[0].groups] == ["drivers"]
 
 
-def test_down_resolves_compose_control_values_only(tmp_path: Path):
+def test_stop_resolves_compose_control_values_only(tmp_path: Path):
     config = project(
         tmp_path,
         """robot:
@@ -647,7 +647,7 @@ def test_down_resolves_compose_control_values_only(tmp_path: Path):
         "robot",
         "development",
         ResolutionRequest(config, interactive=False),
-        operation="down",
+        operation="stop",
     )
     assert plan.compose is not None
     assert plan.compose.project_name == "robot-debug"
@@ -903,6 +903,11 @@ class FakeTmux:
             if name in self.missing:
                 return CommandResult(1, stderr=f"Error: No such object: {name}\n")
             return CommandResult(0, "true\n" if self.containers_running else "false\n")
+        if verb == "stop":
+            if command[-1] in self.missing:
+                return CommandResult(1, stderr="No such container")
+            self.containers_running = False
+            return CommandResult(0)
         if verb in {"restart", "start"}:
             self.containers_running = True
             return CommandResult(0)
@@ -1316,14 +1321,14 @@ def test_compose_start_requires_one_container_per_service(tmp_path: Path):
     assert not any(command[:2] == ("tmux", "new-session") for command in fake.commands)
 
 
-def test_compose_down_stops_tmux_then_removes_environment(tmp_path: Path):
+def test_compose_stop_removes_environment_then_closes_tmux(tmp_path: Path):
     fake = FakeTmux(session=True, windows=("robot1",))
     plan = scenario_plan(
         instance(service="robot"),
         compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60),
     )
 
-    result = executor(fake).down(plan)
+    result = executor(fake).stop(plan)
 
     down = (
         "docker",
@@ -1336,23 +1341,30 @@ def test_compose_down_stops_tmux_then_removes_environment(tmp_path: Path):
         "--remove-orphans",
     )
     kill = ("tmux", "kill-session", "-t", "robot-session")
-    assert result.detail == "down"
-    assert fake.commands.index(kill) < fake.commands.index(down)
+    assert result.detail == "stopped"
+    assert fake.commands.index(down) < fake.commands.index(kill)
 
 
-def test_compose_down_rejects_existing_container_scenarios():
-    with pytest.raises(ScenarioPlanError, match="only available for Compose-managed"):
-        executor(FakeTmux()).down(scenario_plan(instance()))
+def test_existing_container_stop_preserves_the_container():
+    fake = FakeTmux()
+    assert executor(fake).stop(scenario_plan(instance())).detail == "stopped"
+    assert ("docker", "stop", "robot-dev") in fake.commands
+    assert not any(command[:2] == ("docker", "rm") for command in fake.commands)
 
 
-def test_compose_down_rejects_partial_selection(tmp_path: Path):
+@pytest.mark.parametrize("compose", [False, True])
+def test_stop_rejects_partial_selection_before_runtime_mutation(tmp_path: Path, compose):
+    fake = FakeTmux()
     plan = scenario_plan(
-        instance(service="robot"),
-        compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60),
+        instance(service="robot") if compose else instance(),
+        compose=ScenarioComposePlan(tmp_path / "compose.yaml", "robot-debug", 60)
+        if compose
+        else None,
         partial=True,
     )
     with pytest.raises(ScenarioPlanError, match="does not support partial"):
-        executor(FakeTmux()).down(plan)
+        executor(fake).stop(plan)
+    assert fake.commands == []
 
 
 def test_tmux_replaces_the_session_before_restarting_containers():
@@ -1562,15 +1574,6 @@ def test_tmux_stop_interrupts_every_pane_then_kills_the_session():
     ]
     assert fake.commands[-1] == ("tmux", "kill-session", "-t", "robot-session")
     assert fake.session is False
-
-
-def test_partial_stop_only_touches_selected_instances():
-    fake = FakeTmux(session=True, windows=("robot1", "robot2"))
-    plan = scenario_plan(instance("robot2", container="container-b"), partial=True)
-    executor(fake).stop(plan)
-    assert ("tmux", "kill-window", "-t", "robot-session:robot2") in fake.commands
-    assert ("tmux", "kill-window", "-t", "robot-session:robot1") not in fake.commands
-    assert fake.windows == ["robot1"]
 
 
 def test_tmux_logs_requires_an_instance_when_several_are_running():
@@ -1857,9 +1860,9 @@ def test_cli_status_accepts_repeated_instances(tmp_path: Path, monkeypatch):
     assert output.getvalue() == "running\n"
 
 
-def test_cli_down_does_not_register_instance_option():
+def test_cli_stop_does_not_register_instance_option():
     parser = build_parser()
-    args = parser.parse_args(["scene", "down", "robot"])
+    args = parser.parse_args(["scene", "stop", "robot"])
     assert not hasattr(args, "instance")
     assert not hasattr(args, "instances")
 
@@ -1868,7 +1871,6 @@ class FakeScenarioExecutor:
     def __init__(self) -> None:
         self.started = []
         self.stopped = []
-        self.downed = []
 
     def start(self, plan):
         self.started.append(plan)
@@ -1877,10 +1879,6 @@ class FakeScenarioExecutor:
     def stop(self, plan):
         self.stopped.append(plan)
         return ScenarioResult(plan.scene_name, plan.profile_name)
-
-    def down(self, plan):
-        self.downed.append(plan)
-        return ScenarioResult(plan.scene_name, plan.profile_name, "down")
 
 
 def test_menu_starts_scene_once_and_exits(tmp_path: Path):
@@ -1949,7 +1947,7 @@ scene-b:
     assert "2) B scenarios (scenarios/b.yaml)" in rendered
 
 
-def test_menu_scene_submenu_lists_start_stop_and_down(tmp_path: Path):
+def test_menu_scene_submenu_lists_only_start_and_stop(tmp_path: Path):
     config = project(tmp_path, scenario_yaml())
     output = TTYBuffer()
     app = MenuApp(
@@ -1962,7 +1960,7 @@ def test_menu_scene_submenu_lists_start_stop_and_down(tmp_path: Path):
     rendered = output.getvalue()
     assert "1) Start scene" in rendered
     assert "2) Stop scene" in rendered
-    assert "3) Down scene" in rendered
+    assert "Down scene" not in rendered
 
 
 def test_menu_asks_for_the_profile_when_several_are_configured(tmp_path: Path):
@@ -2005,24 +2003,12 @@ def test_menu_stop_scene_stops_and_reports(tmp_path: Path):
     assert len(executor.stopped) == 1
     assert executor.stopped[0].scene_name == "robot"
     rendered = output.getvalue()
-    assert "Stop this scenario now?" in rendered
+    assert "Stop this complete scenario and clean up its environment now?" in rendered
+    assert "Containers: robot-dev" in rendered
     assert "Scenario 'robot': stopped" in rendered
 
 
-def test_menu_down_scene_is_unavailable_without_compose_scenes(tmp_path: Path):
-    config = project(tmp_path, scenario_yaml())
-    output = TTYBuffer()
-    app = MenuApp(
-        MenuIO(TTYBuffer("4\n3\n"), output),
-        scenario_executor_factory=lambda: FakeScenarioExecutor(),
-    )
-
-    assert app.run(config) == 2
-
-    assert "no Compose-managed scenes configured" in output.getvalue()
-
-
-def test_menu_down_scene_removes_the_compose_environment(tmp_path: Path):
+def test_menu_stop_scene_cleans_up_the_compose_environment(tmp_path: Path):
     config = write(
         tmp_path / "rigyard.yaml",
         """version: 3
@@ -2044,15 +2030,17 @@ sources: {scenarios: scenarios/compose.yaml}
     executor = FakeScenarioExecutor()
     output = TTYBuffer()
     app = MenuApp(
-        MenuIO(TTYBuffer("4\n3\n1\ny\n"), output),
+        MenuIO(TTYBuffer("4\n2\n1\ny\n"), output),
         scenario_executor_factory=lambda: executor,
     )
 
     assert app.run(config) == 0
 
-    assert len(executor.downed) == 1
-    assert executor.downed[0].scene_name == "compose-scene"
-    assert "Scenario 'compose-scene': down" in output.getvalue()
+    assert len(executor.stopped) == 1
+    assert executor.stopped[0].scene_name == "compose-scene"
+    assert "Scenario 'compose-scene': stopped" in output.getvalue()
+    assert "Compose project: menu-compose-project" in output.getvalue()
+    assert "remove Compose containers and networks" in output.getvalue()
 
 
 def test_tmux_runner_os_error_is_actionable():

@@ -59,7 +59,7 @@ class ScenarioExecutor:
         if plan.compose is not None:
             self.compose.preflight(plan)
         if self.tmux.session_exists(plan.session):
-            self.stop(plan)
+            self._stop_session(plan)
         if plan.compose is not None and not plan.partial:
             self.compose.remove(plan)
         runtime_plan = self.compose.prepare(plan) if plan.compose is not None else plan
@@ -114,36 +114,56 @@ class ScenarioExecutor:
             self.attach(runtime_plan)
         return result
 
-    def down(self, plan: ScenarioTarget) -> ScenarioResult:
-        if plan.compose is None:
-            raise ScenarioPlanError("scene down is only available for Compose-managed scenarios")
+    def stop(self, plan: ScenarioTarget) -> ScenarioResult:
         if plan.partial:
-            raise ScenarioPlanError("scene down does not support partial instance selection")
+            raise ScenarioPlanError("scene stop does not support partial instance selection")
+        if plan.compose is None and (
+            not plan.instances or any(instance.container is None for instance in plan.instances)
+        ):
+            raise ScenarioPlanError("scene stop requires resolved container targets")
         self.tmux.require()
         self.containers.require()
-        self.compose.require()
-        self.stop(plan)
-        self.compose.remove(plan)
-        return ScenarioResult(plan.scene_name, plan.profile_name, "down")
+        if plan.compose is not None:
+            self.compose.require()
+        try:
+            self._interrupt_session(plan)
+            if plan.compose is not None:
+                self.compose.remove(plan)
+            else:
+                self.containers.stop(plan)
+        except BaseException as failure:
+            try:
+                self._close_session(plan)
+            except (OSError, RigyardError) as cleanup_error:
+                raise failure from cleanup_error
+            raise
+        self._close_session(plan)
+        return ScenarioResult(plan.scene_name, plan.profile_name, "stopped")
 
-    def stop(self, plan: ScenarioTarget) -> ScenarioResult:
-        self.tmux.require()
+    def _interrupt_session(self, plan: ScenarioTarget) -> None:
         if not self.tmux.session_exists(plan.session):
-            return ScenarioResult(plan.scene_name, plan.profile_name, "not running")
+            return
         running: list[ScenarioInstancePlan | ScenarioInstanceTarget] = [
             instance for instance in plan.instances if self._window_exists(plan, instance)
         ]
         self._interrupt(plan, running)
         if running and plan.stop_grace_seconds:
             self.sleep_fn(plan.stop_grace_seconds)
+
+    def _close_session(self, plan: ScenarioTarget) -> None:
+        if not self.tmux.session_exists(plan.session):
+            return
         if not plan.partial:
             self.tmux.kill_session(plan.session)
-            return ScenarioResult(plan.scene_name, plan.profile_name, "stopped")
-        for instance in running:
+            return
+        for instance in plan.instances:
             if self._window_exists(plan, instance):
                 self.tmux.kill_window(self._window_target(plan, instance), instance.name)
-        detail = "stopped" if running else "not running"
-        return ScenarioResult(plan.scene_name, plan.profile_name, detail)
+
+    def _stop_session(self, plan: ScenarioTarget) -> None:
+        """Replace tmux targets during start without stopping the environment."""
+        self._interrupt_session(plan)
+        self._close_session(plan)
 
     def _interrupt(
         self, plan: ScenarioTarget, instances: list[ScenarioInstancePlan | ScenarioInstanceTarget]

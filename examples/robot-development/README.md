@@ -36,3 +36,9 @@ rigyard --config examples/robot-development/rigyard.yaml test report unit --dry-
 rigyard --config examples/robot-development/rigyard.yaml task run clean --dry-run
 rigyard --config examples/robot-development/rigyard.yaml scene start robot-system development --dry-run
 ```
+
+End a complete scene with `robot scene stop robot-system development`. In
+existing-container mode this stops the referenced containers without removing them;
+in Compose mode it removes the project containers and networks. Both close tmux
+after cleanup, preserve named volumes and images, and use a default 5-second wait
+after Ctrl+C. Stop does not accept `--instance`.

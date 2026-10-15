@@ -193,11 +193,11 @@ interpreter: [/bin/bash, -eo, pipefail]
 
 Profiles, instance/group enablement, and instance targets resolve first. Process fields resolve only for enabled groups in selected instances. Runtime-capable fields accept [runtime values](../configuration/runtime-values.md), and strings support [templates](../configuration/templates.md).
 
-By default, all enabled instances are selected. Repeat `--instance NAME` to operate on specific windows:
+By default, start selects all enabled instances. Repeat `--instance NAME` to start specific windows; status, attach, and logs also support instance selection:
 
 ```bash
 rigyard scene start robot-system development --instance robot1
-rigyard scene stop robot-system development --instance robot1
+rigyard scene status robot-system development --instance robot1
 ```
 
 The profile may be omitted when a scenario defines exactly one profile. Scenarios with multiple profiles require an explicit name.
@@ -216,14 +216,33 @@ This preserves output and supports quick command edits and retries. With `keep_a
 | Command | tmux | Existing container | Compose containers |
 | --- | --- | --- | --- |
 | `scene start` | Replaces the complete session, or selected windows for `--instance` | Applies restart policy | Full start runs `down --remove-orphans`, then `up -d --wait`; partial start only runs `up` |
-| `scene stop` | Stops processes and closes targets | Preserved | Preserved |
-| `scene down` | Stops the complete scenario | Not applicable | Runs `compose down --remove-orphans` |
+| `scene stop` | Interrupts tasks, waits, cleans the environment, then closes the session | Runs `docker stop`; container and data are preserved | Runs `compose down --remove-orphans`; removes project containers and networks |
 
-`scene down` is available only for Compose scenarios and operates on the complete Compose project,
-so it rejects `--instance`. A complete Compose start is intentionally destructive to old project
-containers: if the subsequent `compose up` fails, the previous environment has already been
-removed, while any newly created containers remain available for diagnosis. Use `scene down` to
-remove them. Named volumes are not removed.
+`scene stop` always operates on the complete scenario and rejects `--instance`.
+There is no `scene down` command or Python `down` method. The interactive Scene menu
+contains only Start scene and Stop scene, and Stop displays the actual cleanup targets
+before confirmation.
+
+Shutdown first sends Ctrl+C to the scene panes, waits the profile's
+`stop_grace_seconds` (default 5 seconds, range 0–30), stops the existing containers or
+removes the Compose project, and finally closes the tmux session. The grace period
+is a fixed wait, not a process-exit check, and is separate from Docker's own shutdown
+timeout. Cleanup still runs if the tmux session has already exited. Existing
+containers are stopped even if an instance's window has disappeared; each distinct
+container is stopped once. If one container fails to stop, Rigyard still attempts
+the remaining containers and reports the failures. Scene containers must be available for Rigyard to stop;
+sharing an existing container with another scene means stopping it affects both.
+
+Existing containers are not removed. Compose cleanup does not pass `--volumes` or
+`--rmi`, so named volumes and images are preserved; container writable-layer data is
+lost when the Compose containers are removed. A complete Compose start also
+recreates the project: if the subsequent `compose up` fails, newly created containers
+remain available for diagnosis and can be cleaned with `scene stop`.
+
+A partial start only replaces selected tmux windows and follows the normal container
+restart policy; it never invokes complete scenario stop or tears down a Compose
+project. With `restart_container: never`, start requires the existing containers to
+be running, so containers stopped by `scene stop` must first be started externally.
 
 ## Commands
 
@@ -235,10 +254,9 @@ rigyard scene attach robot-system development --instance robot1 --group drivers
 rigyard scene logs robot-system development --instance robot1 --group drivers
 rigyard scene logs robot-system development --follow
 rigyard scene stop robot-system development
-rigyard scene down robot-system development
 ```
 
-`attach` and group-specific `logs` must identify a unique instance; pass `--instance` in multi-instance scenarios. Stopping first sends Ctrl+C, waits for `stop_grace_seconds`, and then closes the target tmux objects.
+`attach` and group-specific `logs` must identify a unique instance; pass `--instance` in multi-instance scenarios. Use `scene stop` for complete environment cleanup as described above.
 
 ### Runtime identity
 
@@ -256,27 +274,32 @@ Rigyard does not automatically remove resources with legacy names.
 
 A successful start records its resolved control target under
 `.rigyard/runs/` beside the manifest. Records contain the actual session name,
-selected instance/group names, Compose project/file/environment, and lifecycle state;
+selected instance/group names, resolved existing-container names or IDs, Compose
+project/file/environment, and lifecycle state;
 they do not contain group scripts, commands, or group environment values. Records are
 atomically replaced with owner-only file permissions. Keep this directory out of Git.
 
-`stop`, `status`, `attach`, `logs`, and `down` first use this record, even if the
+`stop`, `status`, `attach`, and `logs` first use this record, even if the
 Rigyard configuration has since changed or is missing. Pane indexes are discovered
 from live tmux group tags rather than cached indexes. Use `--source` and a profile
 when more than one recorded run matches. Recorded identity settings take precedence
 over new runtime overrides for control operations. Without a record, control planning
 falls back to the current configuration, allowing management of pre-existing sessions.
+For Stop without a record, existing-container mode resolves enabled-instance targets;
+Compose mode resolves the project, file, and environment. Startup scripts, group
+enablement, attach prompts, and Compose startup wait-time prompts are not resolved.
 
 Partial starts merge their instance targets into the existing run record. Lifecycle
 mutations are serialized per project; interactive attachment releases that lock.
 Failed starts retain a `failed` record and any diagnostic resources preserved by the
-executor. Use `stop` to close panes or `down` to remove a Compose environment. `stop`
-retains the record so Compose cleanup remains available; successful `down` removes it.
+executor. Successful `stop` removes the run record only after environment and tmux
+cleanup both succeed. A cleanup failure keeps the record for retry; Rigyard still
+attempts to close tmux after an environment-cleanup failure.
 Compose cleanup still requires the recorded Compose file and a working Docker context.
 
 A start cannot reuse session/project names owned by another recorded run. If explicit
-runtime names change, stop the existing run first (or use `down` for an existing Compose
-project). Directly constructed Python plans without an identity remain unrecorded.
+runtime names change, stop the existing run first. Directly constructed Python plans
+without an identity remain unrecorded.
 
 ## Nested scenario directories
 
@@ -324,9 +347,9 @@ The menu keeps explicit directory levels, even with one child, and displays a
 breadcrumb such as `Start scene / XXBot / Navigation`. Back returns to the parent
 level; Back at profile selection returns to scene selection. The final selection is
 one leaf scene and profile, followed by the usual startup confirmation. Selecting a
-directory never starts all its descendants. Stop and Down use the same navigation;
-Down hides branches without Compose scenes. Existing flat configurations keep their
-current menu behavior.
+directory never starts all its descendants. Stop uses the same navigation for both
+existing-container and Compose scenes. Existing flat configurations keep their
+current source-selection behavior.
 
 CLI commands still select scenes directly. Use the **leaf** source path, relative to
 the root manifest, to disambiguate same-named scenes:

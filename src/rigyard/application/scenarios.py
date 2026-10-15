@@ -9,7 +9,7 @@ from typing import Literal, overload
 
 from pydantic import TypeAdapter, ValidationError
 
-from ..errors import ResolutionError, SchemaValidationError
+from ..errors import ResolutionError, ScenarioPlanError, SchemaValidationError
 from ..parameters.models import PromptValue
 from ..parameters.prompt import Formatter
 from ..parameters.resolver import collect_prompts, materialize, materialize_as
@@ -17,6 +17,7 @@ from ..parameters.sources import DynamicSources
 from ..parameters.templates import StringTemplateRenderer, TemplateContext
 from ..scenarios.models import (
     ScenarioComposeSpec,
+    ScenarioComposeTemplate,
     ScenarioControlPlan,
     ScenarioGroupSpec,
     ScenarioInstanceSpec,
@@ -35,7 +36,7 @@ from .parameters import resolve_selected_prompts
 from .project import ProjectContext, project_context
 from .requests import ResolutionRequest
 
-ScenarioOperation = Literal["start", "stop", "down", "status", "attach", "logs"]
+ScenarioOperation = Literal["start", "stop", "status", "attach", "logs"]
 
 
 class PlanScenarioUseCase:
@@ -67,7 +68,7 @@ class PlanScenarioUseCase:
         profile_name: str | None,
         request: ResolutionRequest,
         *,
-        operation: Literal["stop", "down", "status", "attach", "logs"],
+        operation: Literal["stop", "status", "attach", "logs"],
         instances: Sequence[str] | None = None,
         environment: Mapping[str, str] | None = None,
         now: datetime | None = None,
@@ -84,6 +85,10 @@ class PlanScenarioUseCase:
         environment: Mapping[str, str] | None = None,
         now: datetime | None = None,
     ) -> ScenarioTarget:
+        if operation not in {"start", "stop", "status", "attach", "logs"}:
+            raise ScenarioPlanError(f"unknown scenario operation {operation!r}")
+        if operation == "stop" and instances:
+            raise ScenarioPlanError("scene stop does not support partial instance selection")
         if operation != "start":
             record = FileRunStore(
                 request.project.config_path if request.project is not None else request.config_path
@@ -347,8 +352,17 @@ class PlanScenarioUseCase:
     ) -> ScenarioControlPlan:
         profile_prefix = f"scenarios.{scene_name}.profiles.{profile_name}"
         compose_prefix = f"scenarios.{scene_name}.compose"
+        control_compose = (
+            ScenarioComposeTemplate(
+                file=scenario.compose.file,
+                project_name=scenario.compose.project_name,
+                environment=scenario.compose.environment,
+            )
+            if operation == "stop" and scenario.compose is not None
+            else None
+        )
         profile_template = scenario.profiles[profile_name]
-        needs_stop_grace = operation in {"stop", "down"}
+        needs_stop_grace = operation == "stop"
         control_profile = ScenarioProfileTemplate(
             session=profile_template.session,
             attach=False,
@@ -358,8 +372,14 @@ class PlanScenarioUseCase:
             keep_alive=False,
         )
         selected = collect_prompts(control_profile, profile_prefix)
-        if operation == "down" and scenario.compose is not None:
-            selected.update(collect_prompts(scenario.compose, compose_prefix))
+        if control_compose is not None:
+            selected.update(collect_prompts(control_compose, compose_prefix))
+        instances_prefix = f"scenarios.{scene_name}.instances"
+        if operation == "stop" and scenario.compose is None:
+            for name, instance in scenario.instances.items():
+                selected.update(
+                    collect_prompts(instance.enabled, f"{instances_prefix}.{name}.enabled")
+                )
         context = resolve_selected_prompts(
             project.config,
             selected,
@@ -385,16 +405,45 @@ class PlanScenarioUseCase:
         )
         compose = (
             materialize_as(
-                scenario.compose,
+                control_compose,
                 compose_prefix,
                 context,
                 ScenarioComposeSpec,
                 renderer,
             )
-            if operation == "down" and scenario.compose is not None
+            if control_compose is not None
             else None
         )
         selected_names = _select_control_instances(scene_name, scenario.instances, instances)
+        containers: dict[str, str] = {}
+        if operation == "stop" and scenario.compose is None:
+            selected_names = _select_instances(
+                scene_name, scenario.instances, None, context, instances_prefix
+            )
+            container_prompts = {
+                path: value
+                for name in selected_names
+                for path, value in collect_prompts(
+                    scenario.instances[name].container, f"{instances_prefix}.{name}.container"
+                ).items()
+            }
+            container_context = resolve_selected_prompts(
+                project.config,
+                container_prompts,
+                request,
+                renderer=renderer,
+                sources=self.sources,
+                formatter=self.formatter,
+                environment=project.environment,
+            )
+            for name in selected_names:
+                path = f"{instances_prefix}.{name}.container"
+                container = materialize(
+                    scenario.instances[name].container, path, container_context, renderer
+                )
+                if not isinstance(container, str):
+                    raise ResolutionError(f"invalid resolved value for {path}: expected a string")
+                containers[name] = container
         groups = (
             {name: tuple(scenario.instances[name].groups) for name in selected_names}
             if operation in {"attach", "logs"}
@@ -411,6 +460,7 @@ class PlanScenarioUseCase:
             project.config.metadata.name,
             partial=bool(instances),
             source_path=source_path,
+            containers=containers,
         )
 
 
