@@ -11,6 +11,8 @@ This file records notable user-facing changes. Releases use semantic versioning 
 
 ### Fixed
 
+- Preserve standard input when starting wrapped Docker exec processes so lifecycle
+  hook scripts execute and report their actual exit status instead of falsely completing.
 - Avoid exponential menu filtering work when scenario directories share subtrees,
   including branches without executable scenes.
 

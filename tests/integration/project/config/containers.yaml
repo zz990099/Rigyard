@@ -4,3 +4,22 @@ smoke:
   mounts: ["${RIGYARD_ROOT}:/workspace"]
   workdir: /workspace
   command: [sleep, "600"]
+  lifecycle:
+    post_create:
+      - name: prepare
+        script: scripts/prepare-hook.sh
+    post_start:
+      - name: verify
+        script: scripts/verify-hook.sh
+
+smoke-hook-failure:
+  name: rigyard-ci-smoke-hook-failure
+  image: rigyard/ci-smoke:local
+  command: [sleep, "600"]
+  lifecycle:
+    post_create:
+      - name: fail
+        script: scripts/fail-hook.sh
+    post_start:
+      - name: must-not-run
+        script: scripts/prepare-hook.sh

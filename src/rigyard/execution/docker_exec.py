@@ -31,13 +31,16 @@ forward() {
 }
 trap cleanup EXIT
 trap forward INT TERM
+# Background commands otherwise receive /dev/null instead of the hook script.
+exec 3<&0
 if command -v setsid >/dev/null 2>&1; then
-    setsid "$@" &
+    setsid "$@" <&3 3<&- &
     grouped=1
 else
-    "$@" &
+    "$@" <&3 3<&- &
 fi
 child=$!
+exec 3<&-
 printf '%s %s\n' "$child" "$grouped" > "$marker"
 wait "$child"
 status=$?

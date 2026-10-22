@@ -23,6 +23,7 @@ cleanup() {
     docker compose -f "$project/compose.yaml" -p rigyard-ci-smoke-compose \
         down --remove-orphans >/dev/null 2>&1 || true
     docker rm -f rigyard-ci-smoke >/dev/null 2>&1 || true
+    docker rm -f rigyard-ci-smoke-hook-failure >/dev/null 2>&1 || true
     docker image rm rigyard/ci-smoke:local >/dev/null 2>&1 || true
     rm -rf -- "$scratch_dir"
     exit "$status"
@@ -33,6 +34,19 @@ cd -- "$project"
 "$rigyard_bin" validate
 "$rigyard_bin" image build smoke --non-interactive
 "$rigyard_bin" container create smoke --non-interactive
+docker exec rigyard-ci-smoke test -f /tmp/rigyard-hook-verified
+
+# A failing stdin-fed hook must fail creation, retain the container, and stop later hooks.
+if "$rigyard_bin" container create smoke-hook-failure --non-interactive \
+    >"$scratch_dir/hook-failure.log" 2>&1; then
+    printf 'A failing lifecycle hook was incorrectly reported as successful.\n' >&2
+    exit 1
+fi
+grep -q 'exit 37: expected hook failure' "$scratch_dir/hook-failure.log"
+grep -q 'the container was kept for diagnosis' "$scratch_dir/hook-failure.log"
+[[ "$(docker inspect --format '{{.State.Running}}' rigyard-ci-smoke-hook-failure)" == true ]]
+docker exec rigyard-ci-smoke-hook-failure test ! -e /tmp/rigyard-hook-ready
+
 "$rigyard_bin" build smoke --non-interactive
 "$rigyard_bin" test run smoke --non-interactive
 "$rigyard_bin" test report smoke --non-interactive
