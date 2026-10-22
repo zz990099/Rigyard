@@ -1,4 +1,7 @@
 import hashlib
+import os
+import shlex
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -14,7 +17,7 @@ from rigyard.containers.models import (
 from rigyard.containers.planner import ContainerRunPlanner
 from rigyard.containers.service import ContainerCreateService
 from rigyard.errors import ContainerLifecycleError, ContainerPlanError
-from rigyard.execution import CommandResult
+from rigyard.execution import CommandResult, SubprocessRunner
 from rigyard.providers.docker.container_backend import DockerContainerBackend
 
 
@@ -177,6 +180,65 @@ def test_hook_timeout_reports_retained_container(tmp_path: Path):
     )
     with pytest.raises(ContainerLifecycleError, match="timed out.*kept for diagnosis"):
         ContainerCreateService(DockerContainerBackend(runner)).create(plan)
+
+
+@pytest.mark.parametrize("interpreter", ["/bin/sh", "/bin/bash"])
+@pytest.mark.parametrize("with_setsid", [False, True])
+@pytest.mark.parametrize("exit_code", [0, 37])
+def test_hook_executes_stdin_script_and_preserves_exit_status(
+    tmp_path: Path, interpreter: str, with_setsid: bool, exit_code: int
+):
+    # Execute the real wrapper and interpreter; only replace the Docker transport.
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    programs = ["rm", "setsid"] if with_setsid else ["rm"]
+    for program in programs:
+        executable = shutil.which(program)
+        if executable is None:
+            pytest.skip(f"{program} is unavailable")
+        (bin_dir / program).symlink_to(executable)
+    environment = {**os.environ, "PATH": str(bin_dir)}
+    evidence = tmp_path / "hook-executed"
+    script = tmp_path / "hook.sh"
+    script.write_text(
+        f"printf 'executed\\n' > {shlex.quote(str(evidence))}\n"
+        "printf 'hook stdout\\n'\n"
+        "printf 'hook stderr\\n' >&2\n"
+        f"exit {exit_code}\n",
+        encoding="utf-8",
+    )
+    spec = ContainerSpec.model_validate(
+        {
+            "image": "test-image",
+            "lifecycle": {
+                "post_create": [
+                    {"name": "prepare", "script": script, "interpreter": [interpreter, "-eu"]}
+                ]
+            },
+        }
+    )
+    hook = ContainerRunPlanner().plan("dev", spec, tmp_path / "rigyard.yaml", {}).hooks[0]
+
+    class LocalDockerExecRunner:
+        def run(self, command, **kwargs):
+            assert command[:4] == ("docker", "exec", "-i", "test-container")
+            self.command = command
+            self.result = SubprocessRunner().run(command[4:], environment=environment, **kwargs)
+            return self.result
+
+    runner = LocalDockerExecRunner()
+    backend = DockerContainerBackend(runner)
+    if exit_code:
+        with pytest.raises(ContainerLifecycleError, match="exit 37: hook stderr"):
+            backend.run_hook("dev", "test-container", hook)
+    else:
+        result = backend.run_hook("dev", "test-container", hook)
+        assert (result.phase, result.name) == (LifecyclePhase.POST_CREATE, "prepare")
+
+    assert evidence.read_text(encoding="utf-8") == "executed\n"
+    assert runner.result == CommandResult(exit_code, "hook stdout\n", "hook stderr\n")
+    marker = Path(runner.command[runner.command.index("rigyard-exec") + 1])
+    assert not marker.exists()
 
 
 def test_values_file_can_target_prompt_inside_hook_array(tmp_path: Path):
