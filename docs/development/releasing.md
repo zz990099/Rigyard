@@ -35,8 +35,9 @@ The first successful upload converts the pending publisher into a normal publish
 
 1. Check that the configuration schema, CLI commands, workspace state, and upgrade behavior are
    ready to support as public interfaces. Run real project workflows in a Linux Docker environment.
-2. Update `src/rigyard/version.py`, `CHANGELOG.md`, and the development-status classifier in
-   `pyproject.toml`. Hatch reads the version from `version.py`. Choose a new version: PyPI will
+2. Update `src/rigyard/version.py` and `CHANGELOG.md`; review the development-status classifier in
+   `pyproject.toml` and change it only if the project's maturity changes. Hatch reads the version
+   from `version.py`. Choose a new version: PyPI will
    not replace existing distribution files with the same name.
 3. Review package description, URLs, README links, license, installation instructions, and
    `requires-python`. Do not present the checkout bootstrap script as a file installed by PyPI.
@@ -60,13 +61,13 @@ python scripts/verify_distributions.py dist
 ```
 
 Before creating the Release, also check the built artifacts against the intended tag. For
-version 1.0.4, run:
+version 1.0.5, run:
 
 ```bash
-python scripts/verify_distributions.py dist --tag 1.0.4
+python scripts/verify_distributions.py dist --tag v1.0.5
 ```
 
-Use the version you intend to publish (`v1.0.4` is also accepted). Creating a tag does not
+Use the version you intend to publish (`1.0.5` is also accepted). Creating a tag does not
 change the package version: update `src/rigyard/version.py`, rebuild into a clean distribution
 directory, and merge the version change before tagging the tested commit. A tag/version
 mismatch stops the publishing workflow before upload to PyPI.

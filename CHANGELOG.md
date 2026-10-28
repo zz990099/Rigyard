@@ -4,6 +4,8 @@ This file records notable user-facing changes. Releases use semantic versioning 
 
 ## Unreleased
 
+## 1.0.5 - 2026-10-28
+
 ### Added
 
 - Recursive scenario directory sources with parent-relative child references, cycle detection, and source-qualified leaf lookup.
@@ -11,6 +13,9 @@ This file records notable user-facing changes. Releases use semantic versioning 
 
 ### Fixed
 
+- Preserve the active workspace root when rendering scenario templates. Starting or
+  stopping a Compose scenario from a workspace subdirectory now uses the workspace root
+  for `${WORKSPACE_ROOT}` instead of the current directory, keeping host mounts consistent.
 - Preserve standard input when starting wrapped Docker exec processes so lifecycle
   hook scripts execute and report their actual exit status instead of falsely completing.
 - Avoid exponential menu filtering work when scenario directories share subtrees,
