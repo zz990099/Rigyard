@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from rigyard.application.project import ProjectContext
 from rigyard.application.requests import ResolutionRequest
 from rigyard.application.scenarios import PlanScenarioUseCase
 from rigyard.cli.commands import scenarios as scenario_commands
@@ -35,6 +36,7 @@ from rigyard.scenarios.process import (
     process_argv,
     startup_exit_code,
 )
+from rigyard.workspace import initialize_workspace, resolve_config
 
 
 class TTYBuffer(io.StringIO):
@@ -253,6 +255,63 @@ def test_compose_environment_resolves_rigyard_templates(
         ("CONFIG_ROOT", str(tmp_path)),
         ("WORKSPACE", str(tmp_path)),
     )
+
+
+@pytest.mark.parametrize("directory", [".", "src/robot", "src/robot/nested"])
+@pytest.mark.parametrize("use_project_context", [False, True], ids=["request", "project"])
+@pytest.mark.parametrize("operation", ["start", "stop"])
+def test_compose_plan_preserves_parent_workspace_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, directory, use_project_context, operation
+):
+    workspace = tmp_path / "workspace"
+    config = project(
+        workspace / "src/robot/.toolchain",
+        """robot:
+  compose:
+    file: ${SOURCE_DIR}/compose.yaml
+    environment:
+      WORKSPACE_ROOT: ${WORKSPACE_ROOT}
+      CONFIG_ROOT: ${RIGYARD_ROOT}
+  instances:
+    robot1: {service: robot, groups: {drivers: {script: /a.sh}}}
+  profiles:
+    development: {attach: false}
+""",
+    )
+    compose_file = write(
+        config.parent / "config/compose.yaml", "services: {robot: {image: robot}}\n"
+    )
+    initialize_workspace(config, root=workspace, use_config_alias=False)
+    current_directory = workspace / directory
+    current_directory.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(current_directory)
+    resolution = resolve_config(None)
+    assert resolution.workspace_root == workspace.resolve()
+    assert resolution.config_path == config.resolve()
+    if use_project_context:
+        request = ResolutionRequest(
+            resolution.config_path,
+            interactive=False,
+            project=ProjectContext.capture(
+                resolution.config_path, workspace_root=resolution.workspace_root
+            ),
+        )
+    else:
+        request = ResolutionRequest(
+            resolution.config_path,
+            interactive=False,
+            workspace_root=resolution.workspace_root,
+        )
+
+    # No run record exists: stop must render the current configuration as well.
+    plan = PlanScenarioUseCase().plan("robot", "development", request, operation=operation)
+
+    assert plan.compose is not None
+    assert dict(plan.compose.environment) == {
+        "WORKSPACE_ROOT": str(workspace.resolve()),
+        "CONFIG_ROOT": str(config.parent.resolve()),
+    }
+    assert plan.compose.file == compose_file.resolve()
 
 
 def test_compose_plan_generates_a_stable_project_name(tmp_path: Path):
