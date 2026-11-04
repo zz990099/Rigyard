@@ -27,7 +27,10 @@ for scene in existing compose; do
     units+=("$unit")
     "$rigyard_bin" scene autostart enable "$scene" ci --non-interactive
     systemctl is-enabled "$unit"
-    ! systemctl is-active --quiet "$unit"
+    if systemctl is-active --quiet "$unit"; then
+        printf 'Expected an inactive autostart service.\n' >&2
+        exit 1
+    fi
     # Launch by systemd with no terminal or activated shell environment.
     sudo systemctl start "$unit" || { sudo journalctl -u "$unit" --no-pager; exit 1; }
     "$rigyard_bin" scene autostart status "$scene" ci
@@ -41,7 +44,10 @@ for scene in existing compose; do
     "$rigyard_bin" scene autostart disable "$scene" ci
     systemctl is-active --quiet "$unit"
     "$rigyard_bin" scene stop "$scene" ci --non-interactive
-    ! systemctl is-active --quiet "$unit"
+    if systemctl is-active --quiet "$unit"; then
+        printf 'Expected an inactive autostart service.\n' >&2
+        exit 1
+    fi
     "$rigyard_bin" scene autostart enable "$scene" ci --non-interactive --now
     # Stop does not require the scenario YAML to remain readable.
     mv config/scenarios.yaml config/scenarios.saved
