@@ -155,6 +155,7 @@ class RuntimeValueResolver:
         self._reject_unknown("override", overrides)
         resolved: dict[str, ResolvedValue] = {}
         missing: list[str] = []
+        raw_answers: dict[str, Any] = {}
 
         for path, prompt in self.prompts.items():
             candidate: tuple[Any, ValueSource] | None = None
@@ -185,13 +186,14 @@ class RuntimeValueResolver:
                 missing.append(path)
             if path in resolved:
                 selected = resolved[path]
+                raw_answers[path] = thaw(selected.value)
                 resolved[path] = ResolvedValue(
                     thaw(self._compose_input(path, prompt, selected.value)), selected.source
                 )
 
         if missing and not allow_missing:
             raise MissingValueError(missing)
-        return ResolvedContext(resolved)
+        return ResolvedContext(resolved, raw_answers)
 
     def _compose_input(self, path: str, value: PromptValue, raw: Any) -> Any:
         prompt = value.prompt

@@ -363,6 +363,7 @@ class MenuApp:
         actions: tuple[tuple[str, Callable[[MenuSession], int | None]], ...] = (
             ("Start scene", self._start_scene),
             ("Stop scene", self._stop_scene),
+            ("Autostart…", self._autostart_menu),
         )
         selected = self.io.select("Scene", [label for label, _ in actions], back_label="Back")
         if selected is None:
@@ -496,3 +497,40 @@ class MenuApp:
         result = ScenarioService(self.scenario_executor_factory()).stop(plan)
         role = "muted" if result.detail == "not running" else "success"
         self.io.write_note(f"Scenario {result.scene_name!r}: {result.detail or 'stopped'}", role)
+
+    def _autostart_menu(self, session: MenuSession) -> None:
+        from ...application.autostart import PlanAutostartUseCase, preflight, selected_unit
+        from ...autostart.systemd import SystemdManager
+
+        actions = ("Enable", "Disable", "Status")
+        selected = self.io.select("Autostart", list(actions), back_label="Back")
+        if selected is None:
+            return
+        action = actions[selected]
+        choice = self._select_scenario(session, f"Autostart / {action}")
+        if choice is None:
+            return
+        group, scene, profile = choice
+        request = self._request(session, group.path, interactive=action == "Enable")
+        manager = SystemdManager()
+        if action == "Enable":
+            planned = PlanAutostartUseCase(self.sources, self.io.style.render).plan(
+                scene, profile, request
+            )
+            for line in describe_scenario(planned.scenario):
+                self.io.write_field(line)
+            self.io.write_field(f"Service: {planned.unit}")
+            if not self.io.confirm("Enable this scenario at boot?", default=True):
+                return
+            preflight(planned, manager)
+            manager.install(planned.unit, planned.content)
+            self.io.write_note("Autostart enabled for next boot; current run unchanged.")
+        elif action == "Disable":
+            unit = selected_unit(scene, profile, request)
+            if self.io.confirm("Disable boot startup (leave current run unchanged)?", default=True):
+                manager.disable(unit)
+                self.io.write_note("Autostart disabled; current run unchanged.")
+        else:
+            from ...application.autostart import autostart_status
+
+            self.io.write(autostart_status(selected_unit(scene, profile, request), manager))

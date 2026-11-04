@@ -79,4 +79,5 @@ docker compose version
 [[ -z "$(docker ps -aq --filter label=com.docker.compose.project=rigyard-ci-smoke-compose)" ]]
 [[ -z "$(docker network ls -q --filter label=com.docker.compose.project=rigyard-ci-smoke-compose)" ]]
 [[ -z "$(find .rigyard/runs -name '*.json' -print -quit)" ]]
+bash "$project_template/../autostart.sh" "$project" "$rigyard_bin"
 printf 'Docker and tmux smoke test passed.\n'

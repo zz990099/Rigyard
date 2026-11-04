@@ -52,8 +52,19 @@ class ScenarioExecutor:
         self.containers = containers if containers is not None else defaults[0]
         self.compose = compose if compose is not None else defaults[1]
         self.tmux = tmux if tmux is not None else defaults[2]
+        self._custom_tmux = tmux is not None
+
+    def _use_socket(self, plan: ScenarioTarget) -> None:
+        if not self._custom_tmux:
+            from .runtime import ScenarioCommandGateway
+            from .tmux import TmuxSessionBackend
+
+            self.tmux = TmuxSessionBackend(
+                ScenarioCommandGateway(self.runner), self.runner, self.environment, plan.tmux_socket
+            )
 
     def start(self, plan: ScenarioPlan) -> ScenarioResult:
+        self._use_socket(plan)
         self.tmux.require()
         self.containers.require()
         if plan.compose is not None:
@@ -115,6 +126,7 @@ class ScenarioExecutor:
         return result
 
     def stop(self, plan: ScenarioTarget) -> ScenarioResult:
+        self._use_socket(plan)
         if plan.partial:
             raise ScenarioPlanError("scene stop does not support partial instance selection")
         if plan.compose is None and (
@@ -181,6 +193,7 @@ class ScenarioExecutor:
             self.tmux.kill_window(self._window_target(plan, instance), instance.name, checked=False)
 
     def status(self, plan: ScenarioTarget) -> ScenarioResult:
+        self._use_socket(plan)
         self.tmux.require()
         if not self.tmux.session_exists(plan.session):
             return ScenarioResult(plan.scene_name, plan.profile_name, "not running")
@@ -202,6 +215,7 @@ class ScenarioExecutor:
         instance_name: str | None = None,
         group_name: str | None = None,
     ) -> ScenarioResult:
+        self._use_socket(plan)
         self.tmux.require()
         if not self.tmux.session_exists(plan.session):
             raise ScenarioExecutionError(f"tmux session {plan.session!r} is not running")
@@ -226,6 +240,7 @@ class ScenarioExecutor:
         *,
         follow: bool = False,
     ) -> ScenarioResult:
+        self._use_socket(plan)
         if follow:
             return self.attach(plan, instance_name, group_name)
         self.tmux.require()

@@ -20,6 +20,7 @@ from .models import ScenarioControlPlan
 class ScenarioRunRecord(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     version: Literal[1] = 1
+    boot_id: str | None = None
     state: Literal["starting", "running", "failed", "stopped"]
     target: ScenarioControlPlan
 
@@ -134,3 +135,11 @@ def select_recorded_target(
         partial=True,
         instances=tuple(item for item in target.instances if item.name in instances),
     )
+
+
+def system_boot_id() -> str | None:
+    """Distinguish previous-boot ownership without discarding control records."""
+    try:
+        return Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+    except OSError:
+        return None

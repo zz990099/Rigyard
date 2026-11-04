@@ -14,12 +14,15 @@ from ...scenarios.models import ScenarioPlan, ScenarioTarget
 from ...scenarios.service import ScenarioService
 from ..common import parse_overrides, print_fields, say
 from ..scenario_output import describe_scenario
+from .autostart import register_autostart_commands
 from .parameters import add_resolution_arguments
 
 
 def register_scenario_commands(commands: Any) -> None:
     scene = commands.add_parser("scene", help="start and manage scenarios")
     actions = scene.add_subparsers(dest="scene_command", required=True)
+
+    register_autostart_commands(actions)
 
     start = _operation(actions, "start", "start a scenario profile", instance_mode="multiple")
     start.add_argument("--dry-run", action="store_true", help="show the plan without starting")
