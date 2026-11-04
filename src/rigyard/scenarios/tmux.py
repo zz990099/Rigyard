@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from collections.abc import Mapping
+from pathlib import Path
 
 from ..execution import CommandResult, CommandRunner
 from .runtime import ScenarioCommandGateway
@@ -21,9 +23,11 @@ class TmuxSessionBackend:
         commands: ScenarioCommandGateway,
         runner: CommandRunner,
         environment: Mapping[str, str],
+        socket: str | None = None,
     ) -> None:
-        self.commands = commands
-        self.runner = runner
+        self.runner = SocketRunner(runner, socket) if socket else runner
+        self.commands = ScenarioCommandGateway(self.runner) if socket else commands
+        self.socket = socket
         self.environment = environment
 
     def require(self) -> None:
@@ -155,7 +159,11 @@ class TmuxSessionBackend:
         )
 
     def attach(self, session: str) -> None:
-        attach_command = "switch-client" if self.environment.get("TMUX") else "attach-session"
+        attach_command = (
+            "switch-client"
+            if self.environment.get("TMUX") and not self.socket
+            else "attach-session"
+        )
         self.commands.checked(
             ("tmux", attach_command, "-t", session),
             f"cannot attach tmux session {session!r}",
@@ -191,3 +199,35 @@ class TmuxSessionBackend:
             else:
                 command = (*command, "-r", key)
             self.commands.checked(command, f"cannot configure tmux environment {key!r}")
+
+
+class SocketRunner:
+    """Scope every tmux operation, including unchecked cleanup, to one server."""
+
+    def __init__(self, runner: CommandRunner, socket: str) -> None:
+        self.runner = runner
+        self.socket = socket
+
+    def run(
+        self,
+        command: tuple[str, ...],
+        *,
+        stdin: str | None = None,
+        capture: bool = False,
+        timeout_seconds: int | None = None,
+        cwd: Path | None = None,
+        environment: Mapping[str, str] | None = None,
+    ) -> CommandResult:
+        if command and command[0] == "tmux":
+            command = ("tmux", "-L", self.socket, *command[1:])
+            # Do not let a shell-specific TMUX_TMPDIR move the boot server socket.
+            environment = dict(os.environ if environment is None else environment)
+            environment.pop("TMUX_TMPDIR", None)
+        return self.runner.run(
+            command,
+            stdin=stdin,
+            capture=capture,
+            timeout_seconds=timeout_seconds,
+            cwd=cwd,
+            environment=environment,
+        )

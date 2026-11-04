@@ -360,3 +360,9 @@ rigyard scene start robot-system development --source scenarios/navigation/simul
 
 Runtime identity remains based on the manifest, leaf source, scene, and profile.
 Changing directory references without moving the leaf does not change that identity.
+
+
+## 开机自启动
+
+现有场景可通过 `Scene → Autostart…` 或 `rigyard scene autostart` 注册到 systemd。
+无需新增场景或 profile；详见 [自启动说明](autostart.md)。

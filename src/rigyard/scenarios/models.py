@@ -328,6 +328,8 @@ class ScenarioPlan:
     partial: bool = False
     startup: ScenarioStartupPlan = ScenarioStartupPlan()
     identity: ScenarioIdentity | None = None
+    tmux_socket: str | None = None
+    owner_unit: str | None = None
 
 
 @dataclass(frozen=True)
@@ -361,6 +363,8 @@ class ScenarioControlPlan:
     compose: ScenarioComposePlan | None = None
     partial: bool = False
     identity: ScenarioIdentity | None = None
+    tmux_socket: str | None = None
+    owner_unit: str | None = None
 
     @classmethod
     def from_start(cls, plan: ScenarioPlan) -> ScenarioControlPlan:
@@ -380,6 +384,8 @@ class ScenarioControlPlan:
             plan.compose,
             plan.partial,
             plan.identity,
+            plan.tmux_socket,
+            plan.owner_unit,
         )
 
 

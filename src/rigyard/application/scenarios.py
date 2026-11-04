@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, overload
+from typing import Any, Literal, overload
 
 from pydantic import TypeAdapter, ValidationError
 
@@ -59,6 +59,7 @@ class PlanScenarioUseCase:
         instances: Sequence[str] | None = None,
         environment: Mapping[str, str] | None = None,
         now: datetime | None = None,
+        answers: dict[str, Any] | None = None,
     ) -> ScenarioPlan: ...
 
     @overload
@@ -72,6 +73,7 @@ class PlanScenarioUseCase:
         instances: Sequence[str] | None = None,
         environment: Mapping[str, str] | None = None,
         now: datetime | None = None,
+        answers: dict[str, Any] | None = None,
     ) -> ScenarioControlPlan: ...
 
     def plan(
@@ -84,6 +86,7 @@ class PlanScenarioUseCase:
         instances: Sequence[str] | None = None,
         environment: Mapping[str, str] | None = None,
         now: datetime | None = None,
+        answers: dict[str, Any] | None = None,
     ) -> ScenarioTarget:
         if operation not in {"start", "stop", "status", "attach", "logs"}:
             raise ScenarioPlanError(f"unknown scenario operation {operation!r}")
@@ -245,7 +248,7 @@ class PlanScenarioUseCase:
             ResolutionRequest(
                 request.config_path,
                 request.values_path,
-                {**request.overrides, **instance_context.as_dict(), **group_context.as_dict()},
+                {**request.overrides, **instance_context.raw_answers, **group_context.raw_answers},
                 request.interactive,
                 request.input_fn,
                 project=project,
@@ -255,6 +258,9 @@ class PlanScenarioUseCase:
             formatter=self.formatter,
             environment=project.environment,
         )
+
+        if answers is not None:
+            answers.update(context.raw_answers)
 
         planned: dict[str, ScenarioInstanceSpec] = {}
         for name in selected_names:

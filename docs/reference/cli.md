@@ -118,3 +118,11 @@ Plan confirmation defaults to `[Y/n]`. Removing and recreating an existing conta
 ## Output color
 
 `--color=auto` uses color only when the output stream is a terminal. `NO_COLOR`, `TERM=dumb`, and `--color=never` disable it for CI and redirected logs.
+
+
+## Scene autostart
+
+`rigyard scene autostart enable|disable|status SCENE [PROFILE]` manages systemd boot registration.
+Enable/disable change the boot setting only; add `--now` for immediate start/stop. Enable supports
+`--dry-run`, `--source` and the existing runtime-value options. Disable/status also accept `--unit`
+for registrations whose original YAML has been removed. See [autostart](../features/autostart.md).

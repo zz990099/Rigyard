@@ -26,8 +26,11 @@ class ResolvedValue:
 class ResolvedContext(Mapping[str, Any]):
     """Read-only mapping with source metadata and disabled-parameter tracking."""
 
-    def __init__(self, values: Mapping[str, ResolvedValue]) -> None:
+    def __init__(
+        self, values: Mapping[str, ResolvedValue], raw_answers: Mapping[str, Any] | None = None
+    ) -> None:
         self._resolved = MappingProxyType(dict(values))
+        self.raw_answers = MappingProxyType(dict(raw_answers or {}))
 
     def __getitem__(self, key: str) -> Any:
         return self._resolved[key].value
