@@ -148,7 +148,7 @@ def test_environment_and_workspace_are_explicit(tmp_path, monkeypatch):
     )
     assert "ROBOT_TEST=value with %% and $" in planned.content
     assert "UNRELATED_SECRET" not in planned.content
-    assert f'WorkingDirectory="{tmp_path}"' in planned.content
+    assert f"WorkingDirectory={tmp_path}" in planned.content
 
 
 def test_date_template_remains_in_yaml_not_frozen_in_unit(tmp_path):
@@ -559,3 +559,45 @@ def test_socket_does_not_follow_shell_tmux_tmpdir(monkeypatch):
     backend = TmuxSessionBackend(ScenarioCommandGateway(runner), runner, {}, "boot")
     backend.require()
     assert "TMUX_TMPDIR" not in runner.calls[-1][1]["environment"]
+
+
+def test_legacy_previous_boot_record_does_not_block_registration(tmp_path):
+    plan = plan_at(tmp_path)
+    store = FileRunStore(plan.identity.config_path)
+    store.write(ScenarioRunRecord(state="running", target=ScenarioControlPlan.from_start(plan)))
+    boot = replace(plan, owner_unit=UNIT, tmux_socket="boot")
+    ScenarioService(executor(SocketFake()), owner_unit=UNIT).start(boot)
+    assert store.records()[0].target.owner_unit == UNIT
+
+
+def test_stop_retries_record_when_failed_unit_is_already_inactive(tmp_path, monkeypatch):
+    plan = replace(plan_at(tmp_path), owner_unit=UNIT, tmux_socket="boot")
+    fake = SocketFake()
+    ScenarioService(executor(fake), owner_unit=UNIT).start(plan)
+    monkeypatch.setattr(SystemdManager, "stop", lambda self, unit: None)
+    ScenarioService(executor(fake)).stop(plan)
+    assert not FileRunStore(plan.identity.config_path).records()
+    assert not fake.session
+
+
+def test_generated_unit_passes_real_systemd_parser(tmp_path):
+    import shutil
+    import subprocess
+
+    if shutil.which("systemd-analyze") is None:
+        pytest.skip("systemd tools not installed")
+    workspace = tmp_path / "space % literal"
+    workspace.mkdir()
+    planned = boot_plan(workspace)
+    unit = tmp_path / planned.unit
+    unit.write_text(planned.content)
+    (tmp_path / "docker.service").write_text(
+        "[Service]\nType=oneshot\nExecStart=/bin/true\nRemainAfterExit=yes\n"
+    )
+    result = subprocess.run(
+        ["systemd-analyze", "verify", str(unit)],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "SYSTEMD_UNIT_PATH": str(tmp_path) + ":"},
+    )
+    assert result.returncode == 0, result.stderr

@@ -32,6 +32,17 @@ def quote(value: str, *, command: bool = False) -> str:
     return '"' + value + '"'
 
 
+def scalar(value: str) -> str:
+    """User/WorkingDirectory are scalar directives, not quoted word lists."""
+    if (
+        any(ord(c) < 32 or ord(c) == 127 for c in value)
+        or value != value.strip()
+        or value.endswith("\\")
+    ):
+        raise ScenarioPlanError("unsupported whitespace/control character in systemd scalar")
+    return value.replace("%", "%%")
+
+
 def command_line(argv: tuple[str, ...]) -> str:
     return " ".join(quote(arg, command=True) for arg in argv)
 

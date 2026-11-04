@@ -41,6 +41,15 @@ class ScenarioService:
                     boot_id and record.boot_id and boot_id != record.boot_id
                 ):
                     continue
+                if (
+                    record.boot_id is None
+                    and target.owner_unit
+                    and other.owner_unit != target.owner_unit
+                    and self.executor.status(other).detail == "not running"
+                ):
+                    # Legacy records have no boot ID; an absent tmux session cannot
+                    # retain ownership after reboot. Live legacy runs still block.
+                    continue
                 if other.identity == target.identity:
                     if record.state != "stopped" and (
                         other.owner_unit != target.owner_unit
@@ -116,6 +125,15 @@ class ScenarioService:
             from ..autostart.systemd import SystemdManager
 
             SystemdManager().stop(previous.target.owner_unit)
+            remaining = store.find(
+                target.scene_name, target.profile_name, target.identity.source_path
+            )
+            if remaining is not None and remaining.target.owner_unit == previous.target.owner_unit:
+                # An inactive/failed unit may not execute ExecStop again. Retry
+                # its retained control record, never a replacement manual run.
+                ScenarioService(self.executor, owner_unit=remaining.target.owner_unit).stop(
+                    remaining.target
+                )
             return ScenarioResult(target.scene_name, target.profile_name, "stopped")
         with store.locked():
             previous = store.find(

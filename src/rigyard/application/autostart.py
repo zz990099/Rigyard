@@ -12,7 +12,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from ..autostart.systemd import MARKER, SystemdManager, command_line, quote
+from ..autostart.systemd import MARKER, SystemdManager, command_line, quote, scalar
 from ..errors import ScenarioPlanError
 from ..parameters.prompt import Formatter
 from ..parameters.sources import DynamicSources
@@ -163,8 +163,8 @@ class PlanAutostartUseCase:
             "[Service]",
             "Type=oneshot",
             "RemainAfterExit=yes",
-            "User=" + quote(user.pw_name),
-            "WorkingDirectory=" + quote(str(project.workspace_root)),
+            "User=" + scalar(user.pw_name),
+            "WorkingDirectory=" + scalar(str(project.workspace_root)),
             *("Environment=" + quote(f"{k}={v}") for k, v in environment.items()),
             "ExecStart=" + command_line(start),
             "ExecStop=" + command_line(stop),
