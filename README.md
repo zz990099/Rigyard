@@ -1,10 +1,10 @@
-# ![RIGYARD](assets/rigyard-logo.png)
+# ![RIGYARD](https://raw.githubusercontent.com/zz990099/Rigyard/debdb953f73736264fae1d940b31f629f1995948/assets/rigyard-logo.png)
 
 A configuration-driven CLI for containerized robotics development. Define your workflow in YAML,
 then build images, manage containers, run builds and tests, and debug multi-process systems from
 one command or interactive menu.
 
-![Rigyard interactive menu](assets/terminal-demo.gif)
+![Rigyard interactive menu](https://raw.githubusercontent.com/zz990099/Rigyard/debdb953f73736264fae1d940b31f629f1995948/assets/terminal-demo.gif)
 
 The GIF shows the real interactive menu after running `rigyard`. See
 [recording notes](docs/development/demo.md).
