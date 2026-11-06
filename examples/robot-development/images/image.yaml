@@ -1,0 +1,12 @@
+description: ROS Jazzy development image
+
+development:
+  description: Ubuntu 24.04 with ROS Jazzy and Nav2 TB3 simulation
+  base: ubuntu:24.04
+  context: ${PROJECT_ROOT}
+  tag: rigyard-example/robot-development:jazzy
+  layers:
+    - name: common
+      dockerfile: images/layers/common.dockerfile
+    - name: ros
+      dockerfile: images/layers/ros.dockerfile

@@ -164,8 +164,8 @@ def test_interactive_container_prompt_lists_dynamic_candidates(tmp_path: Path):
     seen: list[str] = []
     sources = {
         "containers": lambda source: (
-            DynamicOption("dev_root", "running, nhybot:base"),
-            DynamicOption("dev_root_sim", "exited, nhybot:base"),
+            DynamicOption("dev_root", "running, example:base"),
+            DynamicOption("dev_root_sim", "exited, example:base"),
         )
     }
 
@@ -180,8 +180,8 @@ def test_interactive_container_prompt_lists_dynamic_candidates(tmp_path: Path):
     )
 
     assert seen == [
-        "  1) dev_root      running, nhybot:base\n"
-        "  2) dev_root_sim  exited, nhybot:base\n"
+        "  1) dev_root      running, example:base\n"
+        "  2) dev_root_sim  exited, example:base\n"
         "Choose the container [dev_root]: "
     ]
     assert plan.container == "dev_root"

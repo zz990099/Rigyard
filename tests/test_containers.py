@@ -245,7 +245,7 @@ sources: {containers: containers.yaml}
         """cross-aarch64:
   image: ubuntu:24.04
   name:
-    default: nhybot_cross
+    default: example_cross
     prompt:
       mode: input
       message: Container prefix

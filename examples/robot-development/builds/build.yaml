@@ -1,0 +1,17 @@
+description: Workspace build
+
+development:
+  description: Build the ROS workspace with colcon
+  container:
+    default: rigyard_robot_dev_${env:USER}
+    prompt:
+      mode: select
+      message: Select the build container
+      source:
+        provider: docker-containers
+        filter: "^rigyard_robot_dev_"
+        running_only: false
+  script: ${CONTAINER_WORKSPACE_ROOT}/builds/build.sh
+  interpreter: [/bin/bash, -e, -o, pipefail]
+  workdir: ${CONTAINER_WORKSPACE_ROOT}
+  setup: [/opt/ros/jazzy/setup.bash]

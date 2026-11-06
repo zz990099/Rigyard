@@ -1,0 +1,25 @@
+description: Nav2 TurtleBot3 simulation
+
+nav2-tb3:
+  description: Start the standard Nav2 TB3 simulation with Gazebo and RViz
+  instances:
+    robot:
+      container:
+        default: rigyard_robot_dev_${env:USER}
+        prompt:
+          mode: select
+          message: Select the simulation container
+          source:
+            provider: docker-containers
+            filter: "^rigyard_robot_dev_"
+            running_only: false
+      groups:
+        simulation:
+          setup: [/opt/ros/jazzy/setup.bash]
+          interpreter: [/bin/bash, -e, -o, pipefail]
+          workdir: ${CONTAINER_WORKSPACE_ROOT}
+          command: [ros2, launch, nav2_bringup, tb3_simulation_launch.py, headless:=False]
+  profiles:
+    default:
+      restart_container: if_not_running
+      attach: true

@@ -2,29 +2,24 @@ version: 3
 
 metadata:
   name: robot-development
-  description: Example Rigyard project for robot development
+  description: Minimal ROS Jazzy and Nav2 development example
 
 workspace:
   command_alias: robot
 
 variables:
   PROJECT_ROOT: ${RIGYARD_ROOT}
-  BRANDING_ROOT: ${PROJECT_ROOT}/branding
   CONTAINER_WORKSPACE_ROOT: /workspace
 
 branding:
-  logo_file: ${BRANDING_ROOT}/logo.txt
+  logo_file: ${RIGYARD_ROOT}/logo.txt
 
 sources:
   images:
-    - config/images.yaml
+    - images/image.yaml
   containers:
-    - config/containers.yaml
+    - containers/containers.yaml
   builds:
-    - config/builds.yaml
-  tests:
-    - config/tests.yaml
-  tasks:
-    - config/tasks.yaml
+    - builds/build.yaml
   scenarios:
-    - config/scenarios.yaml
+    - scenarios/nav2-tb3.yaml
