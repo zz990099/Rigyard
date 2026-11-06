@@ -1,40 +1,11 @@
 # README terminal recording
 
-The README GIF records the real installed `rigyard` CLI in a pseudo-terminal. It shows the
-interactive menu and Scene submenu, validates a project, and previews a scenario with `--dry-run`.
-No Docker daemon, container, or tmux session is used by the recording.
-
-The checked-in GIF and cast still show the earlier robot-development example.
-The recorder now targets the simplified `nav2-tb3` example, but the assets have not
-been regenerated. Recording an actual scene startup is deferred.
-
-## Reproduce
-
-From the repository root, install the optional recording dependencies and run:
-
-```bash
-python -m pip install .
-python -m pip install Pillow pexpect pyte
-python scripts/record_demo.py
-```
-
-The recorder requires Bash and a monospace TrueType font. It defaults to `DejaVuSansMono.ttf`;
-use `--font /path/to/font.ttf` to select another font, and `--output /path/to/output` to change the
-output directory. It uses a disposable copy of `examples/robot-development`, omitting only the
-custom branding so the built-in Rigyard logo is visible. The original example is unchanged.
-
-The output in `docs/assets` includes:
-
-- `terminal-demo.gif`: the rendered walkthrough, with pauses for reading and normalized typing speed.
-- `terminal-demo.cast`: the captured terminal output in asciicast v2 format, using the same playback timeline.
-
-The displayed menu and plan come from actual CLI output. The scene remains a plan preview;
-the recording does not imply that containers or robot processes have started.
+[`assets/terminal-demo.gif`](../../assets/terminal-demo.gif) is a three-second recording of the
+real Rigyard CLI. The first second shows `rigyard` being entered in a terminal; the remaining two
+seconds show the resulting interactive menu. Recording the menu does not start Docker containers
+or tmux sessions.
 
 ## README images
 
-`rigyard-logo.svg` is the vector logo source; `rigyard-logo.png` is its raster export at twice the
-logical size. The README uses absolute raw GitHub image URLs so both GitHub and the PyPI package
-page can display the same PNG and GIF. New assets become available at the `main` URLs after merge;
-the README currently pins both assets to an existing commit so they also render
-before merge. Update those commit references when publishing new assets.
+The README references the GIF and PNG with repository-relative paths. `assets/rigyard-logo.svg` is
+the vector logo source, and `assets/rigyard-logo.png` is its raster export at twice the logical size.
