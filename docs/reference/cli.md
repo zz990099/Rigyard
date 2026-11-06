@@ -85,33 +85,33 @@ the nearest binding wins when workspaces are nested.
 
 When the manifest is inside the workspace, the binding records a relative path so the same checkout can use different host and container mount roots. Rebinding the same configuration is idempotent; changing it requires `--force`.
 
-The optional `workspace.command_alias` manifest field creates an executable wrapper in the scripts
-directory of the active Conda or virtual environment. `--alias NAME` overrides that value, while
-`--no-alias` disables it for one initialization:
+The optional `workspace.command_alias` manifest field creates an executable wrapper in Rigyard's
+installation command directory. `--alias NAME` overrides that value, while `--no-alias` disables it
+for one initialization:
 
 ```bash
 rigyard init -f src/robot/.rigyard/rigyard.yaml
 robot build native
 ```
 
-Rigyard requires the active environment to provide the running Rigyard interpreter. The wrapper
-invokes that interpreter without embedding a workspace or configuration path; every invocation
-discovers the nearest workspace from its current directory. The same alias can therefore be shared
-by multiple workspaces in one Python environment. Initializing a current alias is idempotent, and
-initializing over a legacy Rigyard alias automatically upgrades its old absolute-path wrapper.
-Deactivating the environment removes its scripts directory from normal command lookup. Rigyard does
-not modify `PATH` or write to a user-wide bin directory. Unmanaged files and symbolic links remain
-protected unless `--force` explicitly replaces them during initialization.
+The wrapper invokes the interpreter running Rigyard without embedding a workspace or configuration
+path; every invocation discovers the nearest workspace from its current directory. The same alias
+can therefore be shared by multiple workspaces using the same Rigyard installation. Initialization
+is idempotent, and a legacy Rigyard alias is automatically upgraded.
 
-`rigyard alias remove` uses `workspace.command_alias`; pass `NAME` to remove an alias that was
-created with a CLI override. Removal is idempotent and only accepts a regular file carrying a
-recognized Rigyard marker. It refuses unrelated files and symbolic links. Because an alias is shared
-at the Python-environment level, removing it makes that command unavailable to every workspace using
-the same alias name.
+Rigyard uses its installation's scripts directory, including the user command directory for a user
+installation. It does not modify `PATH`; the printed command directory must be on `PATH` to invoke
+an alias by name. If that directory is not writable, initialize with `--no-alias`. Unmanaged files
+and symbolic links remain protected unless `--force` explicitly replaces them during initialization.
+
+`rigyard alias remove` uses `workspace.command_alias`; pass `NAME` to remove an alias created with a
+CLI override. Removal is idempotent and only accepts a regular file carrying a recognized Rigyard
+marker. It refuses unrelated files and symbolic links. Removing a shared alias makes that command
+unavailable to every workspace using the same Rigyard installation and alias name.
 
 ## Interactive menu
 
-The menu offers Build image, Create container, Build project, Test actions for Run and Show results, configuration-enabled custom Tasks, and Scene actions for Start, Stop, and Down. The process exits after one successful, failed, or cancelled action. Menu and direct CLI paths use the same application use cases.
+The menu offers Build image, Create container, Build project, Test actions for Run and Show results, configuration-enabled custom Tasks, and Scene actions for Start, Stop, and Autostart. The process exits after one successful, failed, or cancelled action. Menu and direct CLI paths use the same application use cases.
 
 Plan confirmation defaults to `[Y/n]`. Removing and recreating an existing container is the only confirmation that defaults to `[y/N]`.
 

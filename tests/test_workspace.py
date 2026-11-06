@@ -43,7 +43,7 @@ def project_with_alias(root: Path, alias: str) -> Path:
 def environment_scripts(tmp_path: Path, monkeypatch) -> Path:
     scripts = tmp_path / "python-environment/bin"
     scripts.mkdir(parents=True)
-    monkeypatch.setattr(workspace_module, "_active_environment_scripts_dir", lambda: scripts)
+    monkeypatch.setattr(workspace_module, "_command_scripts_dir", lambda: scripts)
     return scripts
 
 
@@ -225,8 +225,8 @@ def test_init_alias_creates_an_environment_command(
     assert str(manifest.resolve()) not in alias.read_text()
     assert "--config" not in alias.read_text()
     output = capsys.readouterr().out
-    assert f"Created environment command alias: {alias}" in output
-    assert "Available while this Python environment is active: xxxbot" in output
+    assert f"Created command alias: {alias}" in output
+    assert f"Command directory (must be on PATH): {environment_scripts}" in output
 
     elsewhere = workspace / "src/xbot/src/package"
     elsewhere.mkdir(parents=True)
@@ -256,7 +256,7 @@ def test_same_alias_is_shared_by_multiple_workspaces(
     capsys.readouterr()
     monkeypatch.chdir(second)
     assert run(["init", "-f", str(second_manifest)]) == 0
-    assert "Already available environment command alias" in capsys.readouterr().out
+    assert "Already available command alias" in capsys.readouterr().out
 
     alias = environment_scripts / "robot"
     assert str(first_manifest) not in alias.read_text()
@@ -300,7 +300,7 @@ def test_init_upgrades_legacy_project_bound_alias_without_force(
 
     assert run(["init", "-f", str(manifest), "--alias", "robot"]) == 0
 
-    assert "Created environment command alias" in capsys.readouterr().out
+    assert "Created command alias" in capsys.readouterr().out
     assert "Rigyard alias version: 2" in alias.read_text()
     assert "--config" not in alias.read_text()
 
@@ -315,7 +315,7 @@ def test_init_uses_manifest_command_alias_by_default(
     assert run(["init", "-f", str(manifest)]) == 0
 
     assert (environment_scripts / "robot").is_file()
-    assert "Created environment command alias:" in capsys.readouterr().out
+    assert "Created command alias:" in capsys.readouterr().out
 
 
 def test_cli_alias_overrides_manifest_command_alias(
@@ -368,7 +368,7 @@ def test_init_alias_is_idempotent_and_protects_existing_files(
     alias = environment_scripts / "xxxbot"
     original = alias.read_text()
     assert run(["init", "-f", str(manifest), "--alias", "xxxbot"]) == 0
-    assert "Already available environment command alias:" in capsys.readouterr().out
+    assert "Already available command alias:" in capsys.readouterr().out
 
     alias.write_text("user content\n")
     assert run(["init", "-f", str(manifest), "--alias", "xxxbot"]) == 2
@@ -403,35 +403,74 @@ def test_init_alias_rejects_the_core_command_name(
     assert not (workspace / ".rigyard/context.yaml").exists()
 
 
-def test_environment_alias_requires_an_active_python_environment(tmp_path: Path, monkeypatch):
+@pytest.mark.parametrize("activation", [None, "VIRTUAL_ENV", "CONDA_PREFIX"])
+def test_alias_directory_uses_installation_not_activation(tmp_path: Path, monkeypatch, activation):
+    scripts = tmp_path / "installation/bin"
+    scripts.mkdir(parents=True)
     monkeypatch.delenv("VIRTUAL_ENV", raising=False)
     monkeypatch.delenv("CONDA_PREFIX", raising=False)
-
-    with pytest.raises(WorkspaceError, match="active Conda or virtual environment"):
-        workspace_module._active_environment_scripts_dir()
-
-
-def test_environment_alias_uses_the_matching_python_scripts_directory(tmp_path: Path, monkeypatch):
-    active = tmp_path / "rigyard-environment"
-    scripts = active / "bin"
-    scripts.mkdir(parents=True)
-    monkeypatch.setenv("VIRTUAL_ENV", str(active))
-    monkeypatch.setattr(workspace_module.sys, "prefix", str(active))
+    if activation:
+        monkeypatch.setenv(activation, str(tmp_path / "unrelated"))
+    monkeypatch.setattr(workspace_module.sysconfig, "get_default_scheme", lambda: "prefix")
+    monkeypatch.setattr(workspace_module.sysconfig, "get_preferred_scheme", lambda key: "user")
     monkeypatch.setattr(
         workspace_module.sysconfig,
         "get_path",
-        lambda name: str(scripts) if name == "scripts" else None,
+        lambda kind, scheme: str(scripts if kind == "scripts" else tmp_path / scheme / "lib"),
+    )
+    monkeypatch.setattr(
+        workspace_module,
+        "distribution",
+        lambda name: type(
+            "Distribution", (), {"locate_file": lambda self, path: tmp_path / "prefix/lib"}
+        )(),
     )
 
-    assert workspace_module._active_environment_scripts_dir() == scripts
+    assert workspace_module._command_scripts_dir() == scripts
+    manifest = project_with_alias(tmp_path / "workspace", "robot")
+    result = initialize_workspace(manifest, root=manifest.parent)
+    assert result.alias_path == scripts / "robot"
+    completed = subprocess.run(
+        [str(result.alias_path), "validate"], cwd=manifest.parent, capture_output=True, text=True
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert workspace_module.remove_environment_alias(manifest).removed
 
 
-def test_environment_alias_rejects_a_different_active_interpreter(tmp_path: Path, monkeypatch):
-    active = tmp_path / "other-environment"
-    monkeypatch.setenv("VIRTUAL_ENV", str(active))
+def test_alias_directory_matches_a_user_installation(tmp_path: Path, monkeypatch):
+    user_scripts = tmp_path / "user/bin"
+    user_scripts.mkdir(parents=True)
+    monkeypatch.setattr(workspace_module.sysconfig, "get_default_scheme", lambda: "prefix")
+    monkeypatch.setattr(workspace_module.sysconfig, "get_preferred_scheme", lambda key: "user")
+    monkeypatch.setattr(
+        workspace_module.sysconfig,
+        "get_path",
+        lambda kind, scheme: str(tmp_path / scheme / ("bin" if kind == "scripts" else "lib")),
+    )
+    monkeypatch.setattr(
+        workspace_module,
+        "distribution",
+        lambda name: type(
+            "Distribution", (), {"locate_file": lambda self, path: tmp_path / "user/lib"}
+        )(),
+    )
 
-    with pytest.raises(WorkspaceError, match="does not provide the running rigyard"):
-        workspace_module._active_environment_scripts_dir()
+    assert workspace_module._command_scripts_dir() == user_scripts
+
+
+def test_alias_directory_supports_source_execution_and_reports_missing_directory(
+    tmp_path, monkeypatch
+):
+    def missing_distribution(name):
+        raise workspace_module.PackageNotFoundError(name)
+
+    scripts = tmp_path / "bin"
+    monkeypatch.setattr(workspace_module, "distribution", missing_distribution)
+    monkeypatch.setattr(workspace_module.sysconfig, "get_path", lambda kind, scheme: str(scripts))
+    with pytest.raises(WorkspaceError, match="command directory does not exist"):
+        workspace_module._command_scripts_dir()
+    scripts.mkdir()
+    assert workspace_module._command_scripts_dir() == scripts
 
 
 def test_alias_remove_deletes_the_configured_environment_command(
@@ -446,7 +485,7 @@ def test_alias_remove_deletes_the_configured_environment_command(
     assert run(["alias", "remove"]) == 0
 
     assert not (environment_scripts / "robot").exists()
-    assert "Removed environment command alias:" in capsys.readouterr().out
+    assert "Removed command alias:" in capsys.readouterr().out
 
 
 def test_alias_remove_accepts_an_explicit_name_and_is_idempotent(

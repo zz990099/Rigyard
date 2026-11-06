@@ -40,7 +40,7 @@ The first successful upload converts the pending publisher into a normal publish
    from `version.py`. Choose a new version: PyPI will
    not replace existing distribution files with the same name.
 3. Review package description, URLs, README links, license, installation instructions, and
-   `requires-python`. Do not present the checkout bootstrap script as a file installed by PyPI.
+   `requires-python`. Verify the README images render on both GitHub and PyPI.
 4. Merge the changes into `main` and wait for CI to pass. CI tests Python 3.10–3.13, validates
    metadata, installs both wheel and sdist into separate clean environments, and exercises
    Docker, Compose, and tmux with a wheel installed from the built artifact.

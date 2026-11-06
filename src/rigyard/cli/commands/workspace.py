@@ -33,7 +33,7 @@ def register_workspace_commands(commands: Any) -> None:
     alias_options.add_argument(
         "--alias",
         metavar="NAME",
-        help="override the environment command alias configured by the manifest",
+        help="override the command alias configured by the manifest",
     )
     alias_options.add_argument(
         "--no-alias",
@@ -50,7 +50,7 @@ def register_workspace_commands(commands: Any) -> None:
 
     alias = commands.add_parser(
         "alias",
-        help="manage a Rigyard environment command alias",
+        help="manage a Rigyard command alias",
     )
     alias_commands = alias.add_subparsers(dest="alias_command", required=True)
     remove = alias_commands.add_parser(
@@ -81,8 +81,8 @@ def _initialize(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
         alias_state = "Created" if result.alias_changed else "Already available"
         fields.extend(
             (
-                f"{alias_state} environment command alias: {result.alias_path}",
-                f"Available while this Python environment is active: {result.alias_path.name}",
+                f"{alias_state} command alias: {result.alias_path}",
+                f"Command directory (must be on PATH): {result.alias_path.parent}",
             )
         )
     print_fields(args.style, fields, stream=args.output)
@@ -96,9 +96,9 @@ def _remove_alias(args: argparse.Namespace, _: argparse.ArgumentParser) -> int:
         workspace_root=args.workspace_root,
     )
     message = (
-        f"Removed environment command alias: {result.path}"
+        f"Removed command alias: {result.path}"
         if result.removed
-        else f"Environment command alias already absent: {result.path}"
+        else f"Command alias already absent: {result.path}"
     )
     print_fields(args.style, (message,), stream=args.output)
     return 0

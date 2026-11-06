@@ -60,10 +60,9 @@ robot validate
 
 The binding applies to that directory and all of its descendants. Rigyard searches upward for the
 nearest `.rigyard/context.yaml`, so nested workspaces remain independent. This example configures
-`workspace.command_alias: robot`. With the Python environment that provides Rigyard active,
-initialization installs a generic `robot` command into that environment's scripts directory. The
-command discovers the workspace at runtime and can be shared by multiple workspaces. A CLI option
-can override or disable it:
+`workspace.command_alias: robot`. Initialization installs a generic `robot` command in Rigyard's
+command directory, which must be on `PATH`. The command discovers the workspace at runtime and can
+be shared by multiple workspaces. A CLI option can override or disable it:
 
 ```bash
 rigyard init -f examples/robot-development/rigyard.yaml --alias xxxbot
@@ -71,7 +70,7 @@ xxxbot validate
 rigyard init -f examples/robot-development/rigyard.yaml --no-alias --force
 ```
 
-Remove the configured Alias from the active environment when it is no longer needed:
+Remove the configured alias when it is no longer needed:
 
 ```bash
 rigyard alias remove

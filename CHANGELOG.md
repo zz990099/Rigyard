@@ -4,6 +4,13 @@ This file records notable user-facing changes. Releases use semantic versioning 
 
 ## Unreleased
 
+### Changed
+
+- Simplify installation to PyPI and source commands, remove the bootstrap and activation scripts,
+  and add a README logo and a recorded terminal walkthrough.
+- Create command aliases using the running Rigyard installation's command directory without
+  requiring an activated shell environment. User installations use their user command directory.
+
 ## 1.1.0 - 2026-11-06
 
 ### Added

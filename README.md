@@ -1,128 +1,68 @@
-# Rigyard
+# ![RIGYARD](https://raw.githubusercontent.com/zz990099/Rigyard/main/docs/assets/rigyard-logo.png)
 
-Rigyard is a configuration-driven CLI for containerized robotics development. A single project manifest organizes layered image builds, development containers, project builds and tests inside containers, project-specific tasks, and multi-process debugging scenarios managed by tmux.
+A configuration-driven CLI for containerized robotics development. Define your workflow in YAML,
+then build images, manage containers, run builds and tests, and debug multi-process systems from
+one command or interactive menu.
+
+![Rigyard interactive menu, configuration validation, and a scene dry-run preview](https://raw.githubusercontent.com/zz990099/Rigyard/main/docs/assets/terminal-demo.gif)
+
+The walkthrough runs the real CLI against the robot-development example. The scene uses
+`--dry-run` to preview its plan. See [how to reproduce the recording](https://github.com/zz990099/Rigyard/blob/main/docs/development/demo.md).
 
 ## Features
 
 - Build layered images from ordered Dockerfile fragments.
-- Create reproducible development containers and run lifecycle hooks.
-- Run project build scripts inside existing containers, starting stopped containers when allowed.
-- Run user-defined test and test-result commands with the same configurable start behavior.
-- Expose constrained project-specific container tasks through the CLI and interactive menu.
-- Start tmux debugging scenarios in existing containers or Docker Compose services.
-- Reuse configuration with global variables, string templates, and interactive runtime values.
-- Use the same application behavior through direct commands or a branded one-shot interactive menu.
-
-## Requirements
-
-- Linux and Bash for the setup script; it installs Python 3.12 and Rigyard using uv
-- Docker for container operations; Compose scenarios require Docker Compose v2
-- Scenario support requires tmux on the host and an interactive shell in each target container
+- Create development containers with lifecycle hooks.
+- Run project builds, tests, and custom tasks inside containers.
+- Debug multi-process scenarios with tmux using existing containers or Docker Compose.
+- Register existing scenarios for systemd boot startup.
+- Reuse configuration with variables, string templates, and interactive runtime values.
+- Bind workspaces and use project command aliases.
 
 ## Installation
 
-For Linux, download the standalone installer and install Rigyard from PyPI without cloning the
-repository or preinstalling Python:
+Requires **Python 3.10+**. Container operations require Docker; scenarios also require tmux and,
+when configured, Docker Compose v2. Boot startup requires Linux with systemd.
+
+### From PyPI
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zz990099/Rigyard/main/scripts/bootstrap_from_pypi.sh \
-  -o bootstrap_from_pypi.sh
-bash bootstrap_from_pypi.sh
-"${XDG_DATA_HOME:-$HOME/.local/share}/rigyard/venv/bin/rigyard" --version
+python -m pip install rigyard
 ```
 
-The installer downloads uv if needed, creates a dedicated Python environment, and prints the
-executable path. No activation is required. Docker, Compose, and tmux are checked but installed
-separately when needed. See [installation and requirements](https://github.com/zz990099/Rigyard/blob/main/docs/installation.md)
-for wget, version pinning, source-checkout setup, and troubleshooting. For development, see the
-[contribution guide](https://github.com/zz990099/Rigyard/blob/main/CONTRIBUTING.md).
+### From source
+
+```bash
+git clone https://github.com/zz990099/Rigyard.git
+cd Rigyard
+python -m pip install .
+```
+
+Verify with `rigyard --version`. See [installation and requirements](https://github.com/zz990099/Rigyard/blob/main/docs/installation.md)
+for feature dependencies, or [contributing](https://github.com/zz990099/Rigyard/blob/main/CONTRIBUTING.md) for development.
 
 ## Quick start
 
-By default, Rigyard reads `rigyard.yaml` from the current directory:
-
-```yaml
-version: 3
-
-metadata:
-  name: robot-development
-
-workspace:
-  command_alias: robot
-
-variables:
-  PROJECT_ROOT: ${RIGYARD_ROOT}
-  BRANDING_ROOT: ${PROJECT_ROOT}/branding
-  CONTAINER_WORKSPACE_ROOT: /workspace
-
-branding:
-  logo_file: ${BRANDING_ROOT}/logo.txt
-
-sources:
-  images: [config/images.yaml]
-  containers: [config/containers.yaml]
-  builds: [config/builds.yaml]
-  tests: [config/tests.yaml]
-  tasks: [config/tasks.yaml]
-  scenarios: [config/scenarios.yaml]
-```
-
-Validate the configuration and run configured operations:
+Run these commands from a source checkout to explore the example without Docker:
 
 ```bash
+cd examples/robot-development
 rigyard validate
-rigyard image build development
-rigyard container create development
-rigyard build native
-rigyard test run unit
-rigyard test report unit
-rigyard task run clean
-rigyard scene start robot-system development
-```
-
-Run `rigyard` without a subcommand to open the one-shot interactive menu:
-
-```bash
 rigyard
 ```
 
-With the built-in logo and the example sources configured, the menu looks like this (colours omitted):
-
-```text
-$ rigyard
-██████╗ ██╗ ██████╗ ██╗   ██╗ █████╗ ██████╗ ██████╗
-██╔══██╗██║██╔════╝ ╚██╗ ██╔╝██╔══██╗██╔══██╗██╔══██╗
-██████╔╝██║██║  ███╗ ╚████╔╝ ███████║██████╔╝██║  ██║
-██╔══██╗██║██║   ██║  ╚██╔╝  ██╔══██║██╔══██╗██║  ██║
-██║  ██║██║╚██████╔╝   ██║   ██║  ██║██║  ██║██████╔╝
-╚═╝  ╚═╝╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝
-
-Project: robot-development
-Configuration: /workspace/robot-development/rigyard.yaml
-
-1) Build image
-2) Create container
-3) Build project
-4) Scene…
-5) Test…
-6) Tasks…
-0) Exit
-Select [0-6]:
-```
-
-Custom terminal logos can be inline or loaded from a templated path; see the [root manifest guide](https://github.com/zz990099/Rigyard/blob/main/docs/configuration/manifest.md#terminal-logo).
-
-When the manifest lives elsewhere, pass it explicitly or bind the current workspace:
+Preview a scenario without starting containers:
 
 ```bash
-rigyard --config path/to/rigyard.yaml validate
-rigyard init -f path/to/rigyard.yaml
-robot build native
+rigyard scene start robot-system development --dry-run
 ```
 
-Configured aliases are installed in the active Conda or virtual environment. They are generic
-commands that discover the nearest current-or-parent workspace at runtime, so the same alias can be
-shared by multiple workspaces. They can be removed with `rigyard alias remove`.
+For your own project, Rigyard reads `rigyard.yaml` in the current directory. Pass
+`--config path/to/rigyard.yaml` to select another manifest, or bind a workspace with
+`rigyard init -f path/to/rigyard.yaml`.
+
+See [Getting started](https://github.com/zz990099/Rigyard/blob/main/docs/getting-started.md) for
+configuration examples, plan previews, and project command aliases.
 
 ## Documentation
 

@@ -8,6 +8,7 @@ import sys
 import sysconfig
 import tempfile
 from dataclasses import dataclass
+from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
 from typing import Any, Literal
 
@@ -170,7 +171,7 @@ def remove_environment_alias(
     *,
     workspace_root: str | Path | None = None,
 ) -> AliasRemoval:
-    """Remove a Rigyard-managed command alias from the active Python environment."""
+    """Remove a Rigyard-managed command alias from its installation's scripts directory."""
 
     manifest_path = Path(config_path).expanduser().resolve()
     config = load_config(manifest_path, workspace_root=workspace_root)
@@ -180,7 +181,7 @@ def remove_environment_alias(
             "no command alias was supplied or configured; pass an alias name to remove"
         )
     _validate_alias_name(selected, manifest_path)
-    path = _active_environment_scripts_dir() / selected
+    path = _command_scripts_dir() / selected
     if not path.exists() and not path.is_symlink():
         return AliasRemoval(path, False)
     if path.is_symlink():
@@ -211,7 +212,7 @@ def _plan_alias(
     force: bool,
 ) -> tuple[Path, str, bool]:
     _validate_alias_name(name, manifest_path)
-    path = _active_environment_scripts_dir() / name
+    path = _command_scripts_dir() / name
     content = _alias_script()
     if path.is_symlink():
         if not force:
@@ -272,32 +273,26 @@ def _is_managed_alias(content: str) -> bool:
     )
 
 
-def _active_environment_scripts_dir() -> Path:
-    """Return the scripts directory for the active, matching Conda or venv environment."""
+def _command_scripts_dir() -> Path:
+    """Match the running installation, including pip's user installation scheme."""
 
-    active = os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX")
-    if not active:
-        raise WorkspaceError(
-            "command aliases require an active Conda or virtual environment; "
-            "activate the environment that provides rigyard or use --no-alias"
-        )
-    active_prefix = Path(active).expanduser().resolve()
-    runtime_prefix = Path(sys.prefix).resolve()
-    if runtime_prefix != active_prefix:
-        raise WorkspaceError(
-            f"active Python environment {active_prefix} does not provide the running rigyard "
-            f"interpreter ({runtime_prefix}); install rigyard in the active environment"
-        )
-    scripts = Path(sysconfig.get_path("scripts")).resolve()
+    scheme = sysconfig.get_default_scheme()
     try:
-        scripts.relative_to(active_prefix)
-    except ValueError as exc:
-        raise WorkspaceError(
-            f"Python scripts directory {scripts} is outside the active environment {active_prefix}"
-        ) from exc
+        installed = Path(str(distribution("rigyard").locate_file(""))).resolve()
+    except PackageNotFoundError:
+        # Running directly from source uses the interpreter's normal scripts directory.
+        pass
+    else:
+        user_scheme = sysconfig.get_preferred_scheme("user")
+        if any(
+            installed.is_relative_to(Path(sysconfig.get_path(kind, scheme=user_scheme)).resolve())
+            for kind in ("purelib", "platlib")
+        ):
+            scheme = user_scheme
+    scripts = Path(sysconfig.get_path("scripts", scheme=scheme)).resolve()
     if not scripts.is_dir():
         raise WorkspaceError(
-            f"Python scripts directory does not exist: {scripts}",
+            f"command directory does not exist: {scripts}; use --no-alias to skip alias creation",
             SourceLocation(scripts),
         )
     return scripts
