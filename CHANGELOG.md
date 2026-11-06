@@ -4,6 +4,19 @@ This file records notable user-facing changes. Releases use semantic versioning 
 
 ## Unreleased
 
+## 1.1.0 - 2026-11-06
+
+### Added
+
+- Register an existing scenario and profile for systemd boot startup from the Scene menu or
+  with `rigyard scene autostart enable`. Both existing-container and Compose scenarios are supported.
+- Store selected runtime answers in the generated unit so startup can run unattended. Enable
+  and disable apply to future boots by default. Pass `--now` to start or stop immediately.
+- Inspect the registration and running scene with `scene autostart status`. Stop a managed
+  run through the existing Stop scene action, including cleanup of its containers or Compose project.
+- Boot-started sessions use the service user's default tmux socket and appear in ordinary
+  `tmux ls`. Select an isolated socket during registration or pass `--isolated-socket`.
+
 ## 1.0.5 - 2026-10-28
 
 ### Added
