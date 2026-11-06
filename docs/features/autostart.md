@@ -37,7 +37,7 @@ rigyard scene autostart disable --unit rigyard-autostart-<64-character-key>.serv
 
 One Rigyard-marked file under `/etc/systemd/system/`. The unit calls the absolute Python
 interpreter used by Rigyard, with `-m rigyard`, an absolute config/source path and explicit
-workspace root. Keep that Python environment and project available at boot. The generated
+workspace root. Keep that interpreter, Rigyard installation, and project available at boot. The generated
 `_start` / `_stop` subcommands are internal lifecycle adapters, not new scene definitions.
 
 The service runs as the user who enabled it. Only installation and systemctl mutations use sudo.

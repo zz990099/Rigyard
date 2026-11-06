@@ -22,8 +22,8 @@ class FakeRunner:
 
 PS_OUTPUT = (
     "other\tup\tubuntu:22.04\n"
-    "nhybot_dev_b\texited\tnhybot:base\n"
-    "nhybot_dev_a\trunning\tnhybot:base\n"
+    "example_dev_b\texited\texample:base\n"
+    "example_dev_a\trunning\texample:base\n"
 )
 
 
@@ -31,10 +31,10 @@ def test_docker_containers_source_filters_and_labels_candidates():
     runner = FakeRunner(CommandResult(0, PS_OUTPUT))
     provider = docker_containers_source(runner)
 
-    options = provider(PromptSource(provider=PROVIDER_NAME, filter="^nhybot_dev_"))
+    options = provider(PromptSource(provider=PROVIDER_NAME, filter="^example_dev_"))
 
-    assert [option.value for option in options] == ["nhybot_dev_a", "nhybot_dev_b"]
-    assert options[0].label == "running, nhybot:base"
+    assert [option.value for option in options] == ["example_dev_a", "example_dev_b"]
+    assert options[0].label == "running, example:base"
     assert runner.calls[0][0] == ("docker", "ps", "-a", "--format", CONTAINER_FORMAT)
     assert runner.calls[0][1] == {"capture": True}
 
@@ -64,7 +64,7 @@ def test_docker_container_sources_registers_the_container_provider():
     assert set(sources) == {PROVIDER_NAME}
     options = sources[PROVIDER_NAME](PromptSource(provider=PROVIDER_NAME))
     assert [option.value for option in options] == [
-        "nhybot_dev_a",
-        "nhybot_dev_b",
+        "example_dev_a",
+        "example_dev_b",
         "other",
     ]

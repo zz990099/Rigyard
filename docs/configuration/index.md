@@ -62,7 +62,7 @@ directory containing its `.rigyard` directory. See [Workspace initialization](..
 
 Use `rigyard context` to print the current directory, the selection source, the workspace marker
 when one is active, the resolved root manifest, and every loaded source file. This is useful when
-several workspaces share one Python environment.
+several workspaces use the same Rigyard installation.
 
 ## Path bases
 

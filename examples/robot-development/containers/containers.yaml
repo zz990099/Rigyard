@@ -1,0 +1,54 @@
+description: Development container
+
+development:
+  description: ROS Jazzy development container
+  name:
+    default: rigyard_robot_dev_${env:USER}
+    prompt:
+      mode: input
+      message: Enter the container name
+  image:
+    default: rigyard-example/robot-development:jazzy
+    prompt:
+      mode: select
+      message: Select the development image
+      source:
+        provider: docker-images
+        filter: "^rigyard-example/robot-development:"
+  privileged:
+    default: false
+    prompt:
+      mode: confirm
+      message: Enable privileged mode?
+  devices: [/dev/dri]
+  group_add: [video]
+  network:
+    default: host
+    prompt:
+      mode: select
+      message: Select the network mode
+      options: [host, bridge, none]
+  ipc:
+    default: host
+    prompt:
+      mode: select
+      message: Select the IPC mode
+      options: [host, none, private]
+  mounts:
+    default:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ${PROJECT_ROOT}:${CONTAINER_WORKSPACE_ROOT}
+    prompt:
+      mode: input
+      repeat: true
+      message: Enter a mount
+      item_hint: SOURCE:TARGET[:ro]
+  workdir: ${CONTAINER_WORKSPACE_ROOT}
+  environment:
+    ROS_LOCALHOST_ONLY:
+      default: "1"
+      prompt:
+        mode: input
+        message: Restrict ROS to localhost?
+    DISPLAY: {env: DISPLAY, default: ""}
+  command: [/bin/bash]

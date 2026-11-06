@@ -2,17 +2,9 @@
 
 ## Development environment
 
-The project requires Python 3.10 or newer. The recommended setup uses uv:
+The project requires Python 3.10 or newer. Install the checkout with development dependencies:
 
 ```bash
-uv sync --extra dev
-```
-
-Alternatively, use a standard virtual environment:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
 python -m pip install -e '.[dev]'
 ```
 

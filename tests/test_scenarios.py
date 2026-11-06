@@ -986,7 +986,7 @@ class FakeTmux:
 def test_group_command_and_setup_render_one_container_argv():
     item = group(
         "drivers",
-        command=("ros2", "launch", "nhybot_bringup", "drivers.launch.py"),
+        command=("ros2", "launch", "example_bringup", "drivers.launch.py"),
         setup=("/opt/ros/humble/setup.bash", "install/setup.bash"),
     )
     expected = (
@@ -995,7 +995,7 @@ def test_group_command_and_setup_render_one_container_argv():
         "pipefail",
         "-c",
         ". /opt/ros/humble/setup.bash && . install/setup.bash && exec "
-        "ros2 launch nhybot_bringup drivers.launch.py",
+        "ros2 launch example_bringup drivers.launch.py",
     )
     assert process_argv(item) == expected
 
