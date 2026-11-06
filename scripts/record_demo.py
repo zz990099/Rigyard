@@ -175,10 +175,7 @@ def record(output: Path, font: str) -> None:
             capture.chapter = "03 / Preview a scene -- dry run, no containers started"
             shell.sendline("clear")
             shell.expect_exact("$ ")
-            type_command("rigyard scene start robot-system development --dry-run")
-            shell.expect_exact("Enter the ROS domain ID")
-            capture.hold(700)
-            shell.sendline()
+            type_command("rigyard scene start nav2-tb3 --dry-run --non-interactive")
             finish_command()
             capture.hold(6000)
     capture.save()

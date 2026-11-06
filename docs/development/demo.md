@@ -4,6 +4,10 @@ The README GIF records the real installed `rigyard` CLI in a pseudo-terminal. It
 interactive menu and Scene submenu, validates a project, and previews a scenario with `--dry-run`.
 No Docker daemon, container, or tmux session is used by the recording.
 
+The checked-in GIF and cast still show the earlier robot-development example.
+The recorder now targets the simplified `nav2-tb3` example, but the assets have not
+been regenerated. Recording an actual scene startup is deferred.
+
 ## Reproduce
 
 From the repository root, install the optional recording dependencies and run:
@@ -32,4 +36,5 @@ the recording does not imply that containers or robot processes have started.
 `rigyard-logo.svg` is the vector logo source; `rigyard-logo.png` is its raster export at twice the
 logical size. The README uses absolute raw GitHub image URLs so both GitHub and the PyPI package
 page can display the same PNG and GIF. New assets become available at the `main` URLs after merge;
-when reviewing a PR, open its asset files from the PR branch.
+the README currently pins both assets to an existing commit so they also render
+before merge. Update those commit references when publishing new assets.

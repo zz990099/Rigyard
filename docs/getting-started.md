@@ -1,6 +1,8 @@
 # Getting started
 
-This tutorial uses the full robot-development example to demonstrate configuration loading and plan previews without requiring an image build. For the smallest runnable introduction, see [`examples/minimal`](../examples/minimal/README.md).
+This tutorial uses the small [robot-development example](../examples/robot-development/README.md)
+to demonstrate configuration loading and plan previews without requiring an image build.
+For a container and task introduction, see [`examples/minimal`](../examples/minimal/README.md).
 
 ## 1. Install Rigyard
 
@@ -18,7 +20,9 @@ From the repository root, run:
 rigyard --config examples/robot-development/rigyard.yaml validate
 ```
 
-The root manifest references separate image, container, build, test, task, and scenario sources. `validate` reads every source and checks YAML, field types, and template syntax without invoking Docker.
+The root manifest references `images/image.yaml`, `containers/containers.yaml`,
+`builds/build.yaml`, and `scenarios/nav2-tb3.yaml`. `validate` reads every source and
+checks YAML, field types, and template syntax without invoking Docker.
 
 ## 3. Inspect runtime values
 
@@ -31,7 +35,7 @@ The output lists interactive parameters and their `RIGYARD_PARAM_*` environment 
 ```bash
 rigyard --config examples/robot-development/rigyard.yaml resolve \
   --non-interactive \
-  --set images.development.base=ubuntu:24.04
+  --set containers.development.name=robot_dev_example
 ```
 
 ## 4. Preview plans
@@ -39,15 +43,16 @@ rigyard --config examples/robot-development/rigyard.yaml resolve \
 These commands complete selection, runtime value resolution, and planning without invoking Docker:
 
 ```bash
-rigyard --config examples/robot-development/rigyard.yaml container create development --dry-run
-rigyard --config examples/robot-development/rigyard.yaml build native --dry-run
-rigyard --config examples/robot-development/rigyard.yaml test run unit --dry-run
-rigyard --config examples/robot-development/rigyard.yaml test report unit --dry-run
-rigyard --config examples/robot-development/rigyard.yaml task run clean --dry-run
-rigyard --config examples/robot-development/rigyard.yaml scene start robot-system development --dry-run
+rigyard --config examples/robot-development/rigyard.yaml container create development --dry-run --non-interactive
+rigyard --config examples/robot-development/rigyard.yaml build development --dry-run --non-interactive
+rigyard --config examples/robot-development/rigyard.yaml scene start nav2-tb3 --dry-run --non-interactive
 ```
 
 `image build` currently has no dry-run mode. Use `validate` and `resolve` to check its configuration and values before building.
+
+Non-interactive previews use the default image and container names without querying
+Docker. Real interactive operations offer local images and containers. To run the
+simulation later, follow the example README's image build and container setup steps.
 
 ## 5. Bind a workspace
 

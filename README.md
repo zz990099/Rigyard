@@ -1,13 +1,14 @@
-# ![RIGYARD](https://raw.githubusercontent.com/zz990099/Rigyard/main/docs/assets/rigyard-logo.png)
+# ![RIGYARD](https://raw.githubusercontent.com/zz990099/Rigyard/6b6e0ae4eba7ccbce357fa020cab223352511d01/docs/assets/rigyard-logo.png)
 
 A configuration-driven CLI for containerized robotics development. Define your workflow in YAML,
 then build images, manage containers, run builds and tests, and debug multi-process systems from
 one command or interactive menu.
 
-![Rigyard interactive menu, configuration validation, and a scene dry-run preview](https://raw.githubusercontent.com/zz990099/Rigyard/main/docs/assets/terminal-demo.gif)
+![Rigyard interactive menu, configuration validation, and a scene dry-run preview](https://raw.githubusercontent.com/zz990099/Rigyard/6b6e0ae4eba7ccbce357fa020cab223352511d01/docs/assets/terminal-demo.gif)
 
-The walkthrough runs the real CLI against the robot-development example. The scene uses
-`--dry-run` to preview its plan. See [how to reproduce the recording](https://github.com/zz990099/Rigyard/blob/main/docs/development/demo.md).
+The existing recording shows the earlier robot-development example and a scene
+`--dry-run` preview. A recording of the simplified Nav2 example is pending.
+See [recording notes](docs/development/demo.md).
 
 ## Features
 
@@ -54,7 +55,7 @@ rigyard
 Preview a scenario without starting containers:
 
 ```bash
-rigyard scene start robot-system development --dry-run
+rigyard scene start nav2-tb3 --dry-run --non-interactive
 ```
 
 For your own project, Rigyard reads `rigyard.yaml` in the current directory. Pass
@@ -81,7 +82,8 @@ configuration examples, plan previews, and project command aliases.
 - [Configuration schema reference](https://github.com/zz990099/Rigyard/blob/main/docs/reference/configuration-schema.md)
 - [Exit codes](https://github.com/zz990099/Rigyard/blob/main/docs/reference/exit-codes.md)
 
-Start with the [`minimal`](https://github.com/zz990099/Rigyard/tree/main/examples/minimal) example or browse the complete [`robot-development`](https://github.com/zz990099/Rigyard/tree/main/examples/robot-development) reference project.
+Start with the [`minimal`](examples/minimal/) example or the small
+[`robot-development`](examples/robot-development/) workspace for ROS Jazzy and Nav2 TB3 simulation.
 
 ## License
 
