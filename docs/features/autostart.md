@@ -63,8 +63,11 @@ tmux socket and boot identity, not executable node scripts. Old records remain r
 
 ## Lifecycle and status
 
-Each unit has its own tmux server socket in the default per-user tmux directory. Shell-specific
-`TMUX_TMPDIR` does not affect this socket. Use `rigyard scene attach/logs/status` to locate it.
+By default the scene uses the enabling user's standard tmux socket. As the same user, run
+`tmux ls` and `tmux attach -t <session>` from a shell with the standard tmux environment.
+Choose **Use an isolated tmux socket? → Yes** or pass `--isolated-socket` to Enable for a
+dedicated server. Previously generated units also use the default socket on their next start.
+To change the selection, stop the service and enable the same scene/profile again.
 A manual Start cannot replace a currently recorded systemd-owned scene, or vice versa; stop the
 current owner first. Stop scene routes systemd-owned runs through systemctl, while preserving
 the enabled/disabled setting. Same-project recorded container conflicts involving autostart

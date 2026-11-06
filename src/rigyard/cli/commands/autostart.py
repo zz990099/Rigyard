@@ -31,6 +31,9 @@ def register_autostart_commands(actions: Any) -> None:
         parser.add_argument("--workspace-root", type=Path, dest="autostart_workspace")
         if name in {"enable", "_start"}:
             add_resolution_arguments(parser)
+            parser.add_argument(
+                "--isolated-socket", action="store_true", help="use a dedicated tmux server socket"
+            )
         if name == "enable":
             parser.add_argument("--dry-run", action="store_true")
         if name in {"enable", "disable"}:
@@ -51,7 +54,7 @@ def _handle(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             if args.unit:
                 parser.error("enable derives --unit from the selected scenario")
             planned = PlanAutostartUseCase(docker_sources(), args.style.render).plan(
-                args.scene_name, args.profile_name, request
+                args.scene_name, args.profile_name, request, isolated_socket=args.isolated_socket
             )
             if args.dry_run:
                 print(planned.content, file=args.output)
@@ -73,7 +76,10 @@ def _handle(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         if args.unit != expected:
             raise ScenarioPlanError("autostart unit does not match scenario identity")
         plan = replace(
-            plan, owner_unit=expected, tmux_socket=expected.removesuffix(".service"), attach=False
+            plan,
+            owner_unit=expected,
+            tmux_socket=expected.removesuffix(".service") if args.isolated_socket else None,
+            attach=False,
         )
         ScenarioService(owner_unit=expected).start(plan)
         return 0

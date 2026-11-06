@@ -66,7 +66,14 @@ class PlanAutostartUseCase:
     ) -> None:
         self.planner = PlanScenarioUseCase(sources=sources, formatter=formatter)
 
-    def plan(self, scene: str, profile: str | None, request: ResolutionRequest) -> AutostartPlan:
+    def plan(
+        self,
+        scene: str,
+        profile: str | None,
+        request: ResolutionRequest,
+        *,
+        isolated_socket: bool = False,
+    ) -> AutostartPlan:
         project = project_context(
             request.config_path, request.project, workspace_root=request.workspace_root
         )
@@ -127,6 +134,8 @@ class PlanAutostartUseCase:
             unit,
             "--non-interactive",
         )
+        if isolated_socket:
+            start += ("--isolated-socket",)
         for path, answer in sorted(answers.items()):
             start += ("--set", f"{path}={json.dumps(answer, ensure_ascii=False)}")
         stop = (*base, "scene", "autostart", "_stop", "--unit", unit)

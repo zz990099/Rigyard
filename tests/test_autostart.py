@@ -348,13 +348,22 @@ def test_cli_dry_run_does_not_modify_system(tmp_path):
     assert not (tmp_path / ".rigyard").exists()
 
 
-def test_cli_internal_start_and_stop_work_without_source_on_stop(tmp_path, monkeypatch):
-    planned = boot_plan(tmp_path)
+@pytest.mark.parametrize("isolated", [False, True])
+def test_cli_internal_start_and_stop_work_without_source_on_stop(tmp_path, monkeypatch, isolated):
+    config = project(tmp_path, scenario_yaml())
+    planned = PlanAutostartUseCase().plan(
+        "robot", None, ResolutionRequest(config, interactive=False), isolated_socket=isolated
+    )
     fake = SocketFake()
     monkeypatch.setattr("rigyard.scenarios.executor.ScenarioExecutor", lambda: executor(fake))
     start = next(line for line in planned.content.splitlines() if line.startswith("ExecStart="))
     argv = shlex.split(start.split("=", 1)[1])[3:]
     assert run(argv, stdout=io.StringIO()) == 0
+    (record,) = FileRunStore(config).records()
+    assert record.target.tmux_socket == (
+        planned.unit.removesuffix(".service") if isolated else None
+    )
+    assert record.target.owner_unit == planned.unit
     (tmp_path / "config/scenarios.yaml").unlink()
     stop = [
         "--config",
@@ -406,7 +415,7 @@ def test_menu_reuses_scenario_selection(tmp_path, monkeypatch):
     config = project(tmp_path, scenario_yaml())
     output = TTYBuffer()
     # Autostart Enable -> file -> scene -> accept default ROS domain -> confirm.
-    app = MenuApp(MenuIO(TTYBuffer("1\n1\n1\n\ny\n"), output))
+    app = MenuApp(MenuIO(TTYBuffer("1\n1\n1\n\n\ny\n"), output))
     calls = []
     monkeypatch.setattr("rigyard.application.autostart.preflight", lambda *args: None)
     monkeypatch.setattr(

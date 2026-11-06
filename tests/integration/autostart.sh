@@ -3,6 +3,7 @@
 set -Eeuo pipefail
 project="$1"
 rigyard_bin="$2"
+unset TMUX_TMPDIR TMUX
 units=()
 cleanup_autostart() {
     status=$?
@@ -33,6 +34,8 @@ for scene in existing compose; do
     fi
     # Launch by systemd with no terminal or activated shell environment.
     sudo systemctl start "$unit" || { sudo journalctl -u "$unit" --no-pager; exit 1; }
+    session="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["target"]["session"])' .rigyard/runs/*.json)"
+    tmux ls -F '#{session_name}' | grep -Fx -- "$session"
     "$rigyard_bin" scene autostart status "$scene" ci
     "$rigyard_bin" scene status "$scene" ci --non-interactive
     "$rigyard_bin" scene logs "$scene" ci --instance app --group main | grep -q ready
@@ -48,7 +51,8 @@ for scene in existing compose; do
         printf 'Expected an inactive autostart service.\n' >&2
         exit 1
     fi
-    "$rigyard_bin" scene autostart enable "$scene" ci --non-interactive --now
+    "$rigyard_bin" scene autostart enable "$scene" ci --non-interactive --now --isolated-socket
+    tmux -L "${unit%.service}" has-session -t "=$session"
     # Stop does not require the scenario YAML to remain readable.
     mv config/scenarios.yaml config/scenarios.saved
     "$rigyard_bin" scene autostart disable --unit "$unit" --now

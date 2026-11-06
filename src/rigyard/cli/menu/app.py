@@ -515,7 +515,10 @@ class MenuApp:
         manager = SystemdManager()
         if action == "Enable":
             planned = PlanAutostartUseCase(self.sources, self.io.style.render).plan(
-                scene, profile, request
+                scene,
+                profile,
+                request,
+                isolated_socket=self.io.confirm("Use an isolated tmux socket?", default=False),
             )
             for line in describe_scenario(planned.scenario):
                 self.io.write_field(line)
